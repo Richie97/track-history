@@ -215,7 +215,7 @@ struct EventScreen: View {
         guard let comments else { return }
         await comments.load()
         guard comments.comments.contains(where: { $0.lapId == nil && !$0.mine && !$0.seen }) else { return }
-        auth.noteCommentsSeen(await comments.markSeen())
+        await auth.noteCommentsSeen(await comments.markSeen())
     }
 
     // MARK: - The page
@@ -245,7 +245,8 @@ struct EventScreen: View {
                 Divider()
                 AnalysisColumn(
                     detail: detail,
-                    selectedSessionId: $selectedChannelSessionId
+                    selectedSessionId: $selectedChannelSessionId,
+                    comments: comments
                 )
                 .measuringPaneWidth()
                 .frame(width: analysisWidth)
@@ -546,7 +547,10 @@ struct EventScreen: View {
                                 Spacer()
                                 TETime(ms: best, emphasized: true)
                             }
-                            TrackMapView(trace: session.trace ?? [], markers: markers)
+                            TrackMapView(
+                                trace: session.trace ?? [], markers: markers,
+                                marks: comments?.mapFractions(session) ?? []
+                            )
                                 .frame(height: 220)
                             LimitLegend(markers: markers)
                         }
@@ -558,6 +562,12 @@ struct EventScreen: View {
         }
     }
 
+    /// ", 2 comments, 1 unread" on a lap row's spoken label, or nothing.
+    static func commentsSpoken(_ count: Comments.Count?) -> String {
+        let text = Comments.commentCountText(count)
+        return text.isEmpty ? "" : ", \(text)"
+    }
+
     /// Where the best lap hit its limit (#188), for the trace map.
     ///
     /// The stored trace is the **best lap only**, so the runs come from that
@@ -565,12 +575,6 @@ struct EventScreen: View {
     /// where that lap never was. Other laps get the shaded bands on the channel
     /// panel's distance axis instead, which is the same constraint the web works
     /// under.
-    /// ", 2 comments, 1 unread" on a lap row's spoken label, or nothing.
-    static func commentsSpoken(_ count: Comments.Count?) -> String {
-        let text = Comments.commentCountText(count)
-        return text.isEmpty ? "" : ", \(text)"
-    }
-
     static func limitMarkers(_ session: Session) -> [Limits.Marker] {
         guard let channels = session.channels, !channels.laps.isEmpty, let trace = session.trace else {
             return []

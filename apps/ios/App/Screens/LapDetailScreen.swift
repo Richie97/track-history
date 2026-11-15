@@ -87,7 +87,7 @@ struct LapDetailScreen: View {
             }
             if let comments {
                 await comments.load()
-                auth.noteCommentsSeen(await comments.markSeen())
+                await auth.noteCommentsSeen(await comments.markSeen())
             }
         }
     }

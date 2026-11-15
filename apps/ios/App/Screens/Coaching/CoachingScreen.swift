@@ -32,7 +32,9 @@ struct CoachingScreen: View {
             if model == nil {
                 let model = CoachingModel(api: auth.api)
                 self.model = model
+                async let feed: Void = auth.inbox.refresh()
                 await model.load()
+                await feed
             }
         }
         // Back from the profile form, or from a student's logbook: the page's
@@ -62,7 +64,7 @@ struct CoachingScreen: View {
                 }
             }
 
-            if let feed = model.feed, !feed.comments.isEmpty {
+            if let feed = auth.inbox.feed, !feed.comments.isEmpty {
                 TESectionHeader("Recent comments")
                 TECard {
                     VStack(alignment: .leading, spacing: 12) {
@@ -361,8 +363,6 @@ final class CoachingModel {
     private(set) var students: [Coaching.Student] = []
     private(set) var invites: [Coaching.OpenInvite] = []
     private(set) var profile: DriverProfile?
-    /// What was said to you in comments (NS-52), newest first. Allowed to fail.
-    private(set) var feed: CommentFeed?
     /// The invite just minted — its link exists only in this answer.
     private(set) var created: CoachInvite?
     private(set) var isCreating = false
@@ -397,13 +397,11 @@ final class CoachingModel {
         do {
             async let coaching = api.coaching()
             async let mine = api.profile()
-            async let said = try? api.commentFeed()
             let loaded = try await (coaching: coaching, profile: mine)
             coaches = loaded.coaching.coaches
             students = loaded.coaching.students
             invites = loaded.coaching.invites
             profile = loaded.profile.profile
-            feed = await said
             state = .ready
         } catch let error as APIError {
             state = .failed(error.message)

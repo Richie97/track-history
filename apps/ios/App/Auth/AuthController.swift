@@ -25,7 +25,17 @@ final class AuthController {
         case signedIn(Me?)
     }
 
-    private(set) var state: State = .unknown
+    private(set) var state: State = .unknown {
+        didSet {
+            switch state {
+            // `/me`'s count is the newest word on unread comments whenever an
+            // account arrives; the inbox keeps it until the next one.
+            case .signedIn(let me): if let n = me?.user.commentsUnread { inbox.setUnread(n) }
+            case .signedOut: inbox.clear()
+            case .unknown, .signingIn: break
+            }
+        }
+    }
     /// Which buttons the sign-in screen should draw. Apple only when the server
     /// advertises it — seeded from what this server said last time, so a failed
     /// fetch doesn't silently drop back to Google-only. See `refreshProviders`.
@@ -62,25 +72,24 @@ final class AuthController {
         state = .signedIn(current)
     }
 
-    /// Coach comments (NS-52) waiting to be read, both roles — Settings'
-    /// Coaching row carries it. Zero until the account loads.
-    var commentsUnread: Int {
-        me?.user.commentsUnread ?? 0
-    }
+    /// Coach comments (NS-52) waiting to be read, both roles: the one value
+    /// the dashboard's card, Settings' Coaching row and the Coaching page read
+    /// (`CommentInbox`), so a thread read beside the dashboard at expanded
+    /// width clears the card the same moment.
+    let inbox: CommentInbox
+
+    var commentsUnread: Int { inbox.unread }
 
     /// A fresher count than the cached account's, from a `/me` another screen
     /// read (the dashboard's).
     func setCommentsUnread(_ count: Int?) {
-        guard var current = me, let count, current.user.commentsUnread != count else { return }
-        current.user.commentsUnread = count
-        state = .signedIn(current)
+        if let count { inbox.setUnread(count) }
     }
 
-    /// `POST …/comments/seen` marked `seen` comments read: the badge drops by as
-    /// many, without a round trip — the web's `paintCommentsBadge`.
-    func noteCommentsSeen(_ seen: Int) {
-        guard seen > 0 else { return }
-        setCommentsUnread(max(0, commentsUnread - seen))
+    /// `POST …/comments/seen` marked `seen` comments read: the count drops by as
+    /// many at once, and the feed is read again.
+    func noteCommentsSeen(_ seen: Int) async {
+        await inbox.seen(seen)
     }
 
     /// Re-fetch the account, best effort. Failing leaves whatever was there — the
@@ -156,7 +165,9 @@ final class AuthController {
         if offline == nil {
             Self.log.error("offline store unavailable; running online-only")
         }
-        self.api = APIClient(baseURL: server.url, tokens: tokens, offline: offline)
+        let api = APIClient(baseURL: server.url, tokens: tokens, offline: offline)
+        self.api = api
+        self.inbox = CommentInbox { try await api.commentFeed() }
         self.webAuth = webAuth ?? WebAuthSession()
     }
 

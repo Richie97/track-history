@@ -17,6 +17,9 @@ import TrackEvolutionKit
 struct AnalysisColumn: View {
     let detail: EventDetail
     @Binding var selectedSessionId: Int?
+    /// The event's coach comments (NS-52), for the ◆ marks on the map and
+    /// the charts. nil draws none.
+    var comments: CommentsModel? = nil
 
     @Environment(AuthController.self) private var auth
     /// Whose logbook: the student's in a coach's view (NS-38), which decides both
@@ -82,7 +85,8 @@ struct AnalysisColumn: View {
                         trace: trace,
                         markers: markers,
                         highlight: ringedIndex(session, trace: trace),
-                        dots: dots
+                        dots: dots,
+                        marks: comments?.mapFractions(session) ?? []
                     )
                     .frame(height: 240)
                     LimitLegend(markers: markers)
@@ -121,7 +125,8 @@ struct AnalysisColumn: View {
                     laps: session.laps,
                     pro: owner.canViewChannels(viewer: auth.entitlement),
                     onHit: { hit = $0 },
-                    onCursor: { dots = $0 }
+                    onCursor: { dots = $0 },
+                    commentMarks: comments?.panelMarks(session) ?? []
                 )
                     // Keyed by session: `lit` holds *channel-lap indexes*, which
                     // mean different laps in a different session, so carrying them

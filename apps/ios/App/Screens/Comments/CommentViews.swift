@@ -87,6 +87,32 @@ final class CommentsModel {
         isOwner ? Comments.canReply(coach(thread.coachId)) : true
     }
 
+    /// A session's placed comments on its channel panel: each on its lap's
+    /// own channel entry, as a fractional grid index — drawn by the panel's
+    /// overlay as a ◆, never in a chart's data.
+    func panelMarks(_ session: Session) -> [LapChannelPanel.CommentMark] {
+        guard let channels = session.channels, channels.dStepM > 0, !channels.laps.isEmpty else { return [] }
+        let matched = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter(\.hasChannels)
+        return comments.compactMap { c in
+            guard c.sessionId == session.id, let lapId = c.lapId, let distM = c.distM,
+                  let chIdx = matched.first(where: { $0.lap.id == lapId })?.chIdx
+            else { return nil }
+            return LapChannelPanel.CommentMark(id: c.id, chIdx: chIdx, k: Double(distM) / channels.dStepM)
+        }
+    }
+
+    /// …and on the session's map, every lap's, as fractions of that lap's own
+    /// length (`Comments.commentMarkers`). The map is the best lap's line, so a
+    /// mark is the place, whichever lap it was said about.
+    func mapFractions(_ session: Session) -> [Double] {
+        guard let channels = session.channels else { return [] }
+        let matched = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps).filter(\.hasChannels)
+        return matched.flatMap { match -> [Double] in
+            let length = LapAxis.lapAxisSeries(channels.laps[match.chIdx], channels.dStepM, .distance)?.last
+            return Comments.commentMarkers(comments, match.lap.id, length).map(\.frac)
+        }
+    }
+
     /// Send; throws for the composer to word with `Comments.commentError`.
     func send(sessionId: Int, coachId: Int, body: String, lapId: Int?, distM: Int?) async throws {
         _ = try await api.postComment(
@@ -686,7 +712,7 @@ struct SessionCommentScreen: View {
             async let read: Void = event.load()
             await comments.load()
             await read
-            auth.noteCommentsSeen(await comments.markSeen())
+            await auth.noteCommentsSeen(await comments.markSeen())
         }
     }
 
@@ -737,6 +763,51 @@ struct SessionCommentScreen: View {
 }
 
 // MARK: - Unread
+
+/// Unread coach comments, in one place (NS-52): the count and the feed
+/// (`GET /coaching/comments`) that the dashboard's card, Settings' Coaching row
+/// and the Coaching page all read. One value rather than a copy per screen,
+/// because at expanded width the dashboard stays in the list pane while a
+/// thread is read beside it — a copy it fetched on load went on saying
+/// "3 new comments" after they had been read (the bug Android shipped first).
+///
+/// A successful `/seen` lowers the count at once and reads the feed again; the
+/// account's `/me` sets the count whenever it arrives. The fetch is injected,
+/// so the rules are tested without a server (`CommentInboxTests`).
+@MainActor
+@Observable
+final class CommentInbox {
+    private(set) var feed: CommentFeed?
+    private(set) var unread = 0
+    private let fetch: () async throws -> CommentFeed
+
+    init(fetch: @escaping () async throws -> CommentFeed) {
+        self.fetch = fetch
+    }
+
+    func setUnread(_ count: Int) {
+        unread = max(0, count)
+    }
+
+    /// Read the feed; a failure keeps what was there.
+    func refresh() async {
+        guard let fresh = try? await fetch() else { return }
+        feed = fresh
+        unread = fresh.unread
+    }
+
+    /// `seen` comments were just marked read on the server.
+    func seen(_ seen: Int) async {
+        guard seen > 0 else { return }
+        unread = max(0, unread - seen)
+        await refresh()
+    }
+
+    func clear() {
+        feed = nil
+        unread = 0
+    }
+}
 
 /// What was said to you, as a dashboard card while anything is unread: the
 /// comment itself when there is one, the count and the Coaching page when

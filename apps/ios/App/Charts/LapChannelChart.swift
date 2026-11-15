@@ -65,13 +65,7 @@ struct LapChannelChart: View {
     /// fractional grid index on it. Drawn as a ◆ on every lap-axis chart's top
     /// edge, in the overlay layer and never in a chart's samples, for each lit
     /// lap — the playhead's rule.
-    var commentMarks: [CommentMark] = []
-
-    struct CommentMark: Equatable {
-        let id: Int
-        let chIdx: Int
-        let k: Double
-    }
+    var commentMarks: [LapChannelPanel.CommentMark] = []
 
     var body: some View {
         ScrollView {
@@ -85,7 +79,7 @@ struct LapChannelChart: View {
                 .foregroundStyle(Color(.textFaint))
                 LapChannelPanel(
                     channels: channels, laps: laps, preselect: preselect, pro: pro, freeNote: freeNote, onHit: onHit,
-                    mapTrace: mapTrace, onCursor: onCursor
+                    mapTrace: mapTrace, onCursor: onCursor, commentMarks: commentMarks
                 )
             }
             .padding(TESpacing.pageGutter)
@@ -333,6 +327,18 @@ struct LapChannelPanel: View {
         return VideoSync.gridAtElapsed(xs, x)
     }
 
+    /// The comments' places on the panel's own map: each as a fraction of its
+    /// own lap — the map is the best lap's line, so it marks the place.
+    private var commentFractions: [Double] {
+        commentMarks.compactMap { mark in
+            guard channels.laps.indices.contains(mark.chIdx),
+                  let length = LapAxis.lapAxisSeries(channels.laps[mark.chIdx], channels.dStepM, .distance)?.last,
+                  length > 0
+            else { return nil }
+            return max(0, min(1, mark.k * channels.dStepM / length))
+        }
+    }
+
     /// The comments' places on one chart: each lit lap's, at its axis value.
     private func commentDiamonds(_ axisX: (Int, Double) -> Double?) -> [AxisMarkLayer.Diamond] {
         commentMarks.compactMap { mark in
@@ -521,7 +527,7 @@ struct LapChannelPanel: View {
             let dots = cursorDots(f)
             TECard {
                 VStack(alignment: .leading, spacing: 6) {
-                    TrackMapView(trace: mapTrace, dots: dots)
+                    TrackMapView(trace: mapTrace, dots: dots, marks: commentFractions)
                         .frame(height: 130)
                     Text(
                         dots.isEmpty

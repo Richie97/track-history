@@ -75,6 +75,7 @@
 		8956AB4D920BC0AFC8FFE7C4 /* ChecklistTemplateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CE53488843E1D73126026F6 /* ChecklistTemplateUITests.swift */; };
 		8990E2C22F8CF6730645B7CE /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD78980A94180BC2F78537A /* KeychainTokenStore.swift */; };
 		8A611773FB3670E0A503600B /* SetupNotebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7158D5E8CACC0DA1E1C11866 /* SetupNotebook.swift */; };
+		8A6D7280022DB34A27143911 /* CommentInboxTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEB403FBAA8AAA230C28AA94 /* CommentInboxTests.swift */; };
 		8BB1A99727A615E1004F4C13 /* SharedItemScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7634E1ACF86C3A5F2801478B /* SharedItemScreen.swift */; };
 		8C83CB39E3D4E1FA17811854 /* LapStageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAC320832699AC3A88681872 /* LapStageView.swift */; };
 		8DEED3F28EB9E00E7B8F691F /* ShiftTable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFB105961C2E3614671E7B7 /* ShiftTable.swift */; };
@@ -275,6 +276,7 @@
 		E4BCC1C97D1799A72911B052 /* ClipUploader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipUploader.swift; sourceTree = "<group>"; };
 		E7D8720DD4F67BA47FB3A473 /* TelemetryImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryImporter.swift; sourceTree = "<group>"; };
 		EAC320832699AC3A88681872 /* LapStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapStageView.swift; sourceTree = "<group>"; };
+		EEB403FBAA8AAA230C28AA94 /* CommentInboxTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentInboxTests.swift; sourceTree = "<group>"; };
 		F06DF26F461D56CF24E50A58 /* LapChannelPanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LapChannelPanelTests.swift; sourceTree = "<group>"; };
 		F3556BEFE3E9C4894EC8783F /* TrackMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackMapView.swift; sourceTree = "<group>"; };
 		F48AE0050A975A2D2C847DDB /* RecordingBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingBanner.swift; sourceTree = "<group>"; };
@@ -436,6 +438,7 @@
 			children = (
 				3527336F7D5432ACB912FD63 /* AnalyticsPathTests.swift */,
 				DA978A264D14BAB2CBE1D837 /* CoachingRoutesTests.swift */,
+				EEB403FBAA8AAA230C28AA94 /* CommentInboxTests.swift */,
 				9717B63A2B268C68C01FC9BC /* DroppedClipTests.swift */,
 				320D4C9538F7FD94EC183091 /* EmptyStateTests.swift */,
 				8927719B2D448EDF43F3FCC9 /* EventFormDraftTests.swift */,
@@ -823,6 +826,7 @@
 			files = (
 				42B03C0F1FED64CD39B3CCF6 /* AnalyticsPathTests.swift in Sources */,
 				C509C29CBCCDFCAD0911F20F /* CoachingRoutesTests.swift in Sources */,
+				8A6D7280022DB34A27143911 /* CommentInboxTests.swift in Sources */,
 				C79E68610F3F0CC012D94722 /* DroppedClipTests.swift in Sources */,
 				347D218F9A9F02DE1799BE84 /* EmptyStateTests.swift in Sources */,
 				59C8927C18AEAFDA0A97F1DE /* EventFormDraftTests.swift in Sources */,

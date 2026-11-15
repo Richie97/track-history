@@ -107,6 +107,8 @@ struct DashboardScreen: View {
                 await model.load()
                 router.garageAlertCount = Garage.garageAlerts(model.garage).count
                 auth.setCommentsUnread(model.commentsUnread)
+                // Beside the garage, and like it allowed to fail.
+                await auth.inbox.refresh()
                 // Only once the dashboard is on screen: this is a background warm-up
                 // for the paddock, and it must never delay first paint.
                 await model.warmCache()
@@ -235,7 +237,7 @@ struct DashboardScreen: View {
                 wrappedBanner(year)
             }
 
-            if let feed = model.commentFeed {
+            if let feed = auth.inbox.feed, auth.inbox.unread > 0 {
                 UnreadCommentsCard(feed: feed) { openFromList($0) }
             }
 
@@ -284,6 +286,7 @@ struct DashboardScreen: View {
             await model.load()
             router.garageAlertCount = Garage.garageAlerts(model.garage).count
             auth.setCommentsUnread(model.commentsUnread)
+            await auth.inbox.refresh()
         }
     }
 
@@ -583,9 +586,6 @@ final class DashboardModel {
     private(set) var tracks: [Track] = []
     private(set) var events: [Event] = []
     private(set) var garage: [GarageVehicle] = []
-    /// What coaches (or students) said to you (NS-52), for the unread card.
-    /// Fetched beside the garage and, like it, allowed to fail.
-    private(set) var commentFeed: CommentFeed?
     /// `/me`'s unread count, handed to the account so Settings agrees.
     private(set) var commentsUnread: Int?
 
@@ -601,7 +601,6 @@ final class DashboardModel {
     /// because a user's empty garage 500'd would be the wrong trade.
     func load() async {
         async let garageList = try? api.garage()
-        async let feed = try? api.commentFeed()
         do {
             async let account = api.me()
             async let trackList = api.tracks()
@@ -618,7 +617,6 @@ final class DashboardModel {
             state = .failed(error.localizedDescription)
         }
         garage = await garageList ?? []
-        commentFeed = await feed
     }
 
     func warmCache() async {
