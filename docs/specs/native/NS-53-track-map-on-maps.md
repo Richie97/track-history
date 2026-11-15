@@ -227,6 +227,26 @@ coach's view does not prefix it), and draws `speedRuns` as polyline
 overlays. While `state.me.maps.web` is false the viewer offers Line only.
 `th-map-type` in localStorage. Escape closes.
 
+#### As built — web
+
+- **Line is the drawn line, not a map without tiles.** MapKit JS has no
+  tile-less type, so *Line* is `renderTrackMap` on a canvas sized to the
+  viewer: no pan or zoom there, and no tap read-out. It is also what shows
+  while MapKit loads, and what stays when it cannot.
+- **The tap's speed comes from the lap's channel entry**, never the trace's
+  third value, whose unit depends on the source. A session with no channel
+  entry for its best lap reads distance along the line only.
+- **Limit marks need the lap's `flags` / `wheelSlip`**, which are Pro
+  channels, so a free account's map carries the line, the start/finish pin
+  and the direction arrow.
+- **No zoom-out limit** is set; MapKit's own range applies. Keyboard pan and
+  zoom are MapKit's.
+- **Markers are zero-size wrappers** around a centred child, because MapKit
+  anchors a custom annotation at its element's bottom centre.
+- The viewer was exercised in a browser against a stand-in for MapKit JS
+  (the same calls, drawn on a canvas). **Apple's real imagery has not been
+  seen from this code yet**: the first open on the deployed app is that test.
+
 ## Privacy, legal and stores
 
 - Opening the viewer sends the viewed area and the device's IP to Apple (iOS,
@@ -258,9 +278,10 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
 2. **iOS.** The `Geo` ports, importers and recorder sending the anchor, the
    viewer.
 3. **Android.** The same, plus the Maps key and the Data safety review.
-4. **Web.** `GET /api/map-token` and `user.maps` on `/me` (moved here from
-   ticket 1: they are only testable against the viewer that uses them), the
-   `MAPKIT_*` secrets, `map-viewer.js`, the privacy page.
+4. **Web — landed.** `GET /api/map-token` and `user.maps` on `/me` (moved
+   here from ticket 1: they are only testable against the viewer that uses
+   them), the `MAPKIT_*` secrets, `map-viewer.js`, the privacy page. See
+   *As built — web* below.
 
 Tickets 2–4 are independent of each other.
 

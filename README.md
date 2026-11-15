@@ -1528,9 +1528,9 @@ A session's best-lap trace is `[x, y, v]` in local metres — a shape with no
 place. Since migration `0037` the session also keeps `trace_geo`,
 `{ lat, lon }` in decimal degrees: the origin the importer projected the
 trace from (`traceOrigin` in `public/js/import/geo.js`), sent beside `trace`
-on `POST /events/:id/sessions`. It is what will let the racing line be drawn
-over a real map (`docs/specs/native/NS-53-track-map-on-maps.md`; the map
-viewers themselves are not built yet).
+on `POST /events/:id/sessions`. It is what lets the racing line be drawn over
+a real map (`docs/specs/native/NS-53-track-map-on-maps.md`): the web's viewer
+is below, the phones' are not built yet.
 
 - **A bad anchor never costs a session.** Anything that is not a plausible
   coordinate is stored as null (`sanitizeTraceGeo` in `src/lib/geo.ts`); there
@@ -1550,6 +1550,41 @@ viewers themselves are not built yet).
   recording can be made anywhere, and a link tells a stranger the line, not
   the coordinates. The logbook export carries the stored value, never a
   borrowed one.
+
+### The racing line on a map (web)
+
+*Open on a map*, on the event page's best-lap trace card and on a leaderboard
+lap, opens `#/event/:id/session/:sid/map` (or
+`#/track/:id/leaderboard/:lapId/map`): the line over Apple's satellite
+imagery, drawn with MapKit JS by `public/js/map-viewer.js`. Drag, pinch and
+rotate; *Satellite / Map / Line* switches the backdrop and is remembered per
+browser; clicking the line reads the speed and distance there from the lap's
+own channel entry. A coach gets the same view of a student's session.
+
+- **Nothing loads from Apple until the viewer is opened.** The script is
+  injected on first open and authorises through `GET /api/map-token`, a
+  half-hour ES256 token the Worker signs (`src/lib/maps.ts`) and binds to the
+  page's own origin. The route is free, rate-limited per user (`MAP_TOKEN`)
+  and never cached.
+- **The line never depends on the map.** A session with no anchor, a
+  deployment with no key, or a browser that cannot reach Apple all leave the
+  viewer on the drawn line with a sentence saying which. A borrowed anchor
+  says *Position estimated from another session here.*
+- **Setup.** In the Apple developer account create a Maps ID
+  (Identifiers → Maps IDs), then a key with MapKit JS enabled and attached to
+  it, and set:
+
+  ```sh
+  npx wrangler secret put MAPKIT_KEY_ID
+  npx wrangler secret put MAPKIT_PRIVATE_KEY < AuthKey_XXXXXXXXXX.p8
+  ```
+
+  The token is issued under `APPLE_TEAM_ID`, which Sign in with Apple already
+  sets. Without all three, `GET /api/map-token` is a 404, `user.maps.web` on
+  `/api/me` is false, and the viewer offers the line alone. For local dev,
+  put the same values in `.dev.vars`; on a local host the token carries no
+  origin restriction.
+- The device's own position is never requested or shown.
 
 ## Garage logbook: consumables, wear & setup notebook
 
