@@ -27,7 +27,10 @@ pages in [`site/`](site/), deployed to GitHub Pages by
 `main` that touches `site/`. (One-time setup: repo *Settings → Pages → Source:
 GitHub Actions*.)
 
-The site also carries the newcomer's guide, `site/docs/track-days.html` — what
+The site also carries four general guides (tire pressures, reading a
+friction circle, lap consistency and the theoretical best, tracking brake pad
+and tire wear), each closing on how
+the app does it, and the newcomer's guide, `site/docs/track-days.html` — what
 an HPDE is, what the driver and the car need, where to find an event (the
 organizers' links), what happens on the day, and the tools drivers record
 laps with (PDR, Track Precision, VBOX, lap-timer apps, GoPro) with what each
@@ -2052,10 +2055,16 @@ Wrapped, which is free.
   part of the event detail, a share page or an MCP tool result. The web draws
   the threads on each session card (`public/js/comments.js` is the pure
   half), with a placed comment marked on the charts and the track map; the
-  logbook export includes them. On iOS (#449) they sit on the lap page under
-  the stage (placed with the playhead, marked on the charts and the map) and
-  on the event page's sessions, with an unread card on the dashboard and a
-  pushed form for a session comment; Android is #450.
+  logbook export includes them. **Android** has them too (#450): a lap's
+  *Comments* card under its stage with markers on the charts and the map,
+  each session card's thread with its composer inline and a count on its
+  lap rows, the markers on the session compare and the analysis column too,
+  the dashboard's unread card and Settings' count. **iOS** has them too
+  (#449): the lap page's card under the stage (placed with the playhead),
+  markers on the charts and maps of the lap page, the session compare and
+  the analysis column, each session's thread and lap-row counts on the event
+  page with a pushed form for a session comment, the dashboard's unread card
+  and Settings' count.
 - **On the web** the Coaching page (`#/coaching`, from the account menu and
   Settings) creates, lists and withdraws invites, lists and removes coaches,
   and lists the drivers you coach; `#/profile` is the profile form, built from

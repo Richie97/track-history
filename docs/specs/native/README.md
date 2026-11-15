@@ -571,7 +571,7 @@ Features added after the rewrite shipped, and where they landed:
   position today, so sessions gain a `trace_geo` anchor first; older ones
   borrow one from a newer session at the same track.
 - **Coach comments** (2026-11, [NS-52](NS-52-coach-comments.md)) — **all
-  three, both roles**: the web and iOS are built, Android is #450. A coach comments on a
+  three, both roles**; built on the web, Android and iOS. A coach comments on a
   student's session, lap or a place on a lap, in a thread private to that
   coach and the student; the student replies. It is the one write a coach
   makes, and it goes through the coach's own `/api/coaching/students/:id/…`

@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import app.trackevolution.core.EventDates
+import app.trackevolution.core.Comments
 import app.trackevolution.core.Garage
 import app.trackevolution.core.label
 import app.trackevolution.core.LapTime
@@ -95,6 +97,10 @@ fun DashboardScreen(
      */
     selection: Route? = null,
     modifier: Modifier = Modifier,
+    /** The unread comments card's single comment (NS-52): its event, in whichever logbook. */
+    onOpenCommentEvent: (FeedTarget) -> Unit = {},
+    /** The unread card with several: Coaching's *Recent comments*. */
+    onOpenCoaching: () -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -102,7 +108,9 @@ fun DashboardScreen(
     // card's minimum — so the compact layout is unchanged without a branch.
     val cardColumns = LocalLayoutMetrics.current.columns(CARD_GRID_MINIMUM)
 
-    LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
+    // Back on the dashboard after reading a thread, the card catches up.
+    LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() else model.refreshFeed() }
+    val commentFeed by CommentsBadge.feed.collectAsState()
 
     Column(modifier = modifier) {
         DashboardTopBar(onOpenSettings = onOpenSettings)
@@ -184,6 +192,15 @@ fun DashboardScreen(
                     // its own control under the hero, since the hero is one already.
                     model.heroGarage?.let { due ->
                         item("hero-garage") { HeroGarageLine(due) { onOpenVehicle(due.vehicleId) } }
+                    }
+                }
+
+                // Coach comments waiting to be read (NS-52), above the tracks.
+                // Read through the shared badge, so a thread read beside this
+                // pane (expanded width) takes the card down at once.
+                commentFeed?.takeIf { Comments.unreadLine(it) != null }?.let { feed ->
+                    item("unread-comments") {
+                        UnreadCommentsCard(feed, onOpenEvent = onOpenCommentEvent, onOpenCoaching = onOpenCoaching)
                     }
                 }
 

@@ -253,6 +253,37 @@ fail on a capture no model maps.
   and Gradle could not reach Google's Maven), so the decode models were
   checked by CI first.
 
+### As built (ticket 3, Android)
+
+- `Comments` in `:core` is the port, under the JS names (the JS objects
+  become small data classes: `Thread`, `Grouped` / `LapComments`, `Counts` /
+  `Count`, `Marker`), pinned by `CommentsTest` against every row of
+  `comments.json`. `groupComments` takes `(comments, sessionId, laps)` with a
+  `Session` overload.
+- The routes on `ApiClient` take the `LogbookOwner` whose logbook it is and
+  always run on `ApiClient.own`, so a coach's comment leaves from the
+  student's scoped view while that view keeps refusing every other write.
+- The session composer is **an inline row on the session card**, as above:
+  the text box and a row of chips (*Whole session* / *Lap N*), collapsed to a
+  button until opened. The lap page's composer is inline under the stage and
+  is offered on a lap with no comments yet — always to a coach, and to the
+  owner for each coach whose thread on the event is open. Drafts are in the
+  destination's `SavedStateHandle`, keyed by target.
+- The composer's place is taken on a tap (*◆ At the marked place*) from the
+  stage's playhead or the panel's parked mark, never read in composition;
+  before the line there is no place and it says so.
+- Markers: a diamond on each lap-axis chart's top edge (a draw-phase overlay
+  beside the playhead's), and a pin on every map of the session — on the lap
+  page, the session compare, and the event page's best-lap trace and its
+  expanded-width analysis column.
+- The block control is on each comment someone else wrote (*Remove coach* /
+  *Stop coaching*), beside *Report*, as well as on the Coaching page.
+- Run: `:core:test`, `:core:check`, `:app:testDebugUnitTest`,
+  `:app:assembleDebug`, `:app:checkReleaseHasNoCarApp`, and the debug build
+  on an emulator against `wrangler dev`.
+- Release step, outside any build: Play's Data safety form gains *other user
+  content, shared with other users*.
+
 ### As built (ticket 2, iOS)
 
 - **The port** is `Comments` in the Kit (`Models/CommentRules.swift`), under
@@ -285,11 +316,21 @@ fail on a capture no model maps.
   block — *Remove coach* for the owner (while the grant is live), *Stop
   coaching* for a coach — confirmed through the Coaching page's own
   `CoachingModel.Confirmation` wording.
-- **Unread**: the dashboard's card (`UnreadCommentsCard`, opening the lap, the
-  event or Coaching), Settings' Coaching row from `/me`'s `comments_unread`,
-  and on the Coaching page *Recent comments* plus each grant's unread.
-- Not built: markers on the event page's expanded-width analysis column and
-  its sheet panel (the lap page is where placed comments are read and made).
+- **Markers everywhere the session's panel or map is drawn**: the lap page,
+  the session compare (charts and the stage's map), the event page's
+  best-lap trace and its expanded-width analysis column (map and charts).
+- **Unread** is one value, `CommentInbox` on `AuthController`: the count
+  (from `/me`, and from the feed) and `GET /coaching/comments`. The
+  dashboard's card (`UnreadCommentsCard`, opening the lap, the event or
+  Coaching), Settings' Coaching row and the Coaching page's *Recent comments*
+  all read it, and a successful `/seen` lowers the count and reads the feed
+  again — so at expanded width a thread read beside the dashboard clears its
+  card (`CommentInboxTests`).
+- **The first comment on a lap**: a coach's own thread is always offered,
+  empty, so the lap page's composer starts it — at a place — on a lap with no
+  comments yet (`CoachingUITests` does exactly that).
+- Release step, outside any build: the App Privacy label gains *other user
+  content, shared with other users*.
 
 ## Clients
 
