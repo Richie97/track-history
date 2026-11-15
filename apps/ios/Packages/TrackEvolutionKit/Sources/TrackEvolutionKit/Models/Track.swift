@@ -118,12 +118,17 @@ public struct LeaderboardLap: Codable, Hashable, Sendable, Identifiable {
     public var ambientC: Double?
     public var elevationM: Double?
     public var trace: [TracePoint]?
+    /// Where ``trace`` lies (NS-53) — the lap's own anchor or one borrowed
+    /// from its owner's sessions at the track. A leaderboard is always a
+    /// catalog circuit, so this says nothing the track's name doesn't.
+    public var traceGeo: TraceGeo?
     public var channels: SessionChannels?
 
     public var id: Int { lapId }
 
     public enum CodingKeys: String, CodingKey {
         case name, you, date, trace, channels
+        case traceGeo = "trace_geo"
         case lapId = "lap_id"
         case timeMs = "time_ms"
         case ambientC = "ambient_c"

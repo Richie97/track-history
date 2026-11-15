@@ -585,6 +585,7 @@ async function applyLocal(m) {
       notes: m.body?.notes ?? null,
       sort: Math.max(0, ...d.sessions.map((s) => s.sort ?? 0)) + 1,
       trace: m.body?.trace ?? null,
+      trace_geo: m.body?.trace ? (m.body?.trace_geo ?? null) : null,
       channels: m.body?.channels ?? null,
       laps: laps.map((ms, i) => ({
         id: `${m.tempId}-l${i + 1}`,

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { catalogIdForName, eventListStmt, tracksSummary } from "../db";
+import { catalogIdForName, eventListStmt, traceDonorForTrackStmt, tracksSummary } from "../db";
+import { type DonorRow, parseTrace, parseTraceGeo, resolveTraceGeo } from "../lib/geo";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidGoal } from "../lib/validate";
 import { isEntitled, stripProFields } from "../lib/entitlement";
@@ -180,8 +181,8 @@ tracks.get("/tracks/:id/leaderboard/laps/:lapId", async (c) => {
 
   const lap = (await c.env.DB.prepare(
     `SELECT l.id AS lap_id, l.time_ms, t.user_id AS owner_id, u.name,
-            e.start_date AS date,
-            s.trace, s.channels, s.ambient_c, s.elevation_m
+            e.start_date AS date, e.track_id,
+            s.trace, s.trace_geo, s.channels, s.ambient_c, s.elevation_m
        FROM laps l
        JOIN sessions s ON s.id = l.session_id
        JOIN events e ON e.id = s.event_id
@@ -200,7 +201,9 @@ tracks.get("/tracks/:id/leaderboard/laps/:lapId", async (c) => {
     owner_id: number;
     name: string | null;
     date: string;
+    track_id: number;
     trace: string | null;
+    trace_geo: string | null;
     channels: string | null;
     ambient_c: number | null;
     elevation_m: number | null;
@@ -222,6 +225,15 @@ tracks.get("/tracks/:id/leaderboard/laps/:lapId", async (c) => {
   if (!best || best.ms !== lap.time_ms) return c.json({ error: "not found" }, 404);
 
   const channels = publicLapChannels(parseStoredChannels(lap.channels), lap.time_ms);
+  // Where the line lies (NS-53). A leaderboard is always a catalog circuit, so
+  // the coordinate says nothing the track's name doesn't. The lap's own
+  // anchor, else one borrowed from its *owner's* sessions at their track —
+  // never the viewer's — and read only when it is needed.
+  const trace = parseTrace(lap.trace);
+  let donor: DonorRow | null = null;
+  if (trace && !parseTraceGeo(lap.trace_geo)) {
+    donor = await traceDonorForTrackStmt(c.env.DB, lap.owner_id, lap.track_id).first<DonorRow>();
+  }
   return c.json(
     stripProFields(
       {
@@ -237,9 +249,10 @@ tracks.get("/tracks/:id/leaderboard/laps/:lapId", async (c) => {
         ambient_c: lap.ambient_c,
         elevation_m: lap.elevation_m,
         // Local-meter [x, y, v] points (migration 0005), so the racing line
-        // ports to the track map with no new decoder and carries no absolute
-        // position.
+        // ports to the track map with no new decoder; `trace_geo` beside it
+        // is where those metres are measured from.
         trace: lap.trace ? (JSON.parse(lap.trace) as unknown) : null,
+        trace_geo: resolveTraceGeo(trace, lap.trace_geo, donor),
         channels,
       },
       isEntitled(c.get("entitledUntil"), Date.now())

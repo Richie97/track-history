@@ -19,7 +19,7 @@
 // GPS trace), and the accelerations are m/s² then G (accelToG, shared with
 // vbo.js, whose _PTPA columns changed the same way).
 
-import { lapTrace, projectTrace } from "./geo.js";
+import { lapTrace, projectTrace, traceOrigin } from "./geo.js";
 import { carSilent, dateFromName, finishCarChannels } from "./vbo.js";
 
 // Car channels, by lowercased header -> channels.js name, converted as
@@ -263,6 +263,7 @@ export function parseTrackPrecisionCsv(text, fileName = null) {
     const best = laps.reduce((a, b) => (b.timeMs < a.timeMs ? b : a));
     bestLapTrace = lapTrace(projectTrace(points), best.startT, best.endT);
   }
+  const traceGeo = bestLapTrace ? traceOrigin(points) : null;
 
   // The name's date and time are the recording's own, in local time; the
   // UTC timestamp is the fallback, which can land on the neighbouring day.
@@ -279,6 +280,7 @@ export function parseTrackPrecisionCsv(text, fileName = null) {
     durationS: points[points.length - 1].t,
     laps,
     bestLapTrace,
+    traceGeo,
     gps: points,
     carChannels,
     lapScalarChannels,

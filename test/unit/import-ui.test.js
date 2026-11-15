@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyGate, metricsSummary } from "../../public/js/import/ui.js";
+import { applyGate, importSessionBody, metricsSummary } from "../../public/js/import/ui.js";
 import { buildGate, projectTrace } from "../../public/js/import/geo.js";
 import { anchorPdrBatch } from "../../public/js/import/pdr-laps.js";
 import { parseVboText } from "../../public/js/import/vbo.js";
@@ -31,6 +31,37 @@ describe("applyGate across longitude sign conventions", () => {
     for (const lap of [...vbo.laps, ...gps.laps]) {
       expect(Math.abs(lap.timeMs - LAP_S() * 1000)).toBeLessThan(300);
     }
+  });
+
+  it("anchors the batch at its shared origin, and a mirrored file not at all (NS-53)", () => {
+    const points = circleTrace();
+    const vbo = parseVboText(buildVboText(points));
+    const second = { kind: "gopro", needsLine: true, gps: points.slice(40), laps: [] };
+    const flipped = { kind: "gopro", needsLine: true, gps: points.map((p) => ({ ...p, lon: -p.lon })), laps: [] };
+    const state = {
+      results: [{ file: "a.vbo", parsed: vbo }, { file: "b.mp4", parsed: second }, { file: "c.mp4", parsed: flipped }],
+      origin: vbo.gps[0],
+      gate: null,
+    };
+    state.gate = buildGate(projectTrace(vbo.gps, state.origin), Math.round(0.25 * LAP_S() * 10));
+    applyGate(state);
+
+    const origin = { lat: Math.round(vbo.gps[0].lat * 1e7) / 1e7, lon: Math.round(vbo.gps[0].lon * 1e7) / 1e7 };
+    expect(vbo.traceGeo).toEqual(origin);
+    // Projected from the first file's first fix, not its own — and saved so.
+    expect(second.bestLapTrace.length).toBeGreaterThan(10);
+    expect(second.traceGeo).toEqual(origin);
+    // Timed through the mirror: a trace, and no truthful place for it.
+    expect(flipped.bestLapTrace.length).toBeGreaterThan(10);
+    expect(flipped.traceGeo).toBeNull();
+
+    expect(importSessionBody({ file: "b.mp4", parsed: second }, "", "imperial").trace_geo).toEqual(origin);
+    expect(importSessionBody({ file: "c.mp4", parsed: flipped }, "", "imperial").trace_geo).toBeNull();
+    // No pick, no trace, no anchor.
+    state.gate = null;
+    applyGate(state);
+    expect(second.traceGeo).toBeNull();
+    expect(importSessionBody({ file: "b.mp4", parsed: second }, "", "imperial").trace_geo).toBeNull();
   });
 
   it("leaves laps empty when a trace is genuinely elsewhere", () => {

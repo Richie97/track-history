@@ -1522,6 +1522,35 @@ privacy label and Play's Data safety form.
   carries the privacy policy and terms links (the only place the native apps,
   which render no footer, expose them).
 
+### Where a trace lies (`trace_geo`, NS-53)
+
+A session's best-lap trace is `[x, y, v]` in local metres — a shape with no
+place. Since migration `0037` the session also keeps `trace_geo`,
+`{ lat, lon }` in decimal degrees: the origin the importer projected the
+trace from (`traceOrigin` in `public/js/import/geo.js`), sent beside `trace`
+on `POST /events/:id/sessions`. It is what will let the racing line be drawn
+over a real map (`docs/specs/native/NS-53-track-map-on-maps.md`; the map
+viewers themselves are not built yet).
+
+- **A bad anchor never costs a session.** Anything that is not a plausible
+  coordinate is stored as null (`sanitizeTraceGeo` in `src/lib/geo.ts`); there
+  is no 400 for it.
+- **Older sessions borrow one.** A session saved before anchors were kept has
+  none, and its origin is gone. `GET /events/:id` lends it the anchor of the
+  account's newest anchored session at the same track by matching the two
+  laps' bounding-box centres (`borrowAnchor`), and marks it
+  `approx: true`. Outlines that differ by more than 15 % in either dimension
+  are a different layout and borrow nothing.
+- **The inverse uses the projection's own constants** (`KX`, `KY`), so a point
+  comes back exactly; a "more accurate" metres-per-degree figure would move
+  the far end of a long lap by metres.
+- **Who sees it:** the owner, an invited coach, and a leaderboard lap (always
+  a catalog circuit). It is free. A shared event or session link sends
+  `trace_geo: null` and the public logbook share never carries it — a
+  recording can be made anywhere, and a link tells a stranger the line, not
+  the coordinates. The logbook export carries the stored value, never a
+  borrowed one.
+
 ## Garage logbook: consumables, wear & setup notebook
 
 Each garage vehicle has a page (`#/vehicle/:id`) that folds the parts

@@ -28,7 +28,7 @@
 import { api } from "../api.js";
 import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
-import { bestLapTrace, buildGate, deriveLaps, projectTrace } from "./geo.js";
+import { bestLapTrace, buildGate, deriveLaps, projectTrace, traceOrigin } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
@@ -182,11 +182,13 @@ export function applyGate(state) {
     if (!state.gate) {
       p.laps = [];
       p.bestLapTrace = null;
+      p.traceGeo = null;
       p.lapChannels = null;
       continue;
     }
     let trace = projectTrace(p.gps, state.origin);
     let gate = state.gate;
+    let mirrored = false;
     if (traceDistanceTo(trace, gate) > 1000) {
       // This file's longitude sign convention differs from the displayed
       // trace (Racelogic VBO is west-positive, GPS sources east-positive).
@@ -196,13 +198,19 @@ export function applyGate(state) {
       if (traceDistanceTo(trace, gate) > 1000) {
         p.laps = [];
         p.bestLapTrace = null;
+        p.traceGeo = null;
         p.lapChannels = null;
         continue;
       }
       gate = { ...state.gate, hx: null, hy: null };
+      mirrored = true;
     }
     p.laps = deriveLaps(trace, gate);
     p.bestLapTrace = p.laps.length ? bestLapTrace(trace, gate) : null;
+    // Where the trace lies (NS-53): the batch's shared origin. A file that only
+    // fitted the line mirrored was projected from negated longitudes, and no
+    // origin describes that truthfully — it saves without one.
+    p.traceGeo = p.bestLapTrace && !mirrored ? traceOrigin(p.gps, state.origin) : null;
     attachLapChannels(p);
   }
 }
@@ -259,6 +267,7 @@ export function importSessionBody(r, label, units = currentUnits()) {
     notes: source + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
     laps: p.laps.map((l) => l.timeMs),
     trace: p.bestLapTrace ?? null,
+    trace_geo: p.bestLapTrace ? (p.traceGeo ?? null) : null,
     channels: p.lapChannels ?? null,
   };
 }

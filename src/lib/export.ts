@@ -28,6 +28,7 @@ export const UNITS_LEGEND = {
   temp_f: "degrees Fahrenheit, whole (an event's typed temperature)",
   ambient_c: "degrees Celsius (recorded by a session's telemetry)",
   elevation_m: "metres (the elevation range a session's recording spanned)",
+  trace_geo: "decimal degrees (the point a session's trace metres are measured from)",
   odometer_km: "kilometres (the car's own odometer at the end of a session)",
   hours: "hours on track",
   costs: "whole cents (cost_*_cents, cost_cents)",
