@@ -135,6 +135,24 @@ unread count. It mints an access token with the
 - The badge set to `/me`'s `comments_unread` on every foreground and after
   every `/seen`.
 
+### As built — ticket 2
+
+- `App/Push/PushController.swift` + `PushAskCard.swift`; the Kit's
+  `Models/Push.swift` (`PushDeviceDraft`, `CommentPushTarget`,
+  `DeepLink.commentPush`) and `APIClient.registerPushDevice` /
+  `unregisterPushDevice`. The tap is a new `DeepLink.comment(_)` case that
+  `parse(_:)` never produces, so it reuses the router's parking.
+- **Swizzling off** (`FirebaseAppDelegateProxyEnabled` false) and
+  `FirebaseMessagingAutoInitEnabled` false: no FCM token exists until the
+  user says yes.
+- **Foreground: always a banner.** The spec's "unless the thread is already
+  on screen" is not built — knowing which thread is on screen would need
+  every comment surface to report itself; a banner over the thread you are
+  reading is harmless. The inbox is refreshed when one arrives.
+- The badge follows `AuthController.commentsUnread`, which `/me` (re-read on
+  every foreground) and `/seen` already keep, rather than a separate read.
+- The toggle lives in Settings' *Coaching* card.
+
 ## Android (ticket 3)
 
 - `firebase-messaging` (BoM-versioned beside analytics); a
@@ -155,6 +173,23 @@ unread count. It mints an access token with the
 - Robolectric: the registrar's register/unregister/re-register on sign-in,
   the service building a notification on the right channel with the right
   `PendingIntent` extras.
+
+### As built — ticket 3
+
+- The tap target is a `DeepLink` case, `DeepLink.CommentPush`, built by
+  `DeepLink.commentPush(data)` and parked in the in-memory `Router` like any
+  link — not in `PendingInvite`'s persisted store. A notification reaches a
+  phone only while it holds a live session (sign-out deletes the device row),
+  so the signed-out cold start that needed persistence for an invite does not
+  arise here.
+- `firebase_messaging_auto_init_enabled` is **false** in the manifest:
+  turning notifications on is what first mints a token (and switches
+  auto-init on), so an install that never opts in never contacts Firebase
+  for messaging.
+- A quick on-then-off (or off-then-on) ends where the driver left it: each
+  change reads the stored choice when it runs, under one lock.
+- On the event page the ask shows once, on the first session card whose
+  thread qualifies, rather than on every card.
 
 ## Docs and disclosures (owed by the tickets that ship them)
 

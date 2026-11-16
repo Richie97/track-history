@@ -88,6 +88,21 @@
             android:name="google_analytics_default_allow_ad_personalization_signals"
             android:value="false" />
 
+        <!-- Coach-comment notifications (NS-54). Auto-init OFF: no FCM token is
+             minted, and nothing is sent to Firebase for messaging, until a
+             driver turns notifications on (PushRegistrar switches it on then).
+             The icon and channel are what FCM draws a background message with;
+             the server names the same channel in every message. -->
+        <meta-data
+            android:name="firebase_messaging_auto_init_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_comment" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="coach_comments" />
+
         <!-- Season Wrapped's poster (NS-36): the PNG the share sheet hands to
              another app lives in the cache directory, and this is how that app
              is allowed to read it — a content:// URI with a read grant, never a
@@ -182,6 +197,16 @@
             video upload (ClipUploadWorker, NS-45) runs under. Android 14+
             refuses setForeground with a type the service doesn't declare.
         -->
+        <!-- FCM's callbacks for coach-comment notifications (NS-54): token
+             rotation, and a message that arrives while the app is in front. -->
+        <service
+            android:name=".push.CommentMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"

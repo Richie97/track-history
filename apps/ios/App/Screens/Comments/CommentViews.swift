@@ -562,6 +562,9 @@ struct LapCommentsCard: View {
                         return Comments.commentError(error)
                     }
                 }
+                if model.asksForPush(thread) {
+                    PushAskCard(name: model.pushAskName(thread))
+                }
             } else {
                 Text(Comments.THREAD_CLOSED)
                     .teStyle(.xs)
@@ -654,6 +657,9 @@ struct SessionCommentsBlock: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(Color(.accentInk))
                     .accessibilityIdentifier("commentOnSession-\(session.id)")
+                if model.asksForPush(thread) {
+                    PushAskCard(name: model.pushAskName(thread))
+                }
             } else {
                 Text(Comments.THREAD_CLOSED)
                     .teStyle(.xs)

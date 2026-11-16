@@ -453,6 +453,25 @@ public actor APIClient {
         var slug: String
     }
 
+    // MARK: - Push notifications (NS-54)
+
+    /// Register this app session's phone for coach-comment notifications.
+    /// Re-registering replaces the session's row, and a token another account
+    /// held moves here. Live, **never queued**: a registration replayed later
+    /// could land on a session that has since signed out.
+    public func registerPushDevice(platform: PushPlatform, token: String) async throws {
+        _ = try await send(
+            "PUT", "/push/device", body: PushDeviceDraft(platform: platform, token: token), as: OKResponse.self
+        )
+    }
+
+    /// Stop notifying this phone (Settings' toggle). Idempotent, and live.
+    /// Signing out unregisters on its own — the server deletes the device
+    /// with the session — so this is only the toggle's.
+    public func unregisterPushDevice() async throws {
+        _ = try await send("DELETE", "/push/device", body: NoBody?.none, as: OKResponse.self)
+    }
+
     // MARK: - Sharing one event or session (NS-48)
 
     /// Share an event or a session: the existing link if there is one (200),

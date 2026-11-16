@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
 import app.trackevolution.clips.LocalClipStatus
+import app.trackevolution.push.CommentNotificationsCard
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.Garage
 import app.trackevolution.core.Units
@@ -151,6 +152,8 @@ fun SettingsScreen(
 
             item("lap-videos-header") { TESectionHeader("Lap videos") }
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
+            // Beside the cellular switch: both are this phone's, not the account's.
+            item("comment-notifications") { CommentNotificationsCard() }
 
             item("coaching-header") { TESectionHeader("Coaching") }
             item("coaching") {

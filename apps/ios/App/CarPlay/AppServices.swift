@@ -30,4 +30,8 @@ enum AppServices {
     /// Best-lap clips (NS-45): cut at save, uploaded by a background session that
     /// outlives every view — and the process — so it is one object for the app.
     static let clips = ClipUploader(auth: auth)
+    /// Coach-comment notifications (NS-54): the FCM token, its registration,
+    /// and where a tapped notification goes. One per process, because the
+    /// notification centre and Messaging each take exactly one delegate.
+    static let push = PushController(auth: auth)
 }

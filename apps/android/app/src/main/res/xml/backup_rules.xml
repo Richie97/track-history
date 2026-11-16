@@ -17,6 +17,10 @@
     PendingInvite): a single-use secret for the minutes between opening a link
     signed out and signing in. It has no business in a backup.
 
+    `push.xml` is this install's coach-comment notification choice (NS-54,
+    PushPrefs): a restored "on" would claim notifications on a phone that has
+    never registered a token or been asked for the permission.
+
     `clips/` (files) holds best-lap video clips waiting to upload and the
     JSON manifest of their upload jobs (NS-45, ClipManifest). A clip is
     hundreds of MB, and a restored manifest pointing at a clip that wasn't
@@ -25,5 +29,6 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="auth.xml" />
     <exclude domain="sharedpref" path="coaching.xml" />
+    <exclude domain="sharedpref" path="push.xml" />
     <exclude domain="file" path="clips/" />
 </full-backup-content>

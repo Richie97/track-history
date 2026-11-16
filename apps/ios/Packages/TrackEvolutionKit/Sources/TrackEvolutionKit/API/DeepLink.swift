@@ -33,6 +33,10 @@ public enum DeepLink: Hashable, Sendable {
     /// driver sends their coach. The accept screen previews it; nothing is
     /// accepted by opening it.
     case coachInvite(token: String)
+    /// A tapped coach-comment notification (NS-54) — not a URL at all, but the
+    /// notification's data read by ``commentPush(_:)``. Never produced by
+    /// ``parse(_:)``.
+    case comment(CommentPushTarget)
 
     /// The scheme's reserved host: the sign-in redirect, never a destination.
     private static let authHost = "auth"

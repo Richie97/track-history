@@ -276,6 +276,12 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     // Parked until sign-in by `PendingInvite` before it ever gets here; mapped
     // anyway so the table has no hole.
     is DeepLink.CoachInvite -> Route.CoachInvite(link.token)
+    // A tapped coach-comment notification (NS-54): the lap, else the event,
+    // in the student's logbook when the recipient was their coach.
+    is DeepLink.CommentPush -> when (val lapId = link.lapId) {
+        null -> Route.Event(link.eventId, student = link.studentId)
+        else -> Route.Lap(link.eventId, link.sessionId, lapId, student = link.studentId)
+    }
 }
 
 /**

@@ -194,6 +194,9 @@ maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = 
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+# Coach-comment notifications (NS-54, push/): FCM for the registration token and
+# the foreground message. Versioned by the same BoM as analytics.
+firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

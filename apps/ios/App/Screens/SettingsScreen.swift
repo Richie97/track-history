@@ -20,6 +20,8 @@ struct SettingsScreen: View {
     @Environment(ThemeStore.self) private var theme
     @Environment(AppRouter.self) private var router
     @Environment(StoreController.self) private var store
+    @Environment(PushController.self) private var push
+    @Environment(\.openURL) private var openURL
 
     @State private var model: SettingsModel?
     @State private var showingPaywall = false
@@ -110,6 +112,37 @@ struct SettingsScreen: View {
         }
     }
 
+    /// Coach-comment notifications on this phone (NS-54). On asks iOS when it
+    /// never has; when iOS has said no, only its own Settings can change that,
+    /// so the toggle opens it. Off unregisters this phone and nothing else.
+    @ViewBuilder
+    private var commentNotificationsToggle: some View {
+        if push.isAvailable {
+            Toggle(
+                "Comment notifications",
+                isOn: Binding(
+                    get: { push.isOn },
+                    set: { on in
+                        Task {
+                            if await push.setEnabled(on) == .openSystemSettings,
+                               let url = URL(string: UIApplication.openNotificationSettingsURLString) {
+                                openURL(url)
+                            }
+                        }
+                    }
+                )
+            )
+            .teStyle(.sm)
+            .tint(Color(.accent))
+            .accessibilityIdentifier("commentNotifications")
+            Text(push.permission == .denied
+                ? "Notifications are off for Track Evolution in iOS Settings — turning this on opens them."
+                : "A notification on this phone when your coach comments or a driver you coach replies.")
+                .teStyle(.xs)
+                .foregroundStyle(Color(.textMuted))
+        }
+    }
+
     private func content(_ model: SettingsModel) -> some View {
         @Bindable var model = model
         return TEPage {
@@ -162,6 +195,7 @@ struct SettingsScreen: View {
                     .buttonStyle(TEButtonStyle(kind: .quiet))
                     .accessibilityIdentifier("openCoaching")
                     .accessibilityValue(auth.commentsUnread > 0 ? "\(auth.commentsUnread) unread comments" : "")
+                    commentNotificationsToggle
                 }
             }
 

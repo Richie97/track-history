@@ -10,16 +10,19 @@
     `coaching.xml` (a parked invite token, NS-38) is excluded from both too,
     and so is `clips/` (best-lap videos waiting to upload and their job
     manifest, NS-45 — see backup_rules.xml).
+    `push.xml` (the notification choice, NS-54) is excluded from both too.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="auth.xml" />
         <exclude domain="sharedpref" path="coaching.xml" />
+        <exclude domain="sharedpref" path="push.xml" />
         <exclude domain="file" path="clips/" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="auth.xml" />
         <exclude domain="sharedpref" path="coaching.xml" />
+        <exclude domain="sharedpref" path="push.xml" />
         <exclude domain="file" path="clips/" />
     </device-transfer>
 </data-extraction-rules>

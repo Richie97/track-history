@@ -243,6 +243,9 @@ dependencies {
     // ad signals and automatic screen reporting.
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
+    // Coach-comment notifications (NS-54, push/): the FCM token and the
+    // foreground message. Auto-init is off in the manifest until a driver opts in.
+    implementation(libs.firebase.messaging)
 
     // The engine :core's ApiClient is constructed with. Choosing it here rather
     // than there is what keeps :core a plain JVM module.
