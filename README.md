@@ -1559,7 +1559,8 @@ place. Since migration `0037` the session also keeps `trace_geo`,
 trace from (`traceOrigin` in `public/js/import/geo.js`), sent beside `trace`
 on `POST /events/:id/sessions`. It is what lets the racing line be drawn over
 a real map (`docs/specs/native/NS-53-track-map-on-maps.md`): the web's viewer
-is below, the phones' are not built yet.
+is below; the phones' are `TrackMapScreen` on iOS (MapKit) and Android
+(Google Maps SDK, key setup above), on the same rules.
 
 - **A bad anchor never costs a session.** Anything that is not a plausible
   coordinate is stored as null (`sanitizeTraceGeo` in `src/lib/geo.ts`); there

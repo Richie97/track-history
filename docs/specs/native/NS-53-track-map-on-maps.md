@@ -341,18 +341,22 @@ Tickets 2–4 are independent of each other.
 - Nothing loads from Apple or Google before the viewer is opened.
 - Airplane mode: the viewer opens and draws the line.
 
-## Open questions (decide in ticket 1)
+## Open questions — as decided
 
-1. **Borrowed anchors on the leaderboard lap.** Another driver's borrowed
-   anchor is two estimates deep. Send it flagged, or stored anchors only?
-   This spec says flagged.
-2. **Pre-fix Racelogic imports** stored a mirrored trace. A borrowed anchor
-   draws it mirrored on the map, where today it is merely mirrored on a
-   blank card. `borrowAnchor`'s mismatch test does not catch a mirror; a
-   winding-direction check against the donor would.
+1. **Borrowed anchors on the leaderboard lap: sent, flagged.** A lap with no
+   anchor of its own borrows its **owner's** newest anchored session at the
+   track and carries `approx: true`, so every viewer says *"Position
+   estimated from another session here."*
+2. **Pre-fix Racelogic imports: not handled.** `borrowAnchor` matches
+   bounding boxes, which a mirror passes, so an old mirrored `.vbo` trace
+   draws mirrored on the map as it already does on the card. Left as a
+   follow-up below rather than a guess at a winding test nobody has a real
+   mirrored file to check against.
 
 ## Follow-ups, deliberately not here
 
+- **A winding-direction check in `borrowAnchor`**, refusing a donor whose
+  line runs the other way round, for pre-fix mirrored Racelogic traces.
 - **The start/finish picker on satellite.** The picker already holds raw
   fixes, so it needs no stored anchor, and picking the painted line beats
   picking a bend in a polyline. The strongest next step.
