@@ -434,6 +434,7 @@ public enum VBO {
         // lying on the driven trace is kept. If present, laps come for free.
         var laps: [ParsedLap] = []
         var lapTracePts: [TracePoint]?
+        var traceGeo: TraceGeo?
         let startLine = (sections["laptiming"] ?? []).first(where: startsWithStartWord)
         if let startLine {
             let n = splitWhitespace(startLine).dropFirst().prefix(4).map(jsNumber)
@@ -476,6 +477,7 @@ public enum VBO {
                 if let first = laps.first {
                     let best = laps.dropFirst().reduce(first) { $1.timeMs < $0.timeMs ? $1 : $0 }
                     lapTracePts = Geo.lapTrace(trace, from: best.startT!, to: best.endT!)
+                    traceGeo = lapTracePts != nil ? Geo.traceOrigin(points, origin: origin) : nil
                 }
             }
         }
@@ -491,6 +493,7 @@ public enum VBO {
             // falls back to manual line picking.
             needsLine: laps.isEmpty,
             bestLapTrace: lapTracePts,
+            traceGeo: traceGeo,
             carChannels: carChannels,
             lapScalarChannels: lapScalarChannels,
             sessionMeta: sessionMeta

@@ -44,6 +44,9 @@ extension Route {
         case .setupForm: "/event/:id/setup/:day"
         // The web comments inline on the event page; the phone pushes a form.
         case .sessionComment: "/event/:id/session/:id/comment"
+        // The web's own routes for the same page.
+        case .trackMap(.session): "/event/:id/session/:id/map"
+        case .trackMap(.leaderboardLap): "/track/:id/leaderboard/:id/map"
         }
     }
 
@@ -62,6 +65,7 @@ extension StudentPage {
         case .sessionCompare: "/event/:id/session/:id/compare"
         case .vehicle: "/vehicle/:id"
         case .sessionComment: "/event/:id/session/:id/comment"
+        case .trackMap: "/event/:id/session/:id/map"
         }
     }
 }

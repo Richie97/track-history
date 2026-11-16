@@ -114,7 +114,8 @@ public object Telemetry {
             val startT = best.startT
             val endT = best.endT
             if (startT != null && endT != null) {
-                pdr = pdr.copy(bestLapTrace = GeoTrace.lapTrace(GeoTrace.projectTrace(gps), startT, endT))
+                val trace = GeoTrace.lapTrace(GeoTrace.projectTrace(gps), startT, endT)
+                pdr = pdr.copy(bestLapTrace = trace, traceGeo = if (trace != null) GeoTrace.traceOrigin(gps) else null)
             }
         }
         // No beacons and no decodable GPS trace: recover laps from latitude +
@@ -144,9 +145,10 @@ public object Telemetry {
     public fun applyGate(parsed: ParsedTelemetry, origin: GpsPoint?, gate: Gate?): ParsedTelemetry {
         if (!parsed.needsLine) return parsed
         val gps = parsed.gps ?: return parsed
-        if (gate == null) return parsed.copy(laps = emptyList(), bestLapTrace = null, lapChannels = null)
+        if (gate == null) return parsed.copy(laps = emptyList(), bestLapTrace = null, traceGeo = null, lapChannels = null)
         var trace = GeoTrace.projectTrace(gps, origin)
         var effective = gate
+        var mirrored = false
         if (traceDistanceTo(trace, gate) > 1000) {
             // This file's longitude sign convention differs from the displayed
             // trace (Racelogic VBO is west-positive, GPS sources east-positive).
@@ -154,15 +156,21 @@ public object Telemetry {
             // direction filter.
             trace = GeoTrace.projectTrace(gps.map { it.copy(lon = -it.lon) }, origin)
             if (traceDistanceTo(trace, gate) > 1000) {
-                return parsed.copy(laps = emptyList(), bestLapTrace = null, lapChannels = null)
+                return parsed.copy(laps = emptyList(), bestLapTrace = null, traceGeo = null, lapChannels = null)
             }
             effective = gate.copy(hx = null, hy = null)
+            mirrored = true
         }
         val laps = GeoTrace.deriveLaps(trace, effective).map { ParsedLap.of(it) }
+        val best = if (laps.isEmpty()) null else GeoTrace.bestLapTrace(trace, effective)
         return TelemetryChannels.attachLapChannels(
             parsed.copy(
                 laps = laps,
-                bestLapTrace = if (laps.isEmpty()) null else GeoTrace.bestLapTrace(trace, effective),
+                bestLapTrace = best,
+                // Where the trace lies (NS-53): the batch's shared origin. A file
+                // that only fitted the line mirrored was projected from negated
+                // longitudes, and no origin describes that truthfully.
+                traceGeo = if (best != null && !mirrored) GeoTrace.traceOrigin(gps, origin) else null,
             ),
         )
     }

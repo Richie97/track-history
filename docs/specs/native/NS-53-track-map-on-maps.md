@@ -247,6 +247,40 @@ overlays. While `state.me.maps.web` is false the viewer offers Line only.
   (the same calls, drawn on a canvas). **Apple's real imagery has not been
   seen from this code yet**: the first open on the deployed app is that test.
 
+#### As built — Android
+
+- **`:core` carries the pure half**: `GeoTrace.KX` / `KY` / `traceOrigin` /
+  `unprojectTrace` / `traceGeoBounds` / `nearestOnTrace` / `speedRuns`
+  (`GeoAnchorTest`, every row of `geo-anchor.json` plus the JS cases), and
+  `MapViewer`, the port of `map-viewer.js`' exported helpers under the same
+  names (`viewerPlan`, `startType`, the four `NOTE_*` sentences, `rampColor`,
+  `traceMetres`, `headingDeg`, `tapHit`, `placeAt`, `readoutText`,
+  `pointAlong`) plus `stepHit`, the 5 % accessibility step (`MapViewerTest`).
+- **The anchor**: `ParsedTelemetry.traceGeo`, set where the JS sets it — a
+  beacon PDR, a `.vbo` with a `[laptiming]` line, a Track Precision CSV, and
+  `Telemetry.applyGate` (null when the line only fitted mirrored) — and sent
+  as `SessionDraft.traceGeo` (`trace_geo`) only beside a trace. The three
+  parser contract tests assert the fixtures' `traceGeo`; the offline patch
+  carries it into the optimistic session as `offline.js` does.
+- **`Route.TrackMap`** (flat nullable ids; `source` is the two halves),
+  a plain `composable`, opened by the ⤢ on `TrackMap`'s card (`onExpand`):
+  the event page, its analysis column, the lap page and its stage map, the
+  leaderboard lap — never `SharedItemScreen` / `SharedLogbookScreen`.
+- **The seam is `MapSupport`** (`LocalMapAvailable`): `available` is the key
+  (`BuildConfig.MAPS_KEY_SET`) and Play services (`GoogleApiAvailability`),
+  `online` is asked once at open (offline is `NOTE_OFFLINE` and the line —
+  tiles the SDK has cached are not offered), and `drawMap` is
+  `GoogleTrackMap`. `TrackMapViewerTest` stands a plain composable in for it.
+- **Line** is the drawn card (`TrackMap`) at the pane's size, with the
+  accessibility steps ringing the place; no tap there, as on the web.
+- **The ramp is one solid `StyleSpan` per `speedRuns` run**, not gradient
+  spans, so a run is the web's overlay colour exactly; the casing is a 7 dp
+  near-black polyline under it. Zoom out stops one level past the first fit
+  (`minZoomPreference`). The standard style follows the app theme through
+  `mapColorScheme`. Limit marks are dots in the side's colour.
+- **No real tiles have been seen from this code**: there is no key yet, so
+  every build so far, emulator included, is Line-only.
+
 ## Privacy, legal and stores
 
 - Opening the viewer sends the viewed area and the device's IP to Apple (iOS,
@@ -275,9 +309,18 @@ place; what "estimated" means); `site/docs/telemetry-import.html` and
    `contracts/logic/geo-anchor.json`; every web importer sending `trace_geo`;
    both native models decoding it. No UI. Ships first so anchors start
    accumulating.
-2. **iOS.** The `Geo` ports, importers and recorder sending the anchor, the
-   viewer.
-3. **Android.** The same, plus the Maps key and the Data safety review.
+2. **iOS — landed.** The `Geo` ports and `MapViewer` (the web viewer's pure
+   half) in the Kit, pinned by `geo-anchor.json` and the three parser
+   fixtures' `traceGeo`; every importer and the recorder sending the anchor;
+   `TrackMapScreen`. The line is one `MKPolyline` per `speedRuns` run over a
+   casing rather than an `MKGradientPolylineRenderer`, the web's own drawing,
+   so no gradient-stop interpretation can colour a metre differently.
+3. **Android — landed.** The `GeoTrace` ports and the viewer's pure half
+   (`MapViewer`), every importer and the recorder sending the anchor, the
+   viewer. See *As built — Android* below. **Still manual:** creating the
+   restricted Maps key (`MAPS_API_KEY`) and Play's **Data safety** review
+   before the first upload that links the SDK — until the key exists, every
+   build is Line-only.
 4. **Web — landed.** `GET /api/map-token` and `user.maps` on `/me` (moved
    here from ticket 1: they are only testable against the viewer that uses
    them), the `MAPKIT_*` secrets, `map-viewer.js`, the privacy page. See
@@ -298,18 +341,22 @@ Tickets 2–4 are independent of each other.
 - Nothing loads from Apple or Google before the viewer is opened.
 - Airplane mode: the viewer opens and draws the line.
 
-## Open questions (decide in ticket 1)
+## Open questions — as decided
 
-1. **Borrowed anchors on the leaderboard lap.** Another driver's borrowed
-   anchor is two estimates deep. Send it flagged, or stored anchors only?
-   This spec says flagged.
-2. **Pre-fix Racelogic imports** stored a mirrored trace. A borrowed anchor
-   draws it mirrored on the map, where today it is merely mirrored on a
-   blank card. `borrowAnchor`'s mismatch test does not catch a mirror; a
-   winding-direction check against the donor would.
+1. **Borrowed anchors on the leaderboard lap: sent, flagged.** A lap with no
+   anchor of its own borrows its **owner's** newest anchored session at the
+   track and carries `approx: true`, so every viewer says *"Position
+   estimated from another session here."*
+2. **Pre-fix Racelogic imports: not handled.** `borrowAnchor` matches
+   bounding boxes, which a mirror passes, so an old mirrored `.vbo` trace
+   draws mirrored on the map as it already does on the card. Left as a
+   follow-up below rather than a guess at a winding test nobody has a real
+   mirrored file to check against.
 
 ## Follow-ups, deliberately not here
 
+- **A winding-direction check in `borrowAnchor`**, refusing a donor whose
+  line runs the other way round, for pre-fix mirrored Racelogic traces.
 - **The start/finish picker on satellite.** The picker already holds raw
   fixes, so it needs no stored anchor, and picking the painted line beats
   picking a bend in a polyline. The strongest next step.

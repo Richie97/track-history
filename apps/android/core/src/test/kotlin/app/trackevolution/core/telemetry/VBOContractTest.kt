@@ -69,7 +69,7 @@ class VBOContractTest {
         }
 
         assertLaps(parsed.laps, expected.laps, file)
-        assertTrace(parsed, expected.bestLapTrace, file)
+        assertTrace(parsed, expected.bestLapTrace, file, expected.traceGeo)
 
         // The name lists, not a hand-written field set: a column the JS maps and
         // the port forgets must fail here rather than go unlooked-at.
@@ -108,7 +108,7 @@ class VBOContractTest {
 
             parsed = Telemetry.applyGate(parsed, origin, gate)
             assertLaps(parsed.laps, want.laps, file)
-            assertTrace(parsed, want.bestLapTrace, file)
+            assertTrace(parsed, want.bestLapTrace, file, want.traceGeo)
             assertChannels(parsed.lapChannels, want.lapChannels, file)
         }
     }
@@ -117,7 +117,14 @@ class VBOContractTest {
         @JvmStatic
         fun files(): List<VBOFixtures.Case> = VBOFixtures.fixture.files
 
-        internal fun assertTrace(parsed: ParsedTelemetry, expected: List<List<Double>>?, file: String) {
+        internal fun assertTrace(
+            parsed: ParsedTelemetry,
+            expected: List<List<Double>>?,
+            file: String,
+            geo: app.trackevolution.core.model.TraceGeo?,
+        ) {
+            // The anchor a save sends (NS-53), equal to the JS's to the 7th decimal.
+            assertEquals(geo, parsed.traceGeo, "$file: traceGeo")
             if (expected == null) {
                 assertNull(parsed.bestLapTrace, "$file: bestLapTrace should be absent")
                 return
@@ -191,6 +198,8 @@ object VBOFixtures {
         val lapChannels: SessionChannels? = null,
         /** `[x, y, v]` triples. */
         val bestLapTrace: List<List<Double>>? = null,
+        /** Where [bestLapTrace] lies (NS-53). */
+        val traceGeo: app.trackevolution.core.model.TraceGeo? = null,
         val carChannels: Map<String, Summary> = emptyMap(),
         val lapScalarChannels: Map<String, Summary> = emptyMap(),
     )

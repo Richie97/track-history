@@ -546,6 +546,7 @@ struct EventScreen: View {
                                     .foregroundStyle(Color(.textFaint))
                                 Spacer()
                                 TETime(ms: best, emphasized: true)
+                                OpenOnMapButton(route: .trackMap(source: .session(eventId: detail.id, sessionId: session.id)))
                             }
                             TrackMapView(
                                 trace: session.trace ?? [], markers: markers,

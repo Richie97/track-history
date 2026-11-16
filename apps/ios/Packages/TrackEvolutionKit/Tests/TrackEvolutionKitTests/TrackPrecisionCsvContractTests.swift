@@ -44,6 +44,7 @@ struct TrackPrecisionCsvContractTests {
 
         VideoContractTests.assertLaps(parsed.laps, expected.laps, file: file)
         VBOContractTests.assertTrace(parsed.bestLapTrace, expected.bestLapTrace, file: file)
+        VBOContractTests.assertTraceGeo(parsed.traceGeo, expected.traceGeo, file: file)
         VideoContractTests.assertChannels(parsed.lapChannels, expected.lapChannels, file: file)
 
         // Walk the name lists, not the fixture's keys, so a channel the port
@@ -76,6 +77,7 @@ struct TrackPrecisionCsvContractTests {
         VideoContractTests.assertLaps(parsed.laps, picked.laps, file: file)
         VideoContractTests.assertChannels(parsed.lapChannels, picked.lapChannels, file: file)
         VBOContractTests.assertTrace(parsed.bestLapTrace, picked.bestLapTrace, file: file)
+        VBOContractTests.assertTraceGeo(parsed.traceGeo, picked.traceGeo, file: file)
     }
 
     @Test(arguments: CsvFixtures.fixture.lapsFromLaptime.map(\.name))

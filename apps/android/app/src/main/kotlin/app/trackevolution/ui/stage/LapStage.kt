@@ -150,6 +150,8 @@ fun LapStagePage(
     header: LazyListScope.() -> Unit = {},
     /** Coach comments' places on the map (NS-52), as fractions of side A's lap. */
     mapPins: List<Double> = emptyList(),
+    /** Opens the trace on a real map (NS-53): the stage map's expand control. Null draws none. */
+    onOpenMap: (() -> Unit)? = null,
     body: LazyListScope.() -> Unit,
 ) {
     val binding = holder.binding ?: return
@@ -202,7 +204,7 @@ fun LapStagePage(
     val fullBleed = holder.hasVideo &&
         ((layout == StageLayout.FullBleed && !holder.fullBleedDismissed) || holder.fullscreen)
     val compare = binding.shownB != null
-    val ctx = StageCtx(holder, trace, stepper, compare, onMode, mapPins)
+    val ctx = StageCtx(holder, trace, stepper, compare, onMode, mapPins, onOpenMap)
 
     val listBody: LazyListScope.() -> Unit = body
     when (if (layout == StageLayout.FullBleed) StageLayout.Compact else layout) {
@@ -344,6 +346,7 @@ private class StageCtx(
     val compare: Boolean,
     val onMode: (SyncMode) -> Unit,
     val pins: List<Double> = emptyList(),
+    val onOpenMap: (() -> Unit)? = null,
 )
 
 // ---- the video slots ---------------------------------------------------------
@@ -469,6 +472,7 @@ private fun VideoSlot(
                     modifier = Modifier.fillMaxSize(),
                     height = 400.dp,
                     pins = ctx.pins,
+                    onExpand = ctx.onOpenMap,
                     liveDots = { stageDots(holder, stageColor(holder, SideKey.A, colors), stageColor(holder, SideKey.B, colors), both = bothDots) },
                 )
             } else if (trace != null && trace.size >= 10) {
@@ -551,6 +555,7 @@ private fun StageMapCard(ctx: StageCtx, modifier: Modifier, height: androidx.com
             modifier = Modifier.fillMaxWidth(),
             height = height,
             pins = ctx.pins,
+            onExpand = ctx.onOpenMap,
                     liveDots = { stageDots(ctx.holder, stageColor(ctx.holder, SideKey.A, colors), stageColor(ctx.holder, SideKey.B, colors), both = true) },
         )
     }

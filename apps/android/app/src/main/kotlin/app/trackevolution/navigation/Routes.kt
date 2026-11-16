@@ -158,6 +158,37 @@ public sealed interface Route {
     ) : Route
 
     /**
+     * The racing line on a real map (NS-53): one session's best lap
+     * ([eventId] + [sessionId], with [student] for a coach's view), or one
+     * leaderboard row ([trackId] + [lapId]). Flat nullable ids rather than a
+     * nested source, because a route argument has to be a Bundle value;
+     * [source] is the two halves as a value. A plain `composable`, not a
+     * `pageComposable`: a map wants the whole pane. Not a `DeepLink` case.
+     */
+    @Serializable
+    public data class TrackMap(
+        val eventId: Int? = null,
+        val sessionId: Int? = null,
+        val trackId: Int? = null,
+        val lapId: Int? = null,
+        val student: Int? = null,
+    ) : Route {
+        val source: app.trackevolution.screens.MapSource
+            get() = if (trackId != null && lapId != null) {
+                app.trackevolution.screens.MapSource.LeaderboardLap(trackId, lapId)
+            } else {
+                app.trackevolution.screens.MapSource.Session(eventId ?: 0, sessionId ?: 0)
+            }
+
+        public companion object {
+            public fun session(eventId: Int, sessionId: Int, student: Int? = null): TrackMap =
+                TrackMap(eventId = eventId, sessionId = sessionId, student = student)
+
+            public fun leaderboardLap(trackId: Int, lapId: Int): TrackMap = TrackMap(trackId = trackId, lapId = lapId)
+        }
+    }
+
+    /**
      * Season Wrapped (NS-36): one calendar year as a story of cards, opened from
      * the dashboard's November banner. It **owns the window** — the scaffold
      * drops to one pane for it, as for the recorder — and it is not a
@@ -217,6 +248,7 @@ public val Route.studentId: Int?
         is Route.CompareLaps -> student
         is Route.Lap -> student
         is Route.SessionCompare -> student
+        is Route.TrackMap -> student
         else -> null
     }
 

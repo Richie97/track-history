@@ -46,6 +46,7 @@ struct VBOContractTests {
 
         VideoContractTests.assertLaps(parsed.laps, expected.laps, file: file)
         Self.assertTrace(parsed.bestLapTrace, expected.bestLapTrace, file: file)
+        Self.assertTraceGeo(parsed.traceGeo, expected.traceGeo, file: file)
         VideoContractTests.assertChannels(parsed.lapChannels, expected.lapChannels, file: file)
 
         // Walk the name lists, not the fixture's keys, so a channel the port
@@ -94,9 +95,25 @@ struct VBOContractTests {
         VideoContractTests.assertLaps(parsed.laps, picked.laps, file: file)
         VideoContractTests.assertChannels(parsed.lapChannels, picked.lapChannels, file: file)
         Self.assertTrace(parsed.bestLapTrace, picked.bestLapTrace, file: file)
+        Self.assertTraceGeo(parsed.traceGeo, picked.traceGeo, file: file)
     }
 
     // MARK: - Comparisons
+
+    /// Where the trace lies (NS-53): both sides round to 7 decimals, so they
+    /// agree to far better than a nanodegree.
+    static func assertTraceGeo(_ actual: TraceGeo?, _ expected: TraceGeo?, file: String) {
+        guard let expected else {
+            #expect(actual == nil, "\(file): traceGeo should be null")
+            return
+        }
+        guard let actual else {
+            Issue.record("\(file): expected a traceGeo but got none")
+            return
+        }
+        #expect(abs(actual.lat - expected.lat) < 1e-9 && abs(actual.lon - expected.lon) < 1e-9, "\(file): traceGeo \(actual) != \(expected)")
+        #expect(actual.approx == nil, "\(file): a client's anchor is never approximate")
+    }
 
     static func assertTrace(_ actual: [TracePoint]?, _ expected: [TracePoint]?, file: String) {
         guard let expected else {

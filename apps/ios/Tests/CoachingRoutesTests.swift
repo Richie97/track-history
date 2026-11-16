@@ -75,7 +75,13 @@ final class CoachingRoutesTests: XCTestCase {
             student.link(.sessionComment(eventId: 5, sessionId: 6, coachId: 3)),
             .student(id: 7, page: .sessionComment(eventId: 5, sessionId: 6))
         )
+        // A session on the map (NS-53) is theirs to read; a leaderboard lap is not.
+        XCTAssertEqual(
+            student.link(.trackMap(source: .session(eventId: 5, sessionId: 6))),
+            .student(id: 7, page: .trackMap(eventId: 5, sessionId: 6))
+        )
         for door: Route in [
+            .trackMap(source: .leaderboardLap(trackId: 2, lapId: 9)),
             .eventForm(.new(presetTrack: nil)), .eventForm(.edit(5)), .leaderboard(trackId: 2),
             .record(eventId: 5), .importVideo(eventId: 5, incoming: nil), .wrapped(year: 2026)
         ] {

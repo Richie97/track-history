@@ -70,9 +70,18 @@ struct LeaderboardLapScreen: View {
                     if let trace = lap.trace, trace.count > 1 {
                         TECard {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text("Racing line — brighter is faster")
-                                    .teStyle(.xs)
-                                    .foregroundStyle(Color(.textFaint))
+                                HStack {
+                                    Text("Racing line — brighter is faster")
+                                        .teStyle(.xs)
+                                        .foregroundStyle(Color(.textFaint))
+                                    Spacer()
+                                    if trace.count >= 10, let onNavigate {
+                                        OpenOnMapButton(
+                                            route: .trackMap(source: .leaderboardLap(trackId: trackId, lapId: lapId)),
+                                            onOpen: onNavigate
+                                        )
+                                    }
+                                }
                                 TrackMapView(trace: trace)
                                     .frame(height: 220)
                             }
@@ -144,6 +153,11 @@ struct LeaderboardLapScreen: View {
                 trace: lap.trace.flatMap { $0.count >= 10 ? $0 : nil },
                 corners: Corners.sessionCorners(view.aligned)
             )
+            // The map is their line (NS-53). The lap is a sheet, so the door
+            // goes through the presenter, which closes it first.
+            stage.mapRoute = (lap.trace?.count ?? 0) >= 10 && onNavigate != nil
+                ? .trackMap(source: .leaderboardLap(trackId: trackId, lapId: lapId)) : nil
+            stage.openMap = onNavigate
         }
     }
 

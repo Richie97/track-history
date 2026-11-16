@@ -39,6 +39,10 @@ public val Route.analyticsPath: String
         is Route.SharedItem -> "/share/${itemKind.prefix}/:token"
         is Route.Lap -> student(student) + "/event/:id/lap/:id"
         is Route.SessionCompare -> student(student) + "/event/:id/session/:id/compare"
+        // The web's two map routes (NS-53).
+        is Route.TrackMap ->
+            if (trackId != null && lapId != null) "/track/:id/leaderboard/:id/map"
+            else student(student) + "/event/:id/session/:id/map"
         is Route.Wrapped -> "/wrapped/$year"
         Route.Coaching -> "/coaching"
         Route.Profile -> "/profile"
@@ -80,6 +84,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.SharedItem::class) -> toRoute<Route.SharedItem>()
         d.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
         d.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
+        d.hasRoute(Route.TrackMap::class) -> toRoute<Route.TrackMap>()
         d.hasRoute(Route.Wrapped::class) -> toRoute<Route.Wrapped>()
         d.hasRoute(Route.Coaching::class) -> Route.Coaching
         d.hasRoute(Route.Profile::class) -> Route.Profile

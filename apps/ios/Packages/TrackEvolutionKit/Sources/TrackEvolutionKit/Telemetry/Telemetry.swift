@@ -65,6 +65,7 @@ public enum Telemetry {
                let best = pdr.laps.min(by: { $0.timeMs < $1.timeMs }),
                let startT = best.startT, let endT = best.endT {
                 pdr.bestLapTrace = Geo.lapTrace(Geo.projectTrace(gps), from: startT, to: endT)
+                pdr.traceGeo = pdr.bestLapTrace != nil ? Geo.traceOrigin(gps) : nil
             }
             // No beacons and no decodable GPS trace: recover laps from latitude +
             // odometer. Boundaries start as rolling laps; `PDRLaps.anchorPdrBatch`
@@ -122,12 +123,14 @@ public enum Telemetry {
         guard let gate else {
             parsed.laps = []
             parsed.bestLapTrace = nil
+            parsed.traceGeo = nil
             parsed.lapChannels = nil
             return
         }
         let projectionOrigin = origin.map { Geo.Origin(lat: $0.lat, lon: $0.lon) }
         var trace = Geo.projectTrace(gps, origin: projectionOrigin)
         var effective = gate
+        var mirrored = false
         if traceDistanceTo(trace, gate) > 1000 {
             // This file's longitude sign convention differs from the displayed
             // trace (Racelogic VBO is west-positive, GPS sources east-positive).
@@ -140,14 +143,21 @@ public enum Telemetry {
             if traceDistanceTo(trace, gate) > 1000 {
                 parsed.laps = []
                 parsed.bestLapTrace = nil
+                parsed.traceGeo = nil
                 parsed.lapChannels = nil
                 return
             }
             effective.hx = nil
             effective.hy = nil
+            mirrored = true
         }
         parsed.laps = Geo.deriveLaps(trace, gate: effective).map(ParsedLap.init)
         parsed.bestLapTrace = parsed.laps.isEmpty ? nil : Geo.bestLapTrace(trace, gate: effective)
+        // Where the trace lies (NS-53): the batch's shared origin. A file that
+        // only fitted the line mirrored was projected from negated longitudes,
+        // and no origin describes that truthfully — it saves without one.
+        parsed.traceGeo = parsed.bestLapTrace != nil && !mirrored
+            ? Geo.traceOrigin(gps, origin: projectionOrigin) : nil
         TelemetryChannels.attachLapChannels(&parsed)
     }
 

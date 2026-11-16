@@ -164,6 +164,12 @@ public data class SessionDraft(
     val trace: List<TracePoint>? = null,
     /** Per-lap channel data, built by `TelemetryChannels.buildLapChannels` (NS-32). */
     val channels: SessionChannels? = null,
+    /**
+     * Where [trace] lies on Earth (NS-53): the origin it was projected from.
+     * The server keeps an implausible one as null rather than refusing the
+     * session. Last, so positional call sites keep working.
+     */
+    @SerialName("trace_geo") val traceGeo: TraceGeo? = null,
 )
 
 /**

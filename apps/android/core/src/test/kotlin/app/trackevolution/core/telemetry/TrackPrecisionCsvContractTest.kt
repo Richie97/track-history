@@ -59,7 +59,7 @@ class TrackPrecisionCsvContractTest {
         }
 
         assertLaps(parsed.laps, expected.laps, file)
-        assertTrace(parsed, expected.bestLapTrace, file)
+        assertTrace(parsed, expected.bestLapTrace, file, expected.traceGeo)
 
         // The name lists, not a hand-written field set: a column the JS maps and
         // the port forgets must fail here rather than go unlooked-at.
@@ -96,7 +96,7 @@ class TrackPrecisionCsvContractTest {
 
             parsed = Telemetry.applyGate(parsed, origin, gate)
             assertLaps(parsed.laps, want.laps, file)
-            assertTrace(parsed, want.bestLapTrace, file)
+            assertTrace(parsed, want.bestLapTrace, file, want.traceGeo)
             assertChannels(parsed.lapChannels, want.lapChannels, file)
         }
     }

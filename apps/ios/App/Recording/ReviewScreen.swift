@@ -856,6 +856,8 @@ final class ReviewModel {
             // (NS-23) draws. Both are produced by the same pick that timed the
             // laps, so neither needs recomputing here.
             trace: parsed.bestLapTrace,
+            // Where that line lies (NS-53), so it can open on a real map.
+            traceGeo: parsed.traceGeo,
             channels: parsed.lapChannels
         )
     }

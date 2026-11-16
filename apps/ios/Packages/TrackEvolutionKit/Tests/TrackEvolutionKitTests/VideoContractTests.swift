@@ -51,6 +51,8 @@ struct VideoContractTests {
         Self.assertLaps(parsed.laps, picked.laps, file: file)
         Self.assertChannels(parsed.lapChannels, picked.lapChannels, file: file)
 
+        VBOContractTests.assertTraceGeo(parsed.traceGeo, picked.traceGeo, file: file)
+
         let expectedTrace = try #require(picked.bestLapTrace)
         let actualTrace = try #require(parsed.bestLapTrace)
         #expect(actualTrace.count == expectedTrace.count, "\(file): best-lap trace length")

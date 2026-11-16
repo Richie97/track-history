@@ -216,6 +216,7 @@ class RecordingFlowImportTest {
         )
         assertEquals(listOf(47124, 47124, 47124), draft["laps"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() })
         assertTrue("the best lap's racing line", draft["trace"]!!.jsonArray.size > 10)
+        assertAnchored(draft)
         val channels = draft["channels"]!!.jsonObject
         assertEquals(3, channels["laps"]!!.jsonArray.size)
         assertEquals(20.0, channels["dStepM"]!!.jsonPrimitive.content.toDouble(), 0.0)
@@ -271,6 +272,19 @@ class RecordingFlowImportTest {
             assertTrue("$name is carried", lap[name]!!.jsonArray.size > 80)
         }
         assertTrue(draft["notes"]!!.jsonPrimitive.content.startsWith("Imported from pdr-delta.mp4 — top speed "))
+        // NS-53: a trace goes with where it lies; no trace, no anchor.
+        if (draft["trace"] != null && draft["trace"] !is JsonNull) assertAnchored(draft) else assertNull(draft["trace_geo"])
+    }
+
+    /**
+     * Where the trace lies (NS-53): the origin it was projected from, beside it
+     * — every fixture clip is recorded at the same synthetic circuit in Virginia.
+     */
+    private fun assertAnchored(draft: kotlinx.serialization.json.JsonObject) {
+        val geo = draft["trace_geo"]?.jsonObject
+        assertNotNull("trace_geo is sent beside the trace", geo)
+        assertEquals(36.56, geo!!["lat"]!!.jsonPrimitive.content.toDouble(), 0.01)
+        assertEquals(-79.197, geo["lon"]!!.jsonPrimitive.content.toDouble(), 0.01)
     }
 
     @Test
@@ -332,6 +346,8 @@ class RecordingFlowImportTest {
         val draft = body(0)
         assertEquals("Damp at first", draft["notes"]!!.jsonPrimitive.content)
         assertTrue(draft["label"]!!.jsonPrimitive.content.startsWith("Recorded "))
+        // The recorder's line is anchored too (NS-53).
+        assertAnchored(draft)
         val channels = draft["channels"]
         assertNotNull("a recorded session carries channels now", channels)
         assertTrue(channels !is JsonNull)

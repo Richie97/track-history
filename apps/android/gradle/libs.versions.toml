@@ -99,6 +99,13 @@ playBilling = "8.3.0"
 # `zxing-android-embedded` scanner half is deliberately not used — the app
 # shows a code, it never reads one.
 zxing = "3.5.3"
+# The racing line on a real map (NS-53 ticket 3) — `:app` only. maps-compose is
+# the Compose wrapper over the Maps SDK; 6.4.x pairs with play-services-maps
+# 19.0 and the Compose 1.7 the BOM above pins. The SDK ships its own consumer
+# rules, so R8 needs nothing for it. Nothing loads from Google until the viewer
+# is opened.
+playServicesMaps = "19.0.0"
+mapsCompose = "6.4.1"
 # Google Analytics for Firebase — `:app` only, screen views by route *shape*
 # (analytics/AppAnalytics.kt). The BoM pins every Firebase artifact together;
 # from 34.0 there are no -ktx artifacts, the Kotlin APIs are in the main ones.
@@ -182,6 +189,8 @@ androidx-car-app-testing = { module = "androidx.car.app:app-testing", version.re
 # acknowledgePurchase) over the callback API; the flow itself is
 # billing/BillingController in :app.
 play-billing-ktx = { module = "com.android.billingclient:billing-ktx", version.ref = "playBilling" }
+play-services-maps = { module = "com.google.android.gms:play-services-maps", version.ref = "playServicesMaps" }
+maps-compose = { module = "com.google.maps.android:maps-compose", version.ref = "mapsCompose" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }

@@ -185,6 +185,21 @@ final class RouterTests: XCTestCase {
         XCTAssertEqual(real.tab, .events)
     }
 
+    /// The map viewer (NS-53) follows its session's temp ids: a session saved
+    /// offline opens on its line from the cache before it syncs.
+    func testATrackMapRouteFollowsItsTempIds() {
+        let router = AppRouter()
+        router.show(.event(-1))
+        router.push(.trackMap(source: .session(eventId: -1, sessionId: -2)))
+        router.remapTempIds { [-1: 41, -2: 42][$0] }
+        let real = Route.trackMap(source: .session(eventId: 41, sessionId: 42))
+        XCTAssertEqual(router.path, [.event(41), real])
+        XCTAssertFalse(real.ownsTheWindow)
+        XCTAssertEqual(real.tab, .events)
+        let lap = Route.trackMap(source: .leaderboardLap(trackId: 3, lapId: 9))
+        XCTAssertFalse(lap.ownsTheWindow)
+    }
+
     /// A lap route carries three ids and any of them can be an offline temp id
     /// (#267); each follows its own row when the queue flushes, and a real id
     /// is left alone.

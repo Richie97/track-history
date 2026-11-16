@@ -675,6 +675,9 @@ class RecordingFlow(
         // draws. Both come from the same pick that timed the laps.
         trace = parsed.bestLapTrace?.map { WireTracePoint(x = it.x, y = it.y, v = it.v) },
         channels = parsed.lapChannels,
+        // Where that line lies (NS-53), so the map viewer can lay it on the
+        // circuit. Only with a trace: an anchor describes one.
+        traceGeo = if (parsed.bestLapTrace != null) parsed.traceGeo else null,
     )
 
     /**

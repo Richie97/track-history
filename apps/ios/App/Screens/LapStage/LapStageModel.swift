@@ -99,6 +99,12 @@ final class LapStageModel: HeldOnRouter {
     /// Where coach comments were placed on the lap (NS-52), as fractions of it
     /// — the stage's map draws them under the playhead's dot. Set by the page.
     var commentMarks: [Double] = []
+    /// Where the stage's map card opens the line on a real map (NS-53), or nil
+    /// for no control. Set by the page, which knows whose line it is.
+    var mapRoute: Route?
+    /// Called instead of pushing `mapRoute` — a page presented as a sheet
+    /// closes itself first.
+    @ObservationIgnored var openMap: ((Route) -> Void)?
     /// How a stage fetches a clip's signed URL — the owner's scoped client, a
     /// shared link's own endpoint, or (DEBUG) a local file.
     typealias URLSource = (LapClip) async throws -> URL
