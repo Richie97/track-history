@@ -113,8 +113,10 @@ class MainActivity : ComponentActivity() {
 
     /**
      * Fine location and notifications, asked for at the moment the user asks to
-     * record — in context, not at launch. Background location is a separate,
-     * later escalation; Android rejects a combined request.
+     * record — in context, not at launch. Background ("allow all the time")
+     * location is never asked for and is not declared in a release build: the
+     * recording starts from here, visible, and its foreground service keeps
+     * the fixes coming on "while using the app".
      */
     private val requestRecordingPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
