@@ -699,6 +699,12 @@ of this Edit"*, the build is fine: Play refuses to commit an edit when the app
 changed under it, typically because someone was saving in the Play Console
 while the workflow ran. The edit is discarded, so its version code is not
 burned; re-run the job.
+If it fails with *"Changes cannot be sent for review automatically"*, that is
+Console state as well — a rejected update, or changes already waiting in
+*Publishing overview*. The workflow then uploads the same bundle again with
+`changesNotSentForReview`, so the run still succeeds, with a warning: the
+bundle is committed but held until someone sends the changes for review from
+the Play Console.
 
 Two things no build can check, both from NS-27: **Android Auto must be opted out
 in the Play Console** — the code side is guarded by

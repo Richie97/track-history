@@ -240,8 +240,13 @@ jobs:
       # saving in the Play Console while the upload runs (or two uploads
       # overlap — the concurrency group above prevents the second). The edit
       # is discarded, so the version code is not burned; re-run the job.
+      #
+      # `continue-on-error` because of the one failure the next step exists
+      # for; the job still fails if that step does.
       - name: Upload to Play
+        id: upload
         if: ${{ !inputs.dry_run }}
+        continue-on-error: true
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -261,6 +266,29 @@ jobs:
           # rejection.
           status: completed
 
+      # Play refuses to commit an edit with "Changes cannot be sent for review
+      # automatically" while the app has a rejected update, or changes already
+      # waiting in the Console's Publishing overview. That is Console state,
+      # not a build problem, and the refused edit was discarded — so the same
+      # bundle is uploaded again with `changesNotSentForReview`, which commits
+      # it and leaves it in Publishing overview for someone to send by hand.
+      # The flag cannot simply be on always: Play rejects it ("must not be
+      # set") whenever it *would* have sent the changes itself. The action
+      # exposes no error code, so this runs after any upload failure; one with
+      # another cause fails here too, and the first step's log has the reason.
+      - name: Upload to Play (held for manual review)
+        id: upload_held
+        if: ${{ !inputs.dry_run && steps.upload.outcome == 'failure' }}
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: app.trackevolution
+          releaseFiles: apps/android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track || 'internal' }}
+          mappingFile: apps/android/app/build/outputs/mapping/release/mapping.txt
+          status: completed
+          changesNotSentForReview: true
+
       - name: Summary
         if: always()
         run: |
@@ -278,4 +306,12 @@ jobs:
             echo "**opted out** in the Play Console — no build can guard that, and a car"
             echo "review failure rejects the whole submission — and the recorder must have"
             echo "survived a real track day."
+            if [ "${{ steps.upload_held.outcome }}" = "success" ]; then
+              echo
+              echo "**Held in the Play Console.** Play would not send this upload for"
+              echo "review automatically (a rejected update, or changes already waiting)."
+              echo "The bundle is committed; open *Publishing overview* in the Play"
+              echo "Console and send the changes for review to release it."
+              echo "::warning::Uploaded, but held: send the changes for review from the Play Console's Publishing overview."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
