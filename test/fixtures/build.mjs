@@ -1151,3 +1151,204 @@ export function buildCutSourceMp4({
   );
   return concat([ftyp, mdat, moov]);
 }
+
+// --- AiM SmartyCam fixture (NS-55) ------------------------------------------------
+// A QuickTime file in the shape a SmartyCam GP HD writes (see
+// public/js/import/smartycam.js): a picture track whose `stts` gives the frame
+// rate, a `sowt` sound track, and a third track — handler `free`, also declared
+// `sowt` — holding one little-endian record per five video frames, followed by
+// a `free` box of <aim_meta_data> XML whose size field is wrong, as the
+// camera's is. Chunks here are 136 bytes (a 124-byte record and 12 of noise)
+// where the camera's are 16,000, so the committed files stay small; the parser
+// must take the length from the file.
+//
+// The car drives the reference circle in *real* time; the video only advances
+// five frames per record. `dropped` are [fromS, toS] stretches of real time
+// during which the camera loses a third of its frames — the logger clock runs
+// on and the frame index doesn't, which is the trap the parser is built around.
+
+export const SMARTYCAM_FPS = 30;
+export const SMARTYCAM_CHUNK_BYTES = 136;
+const SC_NO_VALUE = -12290;
+const SC_A = 6378137;
+const SC_E2 = 6.69437999014e-3;
+
+function geodeticToEcef(latDeg, lonDeg, h) {
+  const lat = (latDeg * Math.PI) / 180;
+  const lon = (lonDeg * Math.PI) / 180;
+  const n = SC_A / Math.sqrt(1 - SC_E2 * Math.sin(lat) ** 2);
+  return [(n + h) * Math.cos(lat) * Math.cos(lon), (n + h) * Math.cos(lat) * Math.sin(lon), (n * (1 - SC_E2) + h) * Math.sin(lat)];
+}
+
+export function buildSmartyCamMov({
+  revolutions = 4.2,
+  radius = 300,
+  speed = 40,
+  lat0 = 36.56,
+  lon0 = -79.2,
+  lineFrac = 0.25, // the start/finish, as a fraction of a revolution
+  startCount = 0, // the logger's lap counter when the video starts
+  loggerStartS = 400, // the logger had been running this long already
+  resetAtS = null, // the counter goes back to 0 here (a second logger run)
+  dropped = [[70, 82]],
+  noValue = [20, 24], // real-time stretch where the car fields read NO_VALUE
+  badGear = false, // the gear field holds something that isn't a gear
+  meta = { date: "20/06/2026", hour: "09:15.00" }, // null: no XML at all
+  created = Date.UTC(2026, 5, 20, 13, 15, 0), // mvhd creation time
+} = {}) {
+  const lapS = (2 * Math.PI * radius) / speed;
+  const totalS = lapS * revolutions;
+  const pos = (tau) => {
+    const p = circlePointAt((speed * tau) / (2 * Math.PI * radius), { radius, lat0, lon0 });
+    return geodeticToEcef(p.lat, p.lon, 150);
+  };
+
+  // Real time of each record: 1/6 s apart, 1/4 s while frames are being lost.
+  const taus = [];
+  for (let tau = 0; tau <= totalS; ) {
+    taus.push(tau);
+    tau += dropped.some(([a, b]) => tau >= a && tau < b) ? 0.25 : 1 / 6;
+  }
+
+  // Each crossing shows in the counter one record after the record nearest it.
+  const crossings = [];
+  for (let c = lineFrac * lapS; c <= totalS; c += lapS) crossings.push(c);
+  const stepAt = crossings.map((c) => {
+    let best = 0;
+    taus.forEach((tau, i) => {
+      if (Math.abs(tau - c) < Math.abs(taus[best] - c)) best = i;
+    });
+    return best + 1;
+  });
+
+  const records = [];
+  let count = startCount;
+  let lapMs = 0;
+  let lastCross = -loggerStartS;
+  let staleLat = 0;
+  let staleLon = 0;
+  let seed = 12345;
+  const noise = () => ((seed = (seed * 1103515245 + 12345) >>> 0) >>> 16) & 0xff;
+  taus.forEach((tau, i) => {
+    if (resetAtS != null && tau >= resetAtS && (i === 0 || taus[i - 1] < resetAtS)) {
+      count = 0;
+      lapMs = 0;
+      lastCross = resetAtS;
+    }
+    const k = stepAt.indexOf(i);
+    if (k >= 0) {
+      count += 1;
+      lapMs = Math.round((crossings[k] - lastCross) * 100) * 10;
+      lastCross = crossings[k];
+    }
+    const [x, y, z] = pos(tau);
+    const [xa, ya, za] = pos(tau - 0.05);
+    const [xb, yb, zb] = pos(tau + 0.05);
+    // The ×1e7 pair only refreshes every third record, and from an old fix:
+    // a parser that reads it instead of the ECEF gets a visibly wrong trace.
+    if (i % 3 === 0) {
+      const old = circlePointAt((speed * Math.max(0, tau - 1)) / (2 * Math.PI * radius), { radius, lat0, lon0 });
+      staleLat = Math.round(old.lat * 1e7);
+      staleLon = Math.round(old.lon * 1e7);
+    }
+    const silent = noValue && tau >= noValue[0] && tau < noValue[1];
+    const phase = (2 * Math.PI * tau) / lapS;
+    const rec = new Uint8Array(SMARTYCAM_CHUNK_BYTES);
+    const dv = new DataView(rec.buffer);
+    const i32 = (o, v) => dv.setInt32(o, Math.round(v), true);
+    dv.setUint32(0, i * 5, true);
+    i32(4, 70923);
+    i32(8, loggerStartS * 1000 + tau * 1000);
+    i32(16, staleLat);
+    i32(24, staleLon);
+    i32(32, count);
+    i32(40, lapMs);
+    i32(48, 568721240 + tau * 1000);
+    i32(60, x * 100);
+    i32(64, y * 100);
+    i32(68, z * 100);
+    i32(76, (xb - xa) * 1000);
+    i32(80, (yb - ya) * 1000);
+    i32(84, (zb - za) * 1000);
+    i32(104, silent ? SC_NO_VALUE : 5000 + 2000 * Math.sin(phase * 4));
+    i32(108, silent ? SC_NO_VALUE : 50 + 48 * Math.sin(phase * 3));
+    dv.setFloat32(112, 0.5 * Math.sin(phase * 2), true);
+    i32(120, silent ? SC_NO_VALUE : badGear ? 3 + Math.round(11 * (0.5 + 0.5 * Math.sin(phase))) : 3 + Math.round(1.4 * Math.sin(phase * 2)));
+    for (let b = 124; b < SMARTYCAM_CHUNK_BYTES; b++) rec[b] = noise();
+    records.push(rec);
+  });
+
+  const nFrames = records.length * 5;
+  const frameDelta = 100;
+  const videoTs = SMARTYCAM_FPS * frameDelta; // 3000, as the camera writes
+  const qtTime = Math.floor(created / 1000) + 2082844800;
+
+  // mdat: one byte per video frame, a token of sound, then the records.
+  const ftyp = box("ftyp", te.encode("qt  "), u32(0x20050300), te.encode("qt  "));
+  const videoBytes = new Uint8Array(nFrames);
+  const soundBytes = new Uint8Array(16);
+  const mdat = box("mdat", videoBytes, soundBytes, ...records);
+  const videoOff = ftyp.length + 8;
+  const soundOff = videoOff + videoBytes.length;
+  const dataOff = soundOff + soundBytes.length;
+
+  const hdlr = (subtype) => box("hdlr", u32(0), te.encode("mhlr"), te.encode(subtype), u32(0, 0, 0));
+  const sowt = () => box("sowt", new Uint8Array(6), new Uint8Array([0, 1]), new Uint8Array(8), new Uint8Array([0, 1, 0, 16, 0, 0, 0, 0]), u32(48000 << 16 >>> 0));
+  const trak = (subtype, timescale, duration, stbl) =>
+    box("trak", box("mdia", box("mdhd", u32(0, qtTime, qtTime, timescale, duration)), hdlr(subtype), box("minf", stbl)));
+
+  const video = trak(
+    "vide",
+    videoTs,
+    nFrames * frameDelta,
+    box(
+      "stbl",
+      box("stsd", u32(0, 1), visualEntry("avc1")),
+      box("stts", u32(0, 1, nFrames, frameDelta)),
+      box("stsc", u32(0, 1, 1, nFrames, 1)),
+      box("stsz", u32(0, 1, nFrames)),
+      box("stco", u32(0, 1, videoOff))
+    )
+  );
+  const sound = trak(
+    "soun",
+    48000,
+    8,
+    box(
+      "stbl",
+      box("stsd", u32(0, 1), sowt()),
+      box("stts", u32(0, 1, 8, 1)),
+      box("stsc", u32(0, 1, 1, 8, 1)),
+      box("stsz", u32(0, 2, 8)),
+      box("stco", u32(0, 1, soundOff))
+    )
+  );
+  const perChunk = SMARTYCAM_CHUNK_BYTES / 2;
+  const data = trak(
+    "free",
+    48000,
+    records.length * perChunk,
+    box(
+      "stbl",
+      box("stsd", u32(0, 1), sowt()),
+      box("stts", u32(0, 1, records.length * perChunk, 1)),
+      box("stsc", u32(0, 1, 1, perChunk, 1)),
+      box("stsz", u32(0, 2, records.length * perChunk)),
+      box("stco", u32(0, records.length, ...records.map((_, i) => dataOff + i * SMARTYCAM_CHUNK_BYTES)))
+    )
+  );
+  const moov = box("moov", box("mvhd", u32(0, qtTime, qtTime, 1000, Math.round((nFrames / SMARTYCAM_FPS) * 1000))), video, sound, data);
+
+  const parts = [ftyp, mdat, moov];
+  if (meta) {
+    const xml =
+      `<?xml version="1.0"?>\n<aim_meta_data version="0.0.0">\n<generic_info>\n` +
+      `<p n="racer_name">Test Driver</p>\n<p n="vehicle_name">Test Car</p>\n<p n="track_name">Test Track</p>\n` +
+      `<p n="date">${meta.date}</p>\n<p n="hour">${meta.hour}</p>\n<p n="nlap">31</p>\n<p n="best">45000</p>\n` +
+      `</generic_info>\n</aim_meta_data>\n`;
+    const free = box("free", te.encode(xml));
+    new DataView(free.buffer).setUint32(0, 875575606); // the camera's size field is wrong too
+    parts.push(free);
+  }
+  return concat(parts);
+}
