@@ -128,7 +128,7 @@ fun ImportScreen(
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("Lap times from video", style = type.h3, color = colors.textStrong)
                     Text(
-                        "Corvette and Cadillac PDR clips and GoPro clips carry telemetry alongside the picture. " +
+                        "Corvette and Cadillac PDR clips, GoPro clips and AiM SmartyCam clips carry telemetry alongside the picture. " +
                             "Pick one and the " +
                             "laps come out of it here — the video never leaves this device and is never copied; " +
                             "only its telemetry track is read.",

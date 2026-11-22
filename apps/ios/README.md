@@ -25,7 +25,7 @@ apps/ios/
       API/                     APIClient, APIError, request bodies
       Billing/                 tier predicates and gates (port of public/js/entitlement.js)
       Recorder/                lap geometry, recorder core
-      Telemetry/               PDR + GoPro parsers, per-lap channels, lap recovery
+      Telemetry/               PDR, SmartyCam + GoPro parsers, per-lap channels, lap recovery
     Tests/TrackEvolutionKitTests/
 ```
 
@@ -805,7 +805,10 @@ its twin — keep the two in step.
 ## Video import reads the file where it sits
 
 `App/Import/` and the Kit's `Telemetry/` are NS-30: pick a PDR or GoPro clip and
-get lap times out of it, on the device the footage is already on.
+get lap times out of it, on the device the footage is already on. An AiM
+SmartyCam `.MOV` goes the same way since NS-55 (`SmartyCam.swift`, tried after
+both PDR parsers and before GoPro): its laps are the logger's own, so it never
+reaches the line picker, and no best-lap clip is offered for it yet.
 
 **The video is never copied and never uploaded.** Both parsers read the MP4 index
 plus the telemetry track's own samples — a few MB for PDR, tens for a long GoPro

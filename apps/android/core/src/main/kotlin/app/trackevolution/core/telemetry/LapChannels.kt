@@ -211,9 +211,9 @@ public object TelemetryChannels {
      * whatever car channels the file carried (a VBO logger's rpm, pedals,
      * steering…).
      *
-     * The JS tests `!parsed.carChannels`, and only three parsers set it: PDR,
-     * and VBO and Track Precision CSV — which always set an object, empty or
-     * not, so every one of those takes the merging path.
+     * The JS tests `!parsed.carChannels`, and only four parsers set it: PDR,
+     * and VBO, Track Precision CSV and SmartyCam — which always set an object,
+     * empty or not, so every one of those takes the merging path.
      * [ParsedTelemetry.carChannels] is never null here, so the same decision is
      * spelled as the kinds that carry one; GoPro and the live recorder stay on
      * the trace alone, exactly as before.
@@ -222,6 +222,7 @@ public object TelemetryChannels {
         ParsedTelemetry.Kind.PDR,
         ParsedTelemetry.Kind.VBO,
         ParsedTelemetry.Kind.TRACK_PRECISION,
+        ParsedTelemetry.Kind.SMARTYCAM,
     )
 
     public fun channelDataFor(parsed: ParsedTelemetry): ChannelData? {

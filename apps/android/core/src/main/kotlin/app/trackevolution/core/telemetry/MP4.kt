@@ -96,7 +96,7 @@ public object MP4 {
  * What a parser throws when a file isn't its own, or isn't a video at all.
  *
  * [isNoTrack] replaces the JS's `/No .* telemetry track/` test on the message:
- * [Telemetry.parseTelemetryFile] tries PDR then GoPro, and needs to tell "this
+ * [Telemetry.parseTelemetryFile] tries each video parser in turn, and needs to tell "this
  * file simply isn't mine" (try the other parser) from "this file is mine and
  * it's broken" (report it). Same distinction, made explicitly rather than by
  * regex — the same call the iOS port made.

@@ -857,15 +857,16 @@ byte-range reads of the embedded telemetry track (a few MB of a multi-GB file);
   "pdr"` and nothing downstream knows the difference. A recording with no lap
   events goes to the line picker.
 - **GoPro MP4** (Hero 5+) — the GPS trace from the GPMF metadata track.
-- **AiM SmartyCam MOV** (web only so far; NS-55,
-  `public/js/import/smartycam.js`) — the camera hides a 6 Hz telemetry track
+- **AiM SmartyCam MOV** (on all three clients; NS-55,
+  `public/js/import/smartycam.js`, ported as `SmartyCam` to the iOS Kit and
+  Android `:core` and pinned by `contracts/logic/smartycam-parsers.json`) — the camera hides a 6 Hz telemetry track
   in the file, declared as a second audio track: GPS, the AiM logger's lap
   counter and lap times, RPM, throttle and gear. Laps are the logger's own,
   exact to 10 ms, and need no line; a lap needs both crossings in the file, so
   the out-lap is never imported. The camera drops frames, so the parser runs
   on *video* time and takes lap times from the logger — see the file's header
-  before touching it. No best-lap clip yet (the audio is PCM, which a clip
-  can't carry), and AiM logger files (`.xrk`, Race Studio CSV) are not read.
+  before touching it. No best-lap clip yet on any client (the audio is PCM, which a clip
+  can't carry — NS-55 ticket 4), and AiM logger files (`.xrk`, Race Studio CSV) are not read.
 - **Racelogic VBO** (VBOX, and RaceChrono / TrackAddict / Harry's LapTimer /
   Porsche Track Precision exports) — laps from the file's `[laptiming]` start
   line when present (either endpoint order; widened to 40 m and

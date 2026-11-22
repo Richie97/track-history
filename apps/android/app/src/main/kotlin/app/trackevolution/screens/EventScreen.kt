@@ -934,7 +934,7 @@ private fun AddSessionCard(
             color = colors.textStrong,
         )
         Text(
-            "Corvette or Cadillac PDR clips, GoPro clips, or a .vbo or Track Precision .csv log, already on this " +
+            "Corvette or Cadillac PDR clips, GoPro or AiM SmartyCam clips, or a .vbo or Track Precision .csv log, already on this " +
                 "device — laps, " +
                 "racing line and channel graphs come out of the telemetry. The file is read " +
                 "in place, never copied or uploaded.",

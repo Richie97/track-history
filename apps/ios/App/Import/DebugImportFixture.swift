@@ -12,6 +12,7 @@ import Foundation
 /// — is the production path, and that is what this reaches:
 ///
 ///     xcrun simctl launch <device> app.trackevolution -importFixture pdr-delta.mp4
+///     xcrun simctl launch <device> app.trackevolution -importFixture smartycam-laps.mov
 ///
 /// Optionally with `-importFixtureEvent <id>` to pre-select the event the session
 /// is saved to, which is how the UI test saves into an event it seeded.
@@ -20,16 +21,19 @@ import Foundation
 /// produced from inside the app.
 enum DebugImportFixture {
     /// The clip named by `-importFixture`, if the argument is present and the file
-    /// is there. Read from `contracts/logic/video/` in the repo — located by
-    /// walking up from this source file, exactly as `RepoRoot` does in the Kit's
-    /// tests — because a fixture copied into the bundle would go stale.
+    /// is there. Read from `contracts/logic/video/` in the repo — or
+    /// `contracts/logic/smartycam/`, where the AiM SmartyCam `.mov` fixtures
+    /// live (NS-55) — located by walking up from this source file, exactly as
+    /// `RepoRoot` does in the Kit's tests, because a fixture copied into the
+    /// bundle would go stale.
     static var pendingURL: URL? {
         guard let name = UserDefaults.standard.string(forKey: "importFixture"), !name.isEmpty else {
             return nil
         }
         guard let root = repoRoot else { return nil }
-        let url = root.appending(path: "contracts/logic/video").appending(path: name)
-        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        return ["contracts/logic/video", "contracts/logic/smartycam"]
+            .map { root.appending(path: $0).appending(path: name) }
+            .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
     /// The event `-importFixtureEvent` names, so the review saves where the test

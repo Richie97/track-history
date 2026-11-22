@@ -216,7 +216,7 @@ struct PDRTests {
         }
 
         @Test func reportsAVideoNeitherParserRecognises() {
-            #expect(throws: TelemetryParseError(message: "No PDR or GoPro telemetry in this video")) {
+            #expect(throws: TelemetryParseError(message: "No PDR, SmartyCam or GoPro telemetry in this video")) {
                 try Telemetry.parseTelemetryFile(Self.emptyMp4())
             }
         }

@@ -197,8 +197,9 @@ public enum TelemetryChannels {
             return traceChannelData(gps, Geo.projectTrace(gps))
         }
         // `parsed.kind !== "pdr" && !parsed.carChannels` in the JS. Only the PDR,
-        // VBO and Track Precision CSV parsers produce a `carChannels` object — the
-        // last two always, even when empty, so its scalars and `meta` ride along — while GoPro and a
+        // SmartyCam, VBO and Track Precision CSV parsers produce a `carChannels`
+        // object — the last three always, even when empty, so its scalars and
+        // `meta` ride along — while GoPro and a
         // phone recording carry none, so the test is on the kind rather than on
         // whether `carChannels` (never nil here) happens to hold anything.
         if !hasCarChannels(parsed.kind) { return fromTrace() }
@@ -219,7 +220,7 @@ public enum TelemetryChannels {
     /// Whether a parser of this kind produces a `carChannels` object.
     static func hasCarChannels(_ kind: ParsedTelemetry.Kind) -> Bool {
         switch kind {
-        case .pdr, .vbo, .trackPrecision: true
+        case .pdr, .smartycam, .vbo, .trackPrecision: true
         case .gopro, .live: false
         }
     }
