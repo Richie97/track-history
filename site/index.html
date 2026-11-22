@@ -53,7 +53,7 @@
         ],
         "@id": "https://trackevolution.app/#app",
         "name": "Track Evolution",
-        "description": "An HPDE / track-day logbook: events, sessions and lap times per track, progress charts, telemetry import from Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision files, GPS lap recording, and a garage with wear tracking.",
+        "description": "An HPDE / track-day logbook: events, sessions and lap times per track, progress charts, telemetry import from Corvette and Cadillac PDR, GoPro, AiM SmartyCam, Racelogic VBO and Porsche Track Precision files, GPS lap recording, and a garage with wear tracking.",
         "url": "https://trackevolution.app/",
         "applicationCategory": "SportsApplication",
         "operatingSystem": "iOS, iPadOS, macOS, Android, Web",
@@ -141,7 +141,7 @@
             "name": "Which data loggers and cameras can it import?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. See every supported source."
+              "text": "Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), AiM SmartyCam video, Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. See every supported source."
             }
           },
           {
@@ -283,7 +283,7 @@
           <h3>Telemetry import
           <span class="tier">Free</span>
           </h3>
-          <p>Drop in Corvette or Cadillac PDR video, GoPro footage, Racelogic VBO or Porsche Track Precision files and get sessions with laps and racing lines — free, on the web and in the phone apps, straight from Files or Photos. Parsing happens entirely on your own device: videos are read by byte range, and the file is never uploaded. Per-lap speed, throttle and brake graphs are free too. With <a href="#pricing">Pro</a>, the same files also give you the rest of the channels — steering, RPM, lateral G and yaw — a gear ribbon with your shift points, ABS and wheelspin marks on the track map, sector splits with a theoretical best lap, a car-health strip of the slow readings (oil and tire temperatures, pressures, fuel and battery, lap by lap), and a lap-vs-lap delta chart that shows exactly where the time went — including comparing any two laps across sessions, events or seasons. Pro in the phone apps and the web app can also keep each session's <a href="docs/telemetry-import.html#best-lap-video">best lap — or every lap of a PDR session — as a video clip</a>, and the web app plays it <a href="docs/telemetry-import.html#watching">in step with the charts</a>: tap a chart to jump the video there, or play two laps' videos side by side. And the web app opens a racing line over satellite imagery of the circuit, so you can see it on the tarmac it was driven on.</p>
+          <p>Drop in Corvette or Cadillac PDR video, GoPro or AiM SmartyCam footage, Racelogic VBO or Porsche Track Precision files and get sessions with laps and racing lines — free, on the web and in the phone apps, straight from Files or Photos. Parsing happens entirely on your own device: videos are read by byte range, and the file is never uploaded. Per-lap speed, throttle and brake graphs are free too. With <a href="#pricing">Pro</a>, the same files also give you the rest of the channels — steering, RPM, lateral G and yaw — a gear ribbon with your shift points, ABS and wheelspin marks on the track map, sector splits with a theoretical best lap, a car-health strip of the slow readings (oil and tire temperatures, pressures, fuel and battery, lap by lap), and a lap-vs-lap delta chart that shows exactly where the time went — including comparing any two laps across sessions, events or seasons. Pro in the phone apps and the web app can also keep each session's <a href="docs/telemetry-import.html#best-lap-video">best lap — or every lap of a PDR session — as a video clip</a> (not yet from AiM SmartyCam files), and the web app plays it <a href="docs/telemetry-import.html#watching">in step with the charts</a>: tap a chart to jump the video there, or play two laps' videos side by side. And the web app opens a racing line over satellite imagery of the circuit, so you can see it on the tarmac it was driven on.</p>
         </div>
 
         <div class="feature">
@@ -411,6 +411,10 @@
           <p>The GPS trace from the GPMF metadata track (Hero 5 and newer), timed with the start/finish line picker.</p>
         </div>
         <div class="feature">
+          <h3>AiM SmartyCam MOV</h3>
+          <p>The camera's own video file, with the lap times the AiM logger timed — the ones on your dash, no line to pick — plus the GPS trace, RPM, throttle and gear stored with the picture.</p>
+        </div>
+        <div class="feature">
           <h3>Racelogic VBO</h3>
           <p>VBOX files and RaceChrono / TrackAddict / Harry's LapTimer / Porsche Track Precision exports — laps from the file's own start line when present, otherwise from GPS, plus the car channels the file logged.</p>
         </div>
@@ -510,7 +514,7 @@
         </div>
         <div class="faq-item">
           <h3>Which data loggers and cameras can it import?</h3>
-          <p>Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. <a href="docs/telemetry-import.html">See every supported source</a>.</p>
+          <p>Corvette Performance Data Recorder (PDR) video, the newer Cadillac V-Series Blackwing PDR video, GoPro footage with GPS (Hero 5 and newer), AiM SmartyCam video, Racelogic VBO files — including VBOX, RaceChrono, TrackAddict and Harry's LapTimer exports — and Porsche Track Precision VBO and CSV exports. Import is free on the web and in both phone apps. <a href="docs/telemetry-import.html">See every supported source</a>.</p>
         </div>
         <div class="faq-item">
           <h3>How do I get lap times out of a Corvette PDR video?</h3>

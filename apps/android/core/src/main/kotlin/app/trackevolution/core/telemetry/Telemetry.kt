@@ -26,7 +26,7 @@ import java.util.Locale
 public object Telemetry {
 
     /** `SUPPORTED_EXT` in the JS — what [defaultLabel] strips from a file name. */
-    public val SUPPORTED_EXT: Regex = Regex("\\.(mp4|vbo|csv)$", RegexOption.IGNORE_CASE)
+    public val SUPPORTED_EXT: Regex = Regex("\\.(mp4|mov|vbo|csv)$", RegexOption.IGNORE_CASE)
 
     /**
      * Parse one picked file. A name ending `.vbo` is read whole as text and goes
@@ -34,19 +34,21 @@ public object Telemetry {
      * [TrackPrecisionCsv.parseTrackPrecisionCsv] — the dispatch is by name, as
      * `parse.js`'s is, because a `.vbo` has no registered MIME type and a
      * `.csv` could be anything, and each arrives as whatever the provider
-     * guesses. Anything else is an MP4: Corvette PDR first, then the newer
-     * AliveDrive PDR 2.5 (2025-on GM cars), then GoPro GPMF.
+     * guesses. Anything else — `.mp4` and `.mov` alike — is a video: Corvette
+     * PDR first, then the newer AliveDrive PDR 2.5 (2025-on GM cars), then an
+     * AiM SmartyCam ([SmartyCam]), then GoPro GPMF.
      *
-     * Both video parsers report "no track of mine here" distinctly from "this
+     * Every video parser reports "no track of mine here" distinctly from "this
      * file is mine and it's broken", so a GoPro clip isn't reported as a broken
      * PDR one and vice versa.
      */
     public fun parseTelemetryFile(source: TelemetryByteSource, fileName: String? = null): ParsedTelemetry {
-        if (fileName != null && fileName.lowercase().endsWith(".vbo")) {
+        val name = fileName?.lowercase()
+        if (fileName != null && name != null && name.endsWith(".vbo")) {
             return TelemetryChannels.attachLapChannels(VBO.parseVboText(readText(source), fileName))
         }
         // Porsche Track Precision's CSV export — the only CSV layout read.
-        if (fileName != null && fileName.lowercase().endsWith(".csv")) {
+        if (fileName != null && name != null && name.endsWith(".csv")) {
             return TelemetryChannels.attachLapChannels(
                 TrackPrecisionCsv.parseTrackPrecisionCsv(readText(source), fileName),
             )
@@ -56,13 +58,23 @@ public object Telemetry {
         } catch (e: TelemetryParseException) {
             e
         }
+        // A camera that lost power mid-recording leaves a file with no index
+        // (and a .FOF beside it on the card). No parser can read it; say which
+        // it is.
+        if (pdrErr.message.contains("No moov box") && name != null && name.endsWith(".mov")) {
+            throw TelemetryParseException("This recording wasn't finished by the camera and can't be read.")
+        }
+        // The laps are the logger's own, so a SmartyCam file never needs a line.
+        val aimErr: TelemetryParseException = try {
+            return TelemetryChannels.attachLapChannels(SmartyCam.parseSmartyCamFile(source))
+        } catch (e: TelemetryParseException) {
+            e
+        }
         try {
             return TelemetryChannels.attachLapChannels(GPMF.parseGpmfFile(source))
         } catch (gpErr: TelemetryParseException) {
-            if (pdrErr.isNoTrack && gpErr.isNoTrack) {
-                throw TelemetryParseException("No PDR or GoPro telemetry in this video")
-            }
-            throw if (pdrErr.isNoTrack) gpErr else pdrErr
+            throw listOf(pdrErr, aimErr, gpErr).firstOrNull { !it.isNoTrack }
+                ?: TelemetryParseException("No PDR, SmartyCam or GoPro telemetry in this video")
         }
     }
 

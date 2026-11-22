@@ -66,7 +66,7 @@ class TelemetryTest {
         val err = assertThrows(TelemetryParseException::class.java) {
             Telemetry.parseTelemetryFile(ByteArraySource(GPMFTest.emptyMp4()))
         }
-        assertEquals("No PDR or GoPro telemetry in this video", err.message)
+        assertEquals("No PDR, SmartyCam or GoPro telemetry in this video", err.message)
     }
 
     @Test

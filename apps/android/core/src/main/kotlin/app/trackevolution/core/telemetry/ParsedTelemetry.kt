@@ -79,6 +79,8 @@ public data class ParsedTelemetry(
     public enum class Kind(public val rawValue: String, public val label: String) {
         PDR("pdr", "PDR"),
         GOPRO("gopro", "GoPro"),
+        /** An AiM SmartyCam `.MOV` (NS-55): the logger's own laps, on video time. */
+        SMARTYCAM("smartycam", "SmartyCam"),
         /** A Racelogic `.vbo` log — VBOX hardware or a phone app's export. */
         VBO("vbo", "VBO"),
         /** Porsche Track Precision's CSV export. */

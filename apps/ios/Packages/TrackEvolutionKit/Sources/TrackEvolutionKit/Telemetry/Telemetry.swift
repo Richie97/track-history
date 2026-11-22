@@ -7,15 +7,15 @@ import Foundation
 /// `defaultLabel`), so the phone builds the same session — laps, trace, channels,
 /// notes — the browser would from the same file.
 ///
-/// Three kinds of file: video (`.mp4`, PDR or GoPro, read by byte range so a
-/// multi-GB clip is never copied), Racelogic `.vbo` logs — VBOX hardware, and
-/// the exports of phone lap timers such as Porsche's Track Precision App, which
+/// Three kinds of file: video (`.mp4` / `.mov` — PDR, an AiM SmartyCam or GoPro
+/// — read by byte range so a multi-GB clip is never copied), Racelogic `.vbo`
+/// logs — VBOX hardware, and the exports of phone lap timers such as Porsche's Track Precision App, which
 /// land on the phone before any laptop is opened — and Track Precision's `.csv`
 /// export. The logs are dispatched by the file's *name*, exactly as the JS
 /// does, so callers pass it.
 public enum Telemetry {
     /// File extensions the importer accepts — `SUPPORTED_EXT` in the JS.
-    public static let SUPPORTED_EXTENSIONS = ["mp4", "vbo", "csv"]
+    public static let SUPPORTED_EXTENSIONS = ["mp4", "mov", "vbo", "csv"]
 
     /// Whether `name` is a `.vbo` log rather than a video.
     public static func isVbo(_ name: String?) -> Bool {
@@ -32,11 +32,11 @@ public enum Telemetry {
         isVbo(name) || isCsv(name)
     }
 
-    /// Parse a telemetry file: a `.vbo` or `.csv` log by name, otherwise an MP4 —
-    /// Corvette PDR first, then the newer AliveDrive PDR 2.5 (2025-on GM cars),
-    /// then GoPro GPMF.
+    /// Parse a telemetry file: a `.vbo` or `.csv` log by name, otherwise a video
+    /// (`.mp4` / `.mov`) — Corvette PDR first, then the newer AliveDrive PDR 2.5
+    /// (2025-on GM cars), then an AiM SmartyCam, then GoPro GPMF.
     ///
-    /// Both video parsers report "no track of mine here" distinctly from "this
+    /// Every video parser reports "no track of mine here" distinctly from "this
     /// file is mine and it's broken", so a GoPro clip isn't reported as a broken
     /// PDR one and vice versa.
     public static func parseTelemetryFile(
@@ -81,15 +81,34 @@ public enum Telemetry {
         } catch let error as TelemetryParseError {
             pdrErr = error
         }
+        // A camera that lost power mid-recording leaves a file with no index (and
+        // a .FOF beside it on the card). No parser can read it; say which it is.
+        // `/No moov box/.test(pdrErr.message) && name.endsWith(".mov")` in the JS.
+        if pdrErr?.message.contains("No moov box") == true,
+           name?.lowercased().hasSuffix(".mov") == true {
+            throw TelemetryParseError(message: "This recording wasn't finished by the camera and can't be read.")
+        }
+        // The laps are the logger's own, so a SmartyCam file never needs a line.
+        var aimErr: TelemetryParseError?
+        do {
+            var aim = try SmartyCam.parseSmartyCamFile(source)
+            TelemetryChannels.attachLapChannels(&aim)
+            return aim
+        } catch let error as TelemetryParseError {
+            aimErr = error
+        }
         do {
             var gopro = try GPMF.parseGpmfFile(source)
             TelemetryChannels.attachLapChannels(&gopro)
             return gopro
         } catch let gpErr as TelemetryParseError {
-            if pdrErr?.isNoTrack == true, gpErr.isNoTrack {
-                throw TelemetryParseError(message: "No PDR or GoPro telemetry in this video")
+            // The first error that isn't "no track of mine here", in the order the
+            // parsers ran; when every one is, the file simply isn't a known source.
+            let errs = [pdrErr, aimErr, gpErr].compactMap { $0 }
+            guard let real = errs.first(where: { !$0.isNoTrack }) else {
+                throw TelemetryParseError(message: "No PDR, SmartyCam or GoPro telemetry in this video")
             }
-            throw pdrErr?.isNoTrack == true ? gpErr : (pdrErr ?? gpErr)
+            throw real
         }
     }
 
@@ -230,7 +249,8 @@ public enum Telemetry {
 
     private static func stripExtension(_ file: String) -> String {
         let lower = file.lowercased()
-        for ext in [".mp4", ".vbo"] where lower.hasSuffix(ext) {
+        // `SUPPORTED_EXT` in the JS.
+        for ext in [".mp4", ".mov", ".vbo", ".csv"] where lower.hasSuffix(ext) {
             return String(file.dropLast(ext.count))
         }
         return file

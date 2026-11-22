@@ -83,7 +83,7 @@ struct ImportScreen: View {
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
                     Text("""
-                        Corvette and Cadillac PDR clips and GoPro clips carry telemetry \
+                        Corvette and Cadillac PDR clips, GoPro clips and AiM SmartyCam clips carry telemetry \
                         alongside the picture, \
                         and a Racelogic .vbo log (VBOX, or an export from an app such as \
                         Porsche Track Precision) or a Track Precision .csv export is nothing \

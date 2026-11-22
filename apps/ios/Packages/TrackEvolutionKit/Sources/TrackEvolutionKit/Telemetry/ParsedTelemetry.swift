@@ -14,6 +14,8 @@ public struct ParsedTelemetry: Sendable {
     public enum Kind: String, Sendable {
         case pdr
         case gopro
+        /// An AiM SmartyCam video (`SmartyCam.parseSmartyCamFile`).
+        case smartycam
         /// A Racelogic `.vbo` log (`VBO.parseVboText`).
         case vbo
         /// Porsche Track Precision's CSV export (`TrackPrecisionCsv`).
@@ -26,6 +28,7 @@ public struct ParsedTelemetry: Sendable {
             switch self {
             case .pdr: "PDR"
             case .gopro: "GoPro"
+            case .smartycam: "SmartyCam"
             case .vbo: "VBO"
             case .trackPrecision: "Track Precision"
             case .live: "Recorded"

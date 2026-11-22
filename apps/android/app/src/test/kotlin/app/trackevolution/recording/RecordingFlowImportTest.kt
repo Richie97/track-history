@@ -290,11 +290,11 @@ class RecordingFlowImportTest {
     @Test
     fun `a clip that yielded nothing is listed by name and cannot be saved`() {
         val flow = RecordingFlow(CoroutineScope(Dispatchers.Default), api())
-        val broken = ImportedClip(file = "dashcam.mp4", parsed = null, error = "No PDR or GoPro telemetry in this video")
+        val broken = ImportedClip(file = "dashcam.mp4", parsed = null, error = "No PDR, SmartyCam or GoPro telemetry in this video")
         flow.beginImport(TelemetryImporter.finish(listOf(broken)), preferredEventId = 7)
         val state = flow.state.value
         assertEquals("dashcam.mp4", state.items.single().file)
-        assertEquals("No PDR or GoPro telemetry in this video", state.items.single().error)
+        assertEquals("No PDR, SmartyCam or GoPro telemetry in this video", state.items.single().error)
         assertFalse(state.canSave)
         assertFalse(state.needsLinePick)
     }
@@ -460,6 +460,50 @@ class RecordingFlowImportTest {
         val recording = RecorderCore.createRecording(eventId = "7", startedAtMs = 1_700_000_000_000.0)
         flow.begin(recording)
         assertEquals(LapClips.ClipOffer.NONE, flow.state.value.clipOffer(pro, room))
+    }
+
+    /**
+     * NS-55: an AiM SmartyCam `.MOV` arrives with the logger's own laps, so the
+     * review shows no line picker — and, until the cutters learn its PCM sound
+     * (a later ticket), no clip row either: `VIDEO_KINDS` doesn't list it.
+     */
+    @Test
+    fun `a SmartyCam mov saves its laps with no line picker and no clip row`() {
+        val name = "smartycam-laps.mov"
+        var dir: File? = File(System.getProperty("user.dir")).absoluteFile
+        while (dir != null && !File(dir, "package.json").isFile) dir = dir.parentFile
+        val bytes = File(dir ?: error("repository root not found"), "contracts/logic/smartycam/$name").readBytes()
+        val picked = TelemetryImporter.parseOne(name) { ByteArraySource(bytes) }
+            .copy(uri = Uri.parse("content://test/$name"), fileBytes = bytes.size.toLong())
+        assertNull(picked.error)
+        assertEquals(ParsedTelemetry.Kind.SMARTYCAM, picked.parsed?.kind)
+
+        val flow = clipFlow()
+        flow.beginImport(TelemetryImporter.finish(listOf(picked)), preferredEventId = 7)
+        awaitEvents(flow)
+
+        val state = flow.state.value
+        assertFalse("the laps are the logger's own: no picker", state.needsLinePick)
+        assertTrue(state.canSave)
+        assertEquals("no clip row, even for Pro with room", LapClips.ClipOffer.NONE, state.clipOffer(pro, room))
+        assertEquals("and no Every lap choice", LapClips.ClipOffer.NONE, state.everyLapOffer(pro, room))
+
+        // Even handed an "on" row, nothing is cut: there is no candidate lap.
+        flow.save(context, clipOffer = LapClips.ClipOffer.ON)
+        awaitSaved(flow)
+
+        assertEquals(1, posted.size)
+        assertTrue("no clip is asked for", requested.isEmpty())
+        val draft = body(0)
+        assertEquals(listOf(47120, 47120, 47120), draft["laps"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() })
+        val lap = draft["channels"]!!.jsonObject["laps"]!!.jsonArray[0].jsonObject
+        for (channel in listOf("speed", "rpm", "throttle", "gear")) {
+            assertTrue("$channel is carried", lap[channel]!!.jsonArray.size > 80)
+        }
+        val notes = draft["notes"]!!.jsonPrimitive.content
+        assertTrue(notes, notes.startsWith("Imported from $name — top speed "))
+        assertFalse("nothing personal from the camera's XML", notes.contains("Test Driver") || notes.contains("Test Car"))
+        assertAnchored(draft)
     }
 
     @Test

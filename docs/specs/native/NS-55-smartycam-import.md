@@ -1,6 +1,6 @@
 # NS-55 — Import laps from an AiM SmartyCam video
 
-**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** the video importers (NS-30, NS-32), [NS-45](NS-45-best-lap-clips.md) / [NS-47](NS-47-web-clip-upload.md) / [NS-50](NS-50-every-lap-clips.md) (clips), [NS-53](NS-53-track-map-on-maps.md) (the trace anchor) · **Estimate:** four PRs · **Issue:** not opened yet · **Status:** ticket 1 (the web parser) built; tickets 2–4 not
+**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** the video importers (NS-30, NS-32), [NS-45](NS-45-best-lap-clips.md) / [NS-47](NS-47-web-clip-upload.md) / [NS-50](NS-50-every-lap-clips.md) (clips), [NS-53](NS-53-track-map-on-maps.md) (the trace anchor) · **Estimate:** four PRs · **Issue:** not opened yet · **Status:** tickets 1–3 (the web parser, the iOS port, the Android port) built; ticket 4 (clips) not
 
 ## Goal
 
@@ -206,8 +206,8 @@ files are read.
 ## Tickets
 
 1. **Web parser** — `smartycam.js`, the dispatch, fixtures, `smartycam-parsers.json`, docs. **Built.**
-2. **iOS port** — `SmartyCam.swift`, dispatch, contract test.
-3. **Android port** — `SmartyCam.kt`, dispatch, contract test, the `.mov` name rule.
+2. **iOS port** — `SmartyCam.swift`, dispatch, contract test. **Built.**
+3. **Android port** — `SmartyCam.kt`, dispatch, contract test, the `.mov` name rule. **Built.**
 4. **Clips** — the kinds lists on all three, the three cutters' no-PCM rule, the reworded offer text.
 
 ## Acceptance criteria
@@ -238,6 +238,52 @@ files are read.
   and `AGENTS.md` are updated. **The landing page, its FAQ and its structured
   data are not**: they describe all three clients, so they take the source
   when the phones read it (tickets 2 and 3).
+
+## As built (tickets 2 and 3)
+
+- `SmartyCam.swift` in the Kit's `Telemetry/` and `SmartyCam.kt` in `:core`'s
+  `telemetry/`, under the JS names (`parseSmartyCamFile` is the file parser),
+  with the JS cases in `SmartyCamTests` / `SmartyCamTest` and the fixture
+  asserted by `SmartyCamContractTests` / `SmartyCamContractTest`, which walk
+  `CHANNEL_NAMES` / `SCALAR_NAMES` / `META_NAMES`.
+- Both `ParsedTelemetry.Kind`s gain `smartycam` (label *SmartyCam*), and both
+  `LapChannels` ports count it among the kinds that carry car channels, as
+  `channelDataFor` does for any source that sets `carChannels`.
+- Both dispatches try it after the two PDR parsers and before GoPro, for any
+  video name, and take the web's wording: *"No PDR, SmartyCam or GoPro
+  telemetry in this video"* and, for a `.mov` with no `moov`, the
+  unfinished-recording sentence. `mov` joined both supported-extension lists.
+- **`.mov` already reached both importers.** iOS's `.fileImporter`, Photos
+  picker, drop target and document types admitted QuickTime; only the DEBUG
+  `-importFixture` launcher needed to look in `contracts/logic/smartycam/`.
+  Android's SAF picker lists `video/quicktime` and the share filter's
+  `video/*` covers it; `ContentByteSource.nameForType` now gives a bare
+  shared name typed `video/quicktime` a `.mov`.
+- **No clip, no picker.** `VIDEO_KINDS` and the cutters are untouched, so
+  `clipOffer` answers *none* and the review draws no clip row; `needsLine` is
+  always false. Android pins both through the review flow
+  (`RecordingFlowImportTest`), iOS pins `clipCandidate` / `clipCandidates` in
+  the Kit and the rest by reading.
+- Three numeric notes. `Math.hypot(x, y, z)` has no Swift or Kotlin twin:
+  Kotlin carries a private three-argument `hypot` following V8's algorithm and
+  uses `StrictMath` trig, Swift takes `sqrt(x² + y² + z²)`. Both sit inside
+  the fixture's 1e-9 and agree with the JS to six decimals on the real card;
+  neither is asserted bit for bit. Kotlin does the lap-clock and throttle
+  comparisons in `Long`, where two i32s could overflow an `Int`. Both read
+  records one at a time rather than 64 concurrently.
+- Two things beyond a line-for-line port: Kotlin clamps the `stco` / `stsc`
+  counts to what their boxes can hold (a corrupt count is not walked), and the
+  Kit's `stripExtension` now strips `.mov` and `.csv` as the JS strips every
+  supported extension.
+- Run against the real card by hand on each port (a throwaway test, not
+  committed): all 130 files, output diffed against the JS parser's — identical.
+  129 parse, 356 laps over 76 files, and `SCHD0279.MOV` gives 221.37, 205.77
+  and 198.33 s.
+- Not run: either app on a device or simulator, the real pickers, a shared
+  `content://` `.MOV`.
+- The landing page, its FAQ and its structured data, `llms.txt` and the two
+  docs pages now say the source is read on every client; the phones' own
+  import copy names it too.
 
 ## Open questions
 

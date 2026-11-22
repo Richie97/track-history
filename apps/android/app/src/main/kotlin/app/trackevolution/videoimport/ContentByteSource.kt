@@ -89,7 +89,7 @@ class ContentByteSource private constructor(
          * The parser dispatches on this name, so a name with no extension on a
          * URI the provider types as CSV gets ".csv" (see [nameForType]):
          * otherwise a Track Precision export shared under a bare name would be
-         * read as a video.
+         * read as a video. A QuickTime one gets ".mov" the same way.
          */
         fun displayName(resolver: ContentResolver, uri: Uri): String {
             val type = runCatching { resolver.getType(uri) }.getOrNull()
@@ -110,14 +110,23 @@ class ContentByteSource private constructor(
         /** The MIME types a provider reports a CSV as. */
         internal val CSV_TYPES = setOf("text/csv", "text/comma-separated-values", "application/csv")
 
+        /** QuickTime — an AiM SmartyCam's `.MOV` (NS-55). */
+        internal val MOV_TYPES = setOf("video/quicktime")
+
         /**
          * [name] with ".csv" appended when it has no extension of its own and
-         * [type] says CSV. A name that has one is left alone — the file's own
-         * name wins over a provider's guess at its type.
+         * [type] says CSV, or ".mov" when it says QuickTime — the importer
+         * tells an unfinished camera recording from a video that simply isn't
+         * one it reads by that extension. A name that has an extension is left
+         * alone — the file's own name wins over a provider's guess at its type.
          */
         internal fun nameForType(name: String, type: String?): String {
-            val hasExtension = name.substringAfterLast('/').contains('.')
-            return if (!hasExtension && type?.lowercase()?.substringBefore(';')?.trim() in CSV_TYPES) "$name.csv" else name
+            if (name.substringAfterLast('/').contains('.')) return name
+            return when (type?.lowercase()?.substringBefore(';')?.trim()) {
+                in CSV_TYPES -> "$name.csv"
+                in MOV_TYPES -> "$name.mov"
+                else -> name
+            }
         }
     }
 }

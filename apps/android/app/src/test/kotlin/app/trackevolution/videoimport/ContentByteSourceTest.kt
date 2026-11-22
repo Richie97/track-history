@@ -112,6 +112,33 @@ class ContentByteSourceTest {
     }
 
     @Test
+    fun `a shared QuickTime movie with a bare name gets its mov`() {
+        // NS-55: an AiM SmartyCam's .MOV, shared by a provider that publishes
+        // no extension. The name is what tells an unfinished recording apart.
+        assertEquals("SCHD0279.mov", ContentByteSource.nameForType("SCHD0279", "video/quicktime"))
+        assertEquals("SCHD0279.mov", ContentByteSource.nameForType("SCHD0279", "Video/QuickTime; codecs=avc1"))
+        // The file's own extension wins, and no other video type is renamed.
+        assertEquals("SCHD0279.MOV", ContentByteSource.nameForType("SCHD0279.MOV", "video/quicktime"))
+        assertEquals("GX010042.MP4", ContentByteSource.nameForType("GX010042.MP4", "video/quicktime"))
+        assertEquals("clip", ContentByteSource.nameForType("clip", "video/mp4"))
+    }
+
+    @Test
+    fun `a SmartyCam mov is read through the same seam, laps and all`() = runBlocking {
+        val clips = TelemetryImporter.parse(
+            resolver,
+            listOf(Uri.fromFile(fixture("smartycam-laps.mov", folder = "smartycam"))),
+        )
+        val clip = clips.single()
+        assertEquals("smartycam-laps.mov", clip.file)
+        assertNull(clip.error)
+        assertEquals(ParsedTelemetry.Kind.SMARTYCAM, clip.parsed?.kind)
+        assertEquals(listOf(47120, 47120, 47120), clip.parsed?.laps?.map { it.timeMs })
+        assertEquals(false, clip.parsed?.needsLine)
+        assertNotNull(clip.parsed?.lapChannels)
+    }
+
+    @Test
     fun `names the file the way the review and the notes will`() {
         assertEquals("pdr-delta.mp4", ContentByteSource.displayName(resolver, Uri.fromFile(fixture("pdr-delta.mp4"))))
     }
