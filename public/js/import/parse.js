@@ -17,18 +17,19 @@
 import { parsePdrFile } from "../../pdr.js";
 import { parsePdr25File } from "./pdr25.js";
 import { parseGpmfFile } from "./gpmf.js";
+import { parseSmartyCamFile } from "./smartycam.js";
 import { parseVboFile } from "./vbo.js";
 import { parseTrackPrecisionCsvFile } from "./csv.js";
 import { lapTrace, projectTrace, traceOrigin } from "./geo.js";
 import { recoverPdrLaps } from "./pdr-laps.js";
 import { attachLapChannels } from "./channels.js";
 
-export const SUPPORTED_EXT = /\.(mp4|vbo|csv)$/i;
+export const SUPPORTED_EXT = /\.(mp4|mov|vbo|csv)$/i;
 
 // "live" is not a file parser: the native apps' GPS lap recorder (whose
 // reference implementation is public/js/record/core.js) produces the same
 // parsed shape and reuses the review + line-picker flow on those platforms.
-export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", vbo: "VBO", trackprecision: "Track Precision", live: "Recorded" };
+export const KIND_LABELS = { pdr: "PDR", gopro: "GoPro", smartycam: "SmartyCam", vbo: "VBO", trackprecision: "Track Precision", live: "Recorded" };
 
 export async function parseTelemetryFile(file) {
   const name = file.name.toLowerCase();
@@ -36,9 +37,9 @@ export async function parseTelemetryFile(file) {
   // Porsche Track Precision's CSV export — the only CSV layout read.
   if (name.endsWith(".csv")) return attachLapChannels(await parseTrackPrecisionCsvFile(file));
 
-  // .mp4: Corvette PDR first, then the newer AliveDrive PDR 2.5 (2025-on
-  // GM cars), then GoPro GPMF. Every parser throws a "No ... telemetry
-  // track" error when the file simply isn't theirs.
+  // .mp4 / .mov: Corvette PDR first, then the newer AliveDrive PDR 2.5
+  // (2025-on GM cars), then an AiM SmartyCam, then GoPro GPMF. Every parser
+  // throws a "No ... telemetry track" error when the file simply isn't theirs.
   let pdrErr;
   try {
     const pdr = await parsePdrAnyFile(file);
@@ -65,14 +66,25 @@ export async function parseTelemetryFile(file) {
   } catch (err) {
     pdrErr = err;
   }
+  // A camera that lost power mid-recording leaves a file with no index (and
+  // a .FOF beside it on the card). No parser can read it; say which it is.
+  if (/No moov box/.test(pdrErr.message) && name.endsWith(".mov")) {
+    throw new Error("This recording wasn't finished by the camera and can't be read.");
+  }
+  // The laps are the logger's own, so a SmartyCam file never needs a line.
+  let aimErr;
+  try {
+    return attachLapChannels(await parseSmartyCamFile(file));
+  } catch (err) {
+    aimErr = err;
+  }
   try {
     return attachLapChannels(await parseGpmfFile(file));
   } catch (gpErr) {
-    const noTrack = (e) => /No .* telemetry track/.test(e.message);
-    if (noTrack(pdrErr) && noTrack(gpErr)) {
-      throw new Error("No PDR or GoPro telemetry in this video");
-    }
-    throw noTrack(pdrErr) ? gpErr : pdrErr;
+    const errs = [pdrErr, aimErr, gpErr];
+    const real = errs.find((e) => !NO_TRACK.test(e.message));
+    if (!real) throw new Error("No PDR, SmartyCam or GoPro telemetry in this video");
+    throw real;
   }
 }
 

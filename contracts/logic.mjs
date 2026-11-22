@@ -334,6 +334,7 @@ import {
   buildPdrMp4,
   buildPdr25Mp4,
   buildPdrRealMp4,
+  buildSmartyCamMov,
   buildTrackPrecisionCsv,
   buildVboText,
   circleTrace,
@@ -2255,6 +2256,67 @@ const csvFixture = {
   lapsFromLaptime: laptimeCases,
 };
 
+// ---------------------------------------------------------------------------
+// AiM SmartyCam parser (NS-55, public/js/import/smartycam.js), on the same
+// terms as the other parsers: the synthetic .MOVs are committed under
+// contracts/logic/smartycam/ and the ports parse those exact bytes. It has a
+// fixture of its own, rather than joining video-parsers.json, so the ports'
+// video contract tests — which walk every file listed there — keep passing
+// until each port lands. The cases are the format's traps: frames dropped
+// inside a lap (the lap is shorter in the file than on the logger's clock),
+// stale x1e7 coordinates beside the ECEF fix, NO_VALUE readings, a file that
+// starts mid-session, a lap counter that resets, and a car field that isn't
+// what it is taken to be.
+
+const SMARTYCAM_DIR = path.join(OUT_DIR, "smartycam");
+const smartyCamFixtures = [
+  {
+    file: "smartycam-laps.mov",
+    note:
+      "Counter from 0 through four steps: the out-lap is dropped and three laps follow. The second lap " +
+      "loses a third of its frames for 12 s, so it is ~4 s shorter in video time than its 47.12 s. " +
+      "The x1e7 latitude/longitude trail the ECEF fix; the car fields read NO_VALUE for 4 s.",
+    bytes: buildSmartyCamMov(),
+  },
+  {
+    file: "smartycam-midsession.mov",
+    note:
+      "Starts with the counter at 3 and resets it to 0 at 80 s (a second logger run in one file): two " +
+      "laps. The gear field holds values past 8, so that channel is dropped. No XML block: the date " +
+      "and time come from the mvhd creation time, in UTC.",
+    bytes: buildSmartyCamMov({ startCount: 3, resetAtS: 80, badGear: true, dropped: [], meta: null }),
+  },
+];
+
+mkdirSync(SMARTYCAM_DIR, { recursive: true });
+const smartyCamCases = [];
+for (const f of smartyCamFixtures) {
+  writeFileSync(path.join(SMARTYCAM_DIR, f.file), Buffer.from(f.bytes));
+  const parsed = await parseTelemetryFile(new File([f.bytes], f.file));
+  smartyCamCases.push({
+    file: f.file,
+    note: f.note,
+    expected: {
+      ...parsedOut(parsed),
+      bestLapTrace: parsed.bestLapTrace ?? null,
+      traceGeo: parsed.traceGeo ?? null,
+      carChannels: Object.fromEntries(Object.entries(parsed.carChannels ?? {}).map(([k, v]) => [k, summarizeSeries(v)])),
+    },
+  });
+}
+const smartyCamFixture = {
+  description:
+    "Reference output of the AiM SmartyCam parser (NS-55: public/js/import/smartycam.js, then " +
+    "channels.js) over the committed files in contracts/logic/smartycam/. A port must reproduce lap " +
+    "times to the millisecond, lap windows and coordinates to 1e-9 and every per-lap channel array " +
+    "element for element. Every time here except a lap's timeMs is VIDEO time (frame / fps). Car " +
+    "channel series are summarized (count, first, last, every 100th). Regenerate with " +
+    "`npm run contracts:logic`; never hand-edit.",
+  source: "public/js/import/smartycam.js, public/js/import/channels.js",
+  gpsStride: GPS_STRIDE,
+  files: smartyCamCases,
+};
+
 // --- event consistency over clean laps (NS-42) -----------------------------
 // lap-stats.js's eventConsistency, which every offline mirror calls and the
 // server computes in SQL. The cases are the ways a port goes wrong: an out-lap
@@ -2961,6 +3023,7 @@ writeFileSync(path.join(OUT_DIR, "lap-clips.json"), JSON.stringify(lapClipsFixtu
 writeFileSync(path.join(OUT_DIR, "clip-upload.json"), JSON.stringify(clipUploadFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "vbo-parsers.json"), JSON.stringify(vboFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "csv-parsers.json"), JSON.stringify(csvFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "smartycam-parsers.json"), JSON.stringify(smartyCamFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "geo-laps.json"), JSON.stringify(fixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "recorder.json"), JSON.stringify(recorderFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "channels.json"), JSON.stringify(channelsFixture, null, 2) + "\n");
@@ -3375,6 +3438,9 @@ console.log(
 );
 console.log(`wrote contracts/logic/vbo-parsers.json (${vboCases.length} files) and contracts/logic/vbo/*.vbo`);
 console.log(`wrote contracts/logic/csv-parsers.json (${csvCases.length} files) and contracts/logic/csv/*.csv`);
+console.log(
+  `wrote contracts/logic/smartycam-parsers.json (${smartyCamCases.length} files) and contracts/logic/smartycam/*.mov`
+);
 
 // ---- YouTube (NS-46): which control a lap's video panel offers --------------
 //

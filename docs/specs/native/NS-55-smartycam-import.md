@@ -1,6 +1,6 @@
 # NS-55 — Import laps from an AiM SmartyCam video
 
-**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** the video importers (NS-30, NS-32), [NS-45](NS-45-best-lap-clips.md) / [NS-47](NS-47-web-clip-upload.md) / [NS-50](NS-50-every-lap-clips.md) (clips), [NS-53](NS-53-track-map-on-maps.md) (the trace anchor) · **Estimate:** four PRs · **Issue:** not opened yet · **Status:** specced, not built
+**Phase:** post-rewrite · **Platform:** Web + iOS + Android (no server change) · **Depends on:** the video importers (NS-30, NS-32), [NS-45](NS-45-best-lap-clips.md) / [NS-47](NS-47-web-clip-upload.md) / [NS-50](NS-50-every-lap-clips.md) (clips), [NS-53](NS-53-track-map-on-maps.md) (the trace anchor) · **Estimate:** four PRs · **Issue:** not opened yet · **Status:** ticket 1 (the web parser) built; tickets 2–4 not
 
 ## Goal
 
@@ -180,8 +180,10 @@ trailing XML in a `free` box with a wrong size.
   (a second logger run in one file); a gear field holding values over 8, so
   the gear channel is dropped and the rest imports.
 
-Both go in `contracts/logic/video/` and `video-parsers.json`, which the Kit's
-and `:core`'s `VideoContractTest`s already iterate. Unit tests in
+Both go in `contracts/logic/smartycam/`, pinned by a fixture of their own,
+`contracts/logic/smartycam-parsers.json`. They can't join `video-parsers.json`:
+both ports' video contract tests walk every file listed there, and would fail
+on a format they can't read until their own ticket lands. Unit tests in
 `test/unit/smartycam.test.js`: each exported function, the interrupted file,
 and a file that is somebody else's `.mov`.
 
@@ -203,7 +205,7 @@ files are read.
 
 ## Tickets
 
-1. **Web parser** — `smartycam.js`, the dispatch, fixtures, `video-parsers.json`, docs.
+1. **Web parser** — `smartycam.js`, the dispatch, fixtures, `smartycam-parsers.json`, docs. **Built.**
 2. **iOS port** — `SmartyCam.swift`, dispatch, contract test.
 3. **Android port** — `SmartyCam.kt`, dispatch, contract test, the `.mov` name rule.
 4. **Clips** — the kinds lists on all three, the three cutters' no-PCM rule, the reworded offer text.
@@ -216,6 +218,26 @@ files are read.
 - A file whose car fields fail plausibility still imports, with speed alone.
 - No name, serial or championship from the XML reaches a request body.
 - A PDR, PDR 2.5 or GoPro file imports exactly as before.
+
+## As built (ticket 1)
+
+- `public/js/import/smartycam.js`, the dispatch in `parse.js`, `.mov` in
+  `SUPPORTED_EXT`, the dropzone filter and the file picker.
+- The combined "not ours" error on the web is now *"No PDR, SmartyCam or GoPro
+  telemetry in this video"*. The phones keep *"No PDR or GoPro telemetry in
+  this video"* until their ports land, and take the new words with them.
+- `VIDEO_KINDS` is untouched, so the web offers no clip for a SmartyCam import
+  until ticket 4.
+- Run against the real card: 129 of 130 files parse (the 130th is the
+  interrupted recording, refused in words), 356 laps over 76 files, and every
+  lap time is one the camera's own log recorded. 53 files hold no complete
+  lap. A lap's video window is up to 3.5 % shorter than its lap time. All
+  three car channels pass plausibility wherever a lap exists; throttle is
+  dropped only in short paddock clips where the pedal never moves.
+- The site's telemetry-import and track-days pages, `llms.txt`, `README.md`
+  and `AGENTS.md` are updated. **The landing page, its FAQ and its structured
+  data are not**: they describe all three clients, so they take the source
+  when the phones read it (tickets 2 and 3).
 
 ## Open questions
 

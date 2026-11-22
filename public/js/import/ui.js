@@ -54,7 +54,7 @@ export function bindTelemetryImport(view, event, onDone, options = {}) {
   view.querySelector("#pdr-import").onclick = () => fileInput.click();
 
   async function importFiles(fileList) {
-    const files = [...fileList].filter((f) => SUPPORTED_EXT.test(f.name) || f.type === "video/mp4");
+    const files = [...fileList].filter((f) => SUPPORTED_EXT.test(f.name) || f.type === "video/mp4" || f.type === "video/quicktime");
     if (!files.length) return;
     const box = view.querySelector("#pdr-review");
     box.innerHTML = `<div class="panel">Reading telemetry from ${files.length} file${files.length === 1 ? "" : "s"}…</div>`;

@@ -30,7 +30,7 @@ describe("parseTelemetryFile dispatch", () => {
 
   it("reports a combined error for MP4s with neither telemetry flavour", async () => {
     await expect(parseTelemetryFile(new File([emptyMp4()], "dashcam.mp4"))).rejects.toThrow(
-      /No PDR or GoPro telemetry/
+      /No PDR, SmartyCam or GoPro telemetry/
     );
   });
 });
