@@ -396,6 +396,8 @@ struct RootView: View {
             SessionCommentScreen(eventId: eventId, sessionId: sessionId, coachId: coachId)
         case .trackMap(let source):
             TrackMapScreen(source: source)
+        case .youtubeUpload(let clipId):
+            YouTubeUploadScreen(clipId: clipId)
         }
     }
 
@@ -439,7 +441,7 @@ struct RootView: View {
             [eventId, sessionId].first(where: OfflineStore.isTemp)
         case .trackMap(.leaderboardLap): nil
         case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
-             .coaching, .profile, .coachInvite, .student, .trackDaysGuide: nil
+             .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .youtubeUpload: nil
         }
         guard let id, OfflineStore.isTemp(id) else { return nil }
         return id

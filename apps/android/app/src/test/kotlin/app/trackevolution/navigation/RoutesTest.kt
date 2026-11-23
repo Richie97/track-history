@@ -21,6 +21,9 @@ class RoutesTest {
         assertEquals(Route.EventForm(editId = 7), routeFor(DeepLink.EditEvent(7)))
         assertEquals(Route.Track(3), routeFor(DeepLink.Track(3)))
         assertEquals(Route.Settings, routeFor(DeepLink.Settings))
+        // Back from connecting YouTube (NS-46): Settings says the outcome.
+        assertEquals(Route.Settings, routeFor(DeepLink.YouTubeConnect("connected")))
+        assertEquals(Route.Settings, routeFor(DeepLink.YouTubeConnect("denied")))
         assertEquals(Route.Shared("eric"), routeFor(DeepLink.Shared("eric")))
         // One shared event or session (NS-48): the kind travels as its prefix.
         assertEquals(

@@ -43,6 +43,8 @@ public val Route.analyticsPath: String
         is Route.TrackMap ->
             if (trackId != null && lapId != null) "/track/:id/leaderboard/:id/map"
             else student(student) + "/event/:id/session/:id/map"
+        // The web's form is a dialog on the event page; a screen here (NS-46).
+        is Route.YouTubeUpload -> "/event/:id/lap/:id/youtube"
         is Route.Wrapped -> "/wrapped/$year"
         Route.Coaching -> "/coaching"
         Route.Profile -> "/profile"
@@ -85,6 +87,7 @@ internal fun NavBackStackEntry.analyticsRoute(): Route? {
         d.hasRoute(Route.Lap::class) -> toRoute<Route.Lap>()
         d.hasRoute(Route.SessionCompare::class) -> toRoute<Route.SessionCompare>()
         d.hasRoute(Route.TrackMap::class) -> toRoute<Route.TrackMap>()
+        d.hasRoute(Route.YouTubeUpload::class) -> toRoute<Route.YouTubeUpload>()
         d.hasRoute(Route.Wrapped::class) -> toRoute<Route.Wrapped>()
         d.hasRoute(Route.Coaching::class) -> Route.Coaching
         d.hasRoute(Route.Profile::class) -> Route.Profile

@@ -40,6 +40,9 @@ public enum DeepLink: Hashable, Sendable {
 
     /// The scheme's reserved host: the sign-in redirect, never a destination.
     private static let authHost = "auth"
+    /// And YouTube's connect redirect (NS-46), `trackevolution://youtube?result=…`:
+    /// read from the web-auth session's completion, never a destination.
+    private static let youtubeHost = "youtube"
 
     public static func parse(_ url: URL) -> DeepLink? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
@@ -47,7 +50,7 @@ public enum DeepLink: Hashable, Sendable {
         }
 
         if url.scheme == TrackEvolutionKit.callbackScheme {
-            if components.host == Self.authHost { return nil }
+            if components.host == Self.authHost || components.host == Self.youtubeHost { return nil }
             // trackevolution://event/5 — nothing generates these today, but the
             // scheme is registered, so they resolve rather than opening a blank app.
             let segments = ([components.host].compactMap { $0 }) + pathSegments(components.path)

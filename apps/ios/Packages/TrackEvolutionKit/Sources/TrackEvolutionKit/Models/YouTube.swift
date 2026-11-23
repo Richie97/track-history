@@ -62,3 +62,17 @@ public struct YouTubeUpload: Codable, Hashable, Sendable {
     public var url: String?
     public var error: String?
 }
+
+/// `POST /api/clips/:id/youtube`: what the driver approved on the form.
+/// `privacy` is `private`, `unlisted` or `public`.
+public struct YouTubeUploadBody: Codable, Hashable, Sendable {
+    public var title: String
+    public var description: String
+    public var privacy: String
+
+    public init(title: String, description: String, privacy: String) {
+        self.title = title
+        self.description = description
+        self.privacy = privacy
+    }
+}

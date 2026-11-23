@@ -225,6 +225,7 @@ struct LapDetailScreen: View {
                         LapVideoSection(session: view.session, lap: view.lap, reload: { await model?.reload() })
                     } else if let clip = view.lap.clip, !owner.isReadOnly {
                         HStack {
+                            YouTubeClipStatus(clip: clip, reload: { await model?.reload() })
                             Spacer()
                             LapClipMenu(clip: clip, onDeleted: { await model?.reload() }) {
                                 stage.pause(announce: false)

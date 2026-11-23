@@ -68,6 +68,9 @@ import app.trackevolution.screens.LeaderboardScreen
 import app.trackevolution.screens.SessionCompareScreen
 import app.trackevolution.screens.SetupFormModel
 import app.trackevolution.screens.SetupFormScreen
+import app.trackevolution.screens.YouTubeUploadModel
+import app.trackevolution.screens.YouTubeUploadScreen
+import app.trackevolution.youtube.LocalYouTube
 import app.trackevolution.screens.SettingsModel
 import app.trackevolution.screens.SettingsScreen
 import app.trackevolution.screens.TrackDaysGuideScreen
@@ -347,6 +350,8 @@ fun AppNavHost(
                     onOpenMap = {
                         nav.navigate(Route.TrackMap.session(route.eventId, route.sessionId, route.student))
                     },
+                    // The upload form (NS-46); the panel draws nothing for a coach.
+                    onYouTubeUpload = { clipId -> nav.navigate(Route.YouTubeUpload(clipId)) },
                     onStepLap = { lapId, k ->
                         k?.let { StageHandoff.put(lapId, it) }
                         nav.navigate(Route.Lap(route.eventId, route.sessionId, lapId, route.student)) {
@@ -355,6 +360,24 @@ fun AppNavHost(
                     },
                 )
                 }
+            }
+
+            // Upload a best-lap video to YouTube (NS-46): a destination rather
+            // than a dialog, its fields in the entry's saved state. What was
+            // last sent for this clip is read once, at construction.
+            pageComposable<Route.YouTubeUpload> { entry ->
+                val route = entry.toRoute<Route.YouTubeUpload>()
+                val youtube = LocalYouTube.current
+                val model = rememberScreenModel { scope, handle ->
+                    YouTubeUploadModel(
+                        scope = scope,
+                        api = api,
+                        clipId = route.clipId,
+                        lastSent = youtube.lastSent(route.clipId),
+                        saved = handle,
+                    )
+                }
+                YouTubeUploadScreen(model = model, onDone = { nav.popBackStack() })
             }
 
             pageComposable<Route.SessionCompare> { entry ->

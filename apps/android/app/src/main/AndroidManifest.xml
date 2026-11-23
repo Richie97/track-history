@@ -142,6 +142,18 @@
                 <data android:scheme="trackevolution" android:host="auth" />
             </intent-filter>
 
+            <!-- The way back from connecting YouTube (NS-46): the server's
+                 /youtube/callback redirects a phone to
+                 trackevolution://youtube?result=…, which MainActivity reads as
+                 DeepLink.YouTubeConnect. The consent itself runs in a Custom
+                 Tab; nothing but this redirect uses the host. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="trackevolution" android:host="youtube" />
+            </intent-filter>
+
             <!-- "Send to Track Evolution" from Files, Photos or the camera app:
                  a PDR or GoPro clip arrives as a content:// URI the importer
                  reads in place, never copied. The CSV types are Porsche Track

@@ -166,6 +166,22 @@ class AuthController(
     }
 
     /**
+     * Re-reads `/api/me` under the session already held — after something the
+     * server changed about the account outside a write of ours, such as
+     * connecting or disconnecting YouTube (NS-46). Quiet on failure: offline
+     * the state simply stands, and only a 401 signs out.
+     */
+    suspend fun refreshUser() {
+        if (_state.value !is AuthState.SignedIn) return
+        try {
+            val me = api.me()
+            if (_state.value is AuthState.SignedIn) _state.value = AuthState.SignedIn(me.user, me.entitlement)
+        } catch (e: ApiException) {
+            if (e.isUnauthorized) signOutLocally()
+        }
+    }
+
+    /**
      * Starts a flow: fresh verifier, persisted, then the system browser.
      *
      * [activity] rather than the application context because the Custom Tab has

@@ -47,7 +47,10 @@ struct LapVideoSection: View {
                             title: "Lap video",
                             blurb: "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
                         )
-                        DeleteClipButton(clipId: clip.id, onDeleted: reload)
+                        // A link already made isn't Pro, and a lapse doesn't
+                        // stop an upload already queued (NS-46).
+                        YouTubeClipStatus(clip: clip, reload: reload)
+                        DeleteClipButton(clip: clip, onDeleted: reload)
                     }
                 }
             } else if !owner.isReadOnly {
@@ -215,6 +218,11 @@ struct LapVideoPlayer: View {
                         .aspectRatio(16 / 9, contentMode: .fit)
                 }
 
+                // The owner's own player only: never a coach's view or a
+                // shared link's.
+                if !readOnly, signedURL == nil {
+                    YouTubeClipStatus(clip: clip, reload: onDeleted)
+                }
             }
         }
         .task(id: clip.id) { await load() }
@@ -284,6 +292,7 @@ struct LapClipMenu: View {
     var willDelete: () -> Void = {}
 
     @Environment(AuthController.self) private var auth
+    @Environment(AppRouter.self) private var router: AppRouter?
     @State private var downloading = false
     @State private var downloaded: URL?
     @State private var confirmingDelete = false
@@ -298,6 +307,25 @@ struct LapClipMenu: View {
                     Label("Download video", systemImage: "arrow.down.circle")
                 }
                 .disabled(downloading)
+                // Publish it to YouTube (NS-46): the upload page, which asks to
+                // connect first when there is no live grant. A failed upload's
+                // *Try again* is under the player.
+                switch auth.youtubeOffer(for: clip, readOnly: false) {
+                case .upload:
+                    Button {
+                        router?.push(.youtubeUpload(clipId: clip.id))
+                    } label: {
+                        Label("Upload to YouTube…", systemImage: "arrow.up.right.video")
+                    }
+                case .connect:
+                    Button {
+                        router?.push(.youtubeUpload(clipId: clip.id))
+                    } label: {
+                        Label("Connect YouTube…", systemImage: "link")
+                    }
+                case .none, .locked, .pending, .done, .failed:
+                    EmptyView()
+                }
                 Button(role: .destructive) {
                     confirmingDelete = true
                 } label: {
@@ -338,8 +366,16 @@ struct LapClipMenu: View {
             Button("Delete video", role: .destructive) { Task { await delete() } }
             Button("Keep", role: .cancel) {}
         } message: {
-            Text("The lap and its telemetry stay.")
+            Text(LapClipMenu.deleteMessage(clip))
         }
+    }
+
+    /// The copy on YouTube isn't ours to delete, and the dialog says so when
+    /// there is one.
+    static func deleteMessage(_ clip: LapClip) -> String {
+        clip.youtube?.status == "done"
+            ? "The lap and its telemetry stay. \(YouTubeUpload.YOUTUBE_DELETE_NOTE)"
+            : "The lap and its telemetry stay."
     }
 
     /// The file itself, named after its track, day and lap by the server's
@@ -414,7 +450,7 @@ private struct LapPlayerView: UIViewControllerRepresentable {
 /// *Delete video* on its own, for a lapsed driver whose clip is locked: a
 /// delete is free, always (NS-45).
 private struct DeleteClipButton: View {
-    let clipId: Int
+    let clip: LapClip
     var onDeleted: () async -> Void
 
     @Environment(AuthController.self) private var auth
@@ -436,7 +472,7 @@ private struct DeleteClipButton: View {
             Button("Delete video", role: .destructive) {
                 Task {
                     do {
-                        try await auth.api.deleteClip(id: clipId)
+                        try await auth.api.deleteClip(id: clip.id)
                         await onDeleted()
                         await auth.refreshAccount()
                     } catch let failure as APIError {
@@ -452,7 +488,7 @@ private struct DeleteClipButton: View {
             }
             Button("Keep", role: .cancel) {}
         } message: {
-            Text("The lap and its telemetry stay.")
+            Text(LapClipMenu.deleteMessage(clip))
         }
     }
 }

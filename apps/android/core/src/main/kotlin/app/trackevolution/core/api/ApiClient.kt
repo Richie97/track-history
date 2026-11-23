@@ -43,6 +43,9 @@ import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.Vehicle
 import app.trackevolution.core.model.VehicleDraft
 import app.trackevolution.core.model.VehiclePatch
+import app.trackevolution.core.model.YouTubeConnectLink
+import app.trackevolution.core.model.YouTubeDraft
+import app.trackevolution.core.model.YouTubeUpload
 import app.trackevolution.core.model.GarageVehicle
 import app.trackevolution.core.model.SteeringFits
 import app.trackevolution.core.model.MeasurementDraft
@@ -699,6 +702,83 @@ public class ApiClient private constructor(
     /** Deletes a clip — free, always. The lap and its telemetry stay. */
     public suspend fun deleteClip(clipId: Int) {
         send("DELETE", "/clips/$clipId", null, OkResponse.serializer())
+    }
+
+    // ---- Publishing a best-lap video to YouTube (NS-46) ---------------------
+    //
+    // The server does the upload; the phone asks for it and reads how it is
+    // going. Every one of these is live — a ticket to open in the browser or an
+    // upload's 202 means nothing later — so none is on the offline whitelist
+    // (`OfflineStoreTest` pins that) and none answers from the cache. A coach
+    // never publishes a student's clip: the routes aren't on the coach mount, so
+    // a student's client refuses all of them unsent (`YouTubeApiTest`).
+
+    /**
+     * The address to open in a Chrome Custom Tab to connect YouTube: the phone
+     * can't hand its bearer token to a browser, so the server mints a
+     * single-use, five-minute ticket into the URL. Never opened in a WebView —
+     * Google blocks OAuth there. The round trip ends at
+     * `trackevolution://youtube?result=…` ([app.trackevolution.core.DeepLink.YouTubeConnect]).
+     */
+    public suspend fun youTubeConnectUrl(): String {
+        ownOnly()
+        return send("POST", "/youtube/connect", buildJsonObject { }, YouTubeConnectLink.serializer(), cached = false).url
+    }
+
+    /**
+     * Disconnects YouTube: the server revokes the grant at Google and fails
+     * anything still queued, in words. Never gated. Videos already uploaded stay.
+     */
+    public suspend fun disconnectYouTube() {
+        ownOnly()
+        send("DELETE", "/youtube", null, OkResponse.serializer(), cached = false)
+    }
+
+    /**
+     * The upload form's pre-filled words (Pro — a free account gets
+     * [ApiException.PaymentRequired]). Built by the server, so no client ports
+     * the title's rules.
+     */
+    public suspend fun youTubeDraft(clipId: Int): YouTubeDraft {
+        ownOnly()
+        return send("GET", "/clips/$clipId/youtube/draft", null, YouTubeDraft.serializer(), cached = false)
+    }
+
+    /**
+     * Queues the upload (Pro; 202). [privacy] is one of
+     * `YouTubeUpload.YOUTUBE_PRIVACY`'s values. The refusals — the daily limit
+     * (429), not connected / already there / in progress (409), a title or
+     * description the rules refuse (400) — arrive as the server's `{ error }`,
+     * which `YouTubeUpload.youtubeRequestError` words.
+     */
+    public suspend fun startYouTubeUpload(
+        clipId: Int,
+        title: String,
+        description: String,
+        privacy: String,
+    ): YouTubeUpload {
+        ownOnly()
+        val body = buildJsonObject {
+            put("title", JsonPrimitive(title))
+            put("description", JsonPrimitive(description))
+            put("privacy", JsonPrimitive(privacy))
+        }
+        return send("POST", "/clips/$clipId/youtube", body, YouTubeUpload.serializer(), cached = false)
+    }
+
+    /**
+     * How a clip's upload is going — the lap page's status line, polled every
+     * 5 s while one is on its way. Free: it is the driver's own link. 404 when
+     * the clip has no upload.
+     */
+    public suspend fun youTubeUpload(clipId: Int): YouTubeUpload {
+        ownOnly()
+        return send("GET", "/clips/$clipId/youtube", null, YouTubeUpload.serializer(), cached = false)
+    }
+
+    /** Refuses a call on a student's client before anything is sent (NS-38). */
+    private fun ownOnly() {
+        if (owner != LogbookOwner.Me) throw ApiException.ReadOnly()
     }
 
     // ---- Push notifications for coach comments (NS-54) ----------------------

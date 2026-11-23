@@ -69,12 +69,25 @@ public sealed interface DeepLink {
         val studentId: Int?,
     ) : DeepLink
 
+    /**
+     * Back from connecting YouTube (NS-46): `trackevolution://youtube?result=…`,
+     * where the server's `/youtube/callback` sends a phone. [result] is one of
+     * `connected`, `denied` or `error` (`YouTubeUpload.YOUTUBE_RESULT_TEXT`'s
+     * keys) — anything else the redirect could carry reads as `error`, since
+     * whatever happened, YouTube was not connected. Not a place of its own: the
+     * app re-reads `/me` and shows Settings with the sentence.
+     */
+    public data class YouTubeConnect(val result: String) : DeepLink
+
     public companion object {
         /** The app's custom scheme, registered in the manifest. */
         public const val CALLBACK_SCHEME: String = "trackevolution"
 
         /** The scheme's reserved host: the sign-in redirect, never a destination. */
         private const val AUTH_HOST = "auth"
+
+        /** The scheme's other reserved host: the YouTube connect's way back (NS-46). */
+        private const val YOUTUBE_HOST = "youtube"
 
         /** An item share's token: 128 bits, base64url (`SHARE_TOKEN` in `src/lib/itemShare.ts`). */
         private val SHARE_TOKEN = Regex("^[A-Za-z0-9_-]{22}$")
@@ -104,6 +117,10 @@ public sealed interface DeepLink {
 
             if (uri.scheme == CALLBACK_SCHEME) {
                 if (uri.host == AUTH_HOST) return null
+                if (uri.host == YOUTUBE_HOST) {
+                    val result = parseQuery(uri.rawQuery.orEmpty())["result"]
+                    return YouTubeConnect(result?.takeIf { it in YouTubeUpload.YOUTUBE_RESULT_TEXT } ?: "error")
+                }
                 // trackevolution://event/5 — nothing generates these today, but
                 // the scheme is registered, so they resolve rather than opening
                 // a blank app.

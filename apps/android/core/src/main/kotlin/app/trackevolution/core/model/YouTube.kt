@@ -57,3 +57,11 @@ public data class YouTubeUpload(
     val url: String? = null,
     val error: String? = null,
 )
+
+/**
+ * `POST /api/youtube/connect`: the address to open in the system browser,
+ * carrying a single-use, five-minute ticket in place of the bearer token a
+ * browser can't be handed.
+ */
+@Serializable
+public data class YouTubeConnectLink(val url: String)

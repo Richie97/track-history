@@ -52,6 +52,7 @@ import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TEField
 import app.trackevolution.ui.TELoadable
+import app.trackevolution.youtube.LocalYouTube
 import app.trackevolution.ui.TESectionHeader
 import app.trackevolution.ui.theme.ThemeChoice
 import app.trackevolution.ui.theme.TrackCard
@@ -103,6 +104,9 @@ fun SettingsScreen(
     var confirmSignOut by remember { mutableStateOf(false) }
     var confirmDisableShare by remember { mutableStateOf(false) }
 
+    val youtubeAccount by LocalYouTube.current.account.collectAsState()
+    val youtubeAvailable = youtubeAccount?.available == true
+
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
@@ -153,6 +157,13 @@ fun SettingsScreen(
             item("lap-videos-header") { TESectionHeader("Lap videos") }
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
             // Beside the cellular switch: both are this phone's, not the account's.
+            // Settings → YouTube (NS-46): only while the feature is on for this
+            // account, header and all.
+            if (youtubeAvailable) {
+                item("youtube-header") { TESectionHeader("YouTube") }
+                item("youtube") { YouTubeSettingsCard(onOpenLink) }
+            }
+
             item("comment-notifications") { CommentNotificationsCard() }
 
             item("coaching-header") { TESectionHeader("Coaching") }

@@ -85,6 +85,11 @@ enum Route: Hashable {
     /// the pages that open it already present one, and the map owns its
     /// gestures outright.
     case trackMap(source: TrackMapSource)
+    /// Publish a lap's stored video to YouTube (NS-46): the consent step while
+    /// there's no live grant, then the form. A pushed page, never a sheet — the
+    /// lap page already presents one. Keyed by the clip, which only exists on a
+    /// real lap, so there is no temp id to follow. Never a student's page.
+    case youtubeUpload(clipId: Int)
 }
 
 /// Whose line the map viewer draws (NS-53).
@@ -137,7 +142,8 @@ extension LogbookOwner {
             .student(id: id, page: .trackMap(eventId: eventId, sessionId: sessionId))
         case .student: route
         case .eventForm, .leaderboard, .settings, .record, .importVideo, .shared, .sharedItem, .wrapped,
-             .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm, .trackMap(.leaderboardLap):
+             .coaching, .profile, .coachInvite, .trackDaysGuide, .setupForm, .trackMap(.leaderboardLap),
+             .youtubeUpload:
             .student(id: id, page: .home)
         }
     }
@@ -163,7 +169,7 @@ extension Route {
         case .record, .importVideo, .wrapped: true
         case .event, .eventForm, .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .lap,
              .sessionCompare, .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .setupForm,
-             .sessionComment, .trackMap: false
+             .sessionComment, .trackMap, .youtubeUpload: false
         }
     }
 }
@@ -210,7 +216,8 @@ extension Route {
         // third tab (NS-38) — their car included, which is theirs, not your
         // garage's.
         case .event, .eventForm, .track, .leaderboard, .record, .importVideo, .shared, .sharedItem, .lap,
-             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm, .sessionComment, .trackMap: .events
+             .sessionCompare, .wrapped, .coachInvite, .student, .setupForm, .sessionComment, .trackMap,
+             .youtubeUpload: .events
         }
     }
 }
@@ -676,7 +683,8 @@ final class AppRouter {
             // logbook, so every row in it came from the server.
             // A shared item is someone else's, read by its token: no id in it is ours.
             case .track, .leaderboard, .vehicle, .settings, .shared, .sharedItem, .eventForm(.new), .wrapped,
-                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .trackMap(.leaderboardLap):
+                 .coaching, .profile, .coachInvite, .student, .trackDaysGuide, .trackMap(.leaderboardLap),
+                 .youtubeUpload:
                 return route
             }
         }

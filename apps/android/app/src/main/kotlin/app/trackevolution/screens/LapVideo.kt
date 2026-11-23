@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -58,6 +59,7 @@ import androidx.media3.ui.PlayerView
 import app.trackevolution.clips.ClipNetwork
 import app.trackevolution.clips.ClipUploadText
 import app.trackevolution.clips.LocalClipStatus
+import app.trackevolution.core.YouTubeUpload
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.api.LogbookOwner
@@ -210,6 +212,11 @@ internal object LapVideoText {
     const val NEEDS_CONNECTION = "Playing a lap video needs a connection."
     const val DELETED = "This video has been deleted."
     const val CONFIRM_DELETE = "Delete this lap video? The lap and its telemetry stay."
+
+    /** With the copy on YouTube named when there is one (`YOUTUBE_DELETE_NOTE`). */
+    fun confirmDelete(onYouTube: Boolean): String =
+        if (onYouTube) "$CONFIRM_DELETE ${YouTubeUpload.YOUTUBE_DELETE_NOTE}" else CONFIRM_DELETE
+
     const val DELETE_NEEDS_CONNECTION = "Deleting a lap video needs a connection."
     const val PREPARING = "Preparing video"
     const val WAITING_FOR_SESSION = "Video waiting for this session to sync"
@@ -273,6 +280,8 @@ internal fun LapVideoCard(
     onSubscribe: () -> Unit,
     onDeleted: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Opens the *Upload to YouTube* form for a clip (NS-46). */
+    onYouTubeUpload: (clipId: Int) -> Unit = {},
 ) {
     val clips = LocalClipStatus.current
     val jobs by clips.jobs.collectAsState()
@@ -317,12 +326,27 @@ internal fun LapVideoCard(
     when (state) {
         LapVideoState.None, is LapVideoState.Failed ->
             said?.let { Note(it, modifier.testTag("lapVideoFailed")) }
-        LapVideoState.Locked -> TEProLocked(
-            title = "Lap video",
-            blurb = LapVideoText.LOCKED_BLURB,
-            onSubscribe = onSubscribe,
-            modifier = modifier.testTag("lapVideoLocked"),
-        )
+        LapVideoState.Locked -> Column(modifier) {
+            TEProLocked(
+                title = "Lap video",
+                blurb = LapVideoText.LOCKED_BLURB,
+                onSubscribe = onSubscribe,
+                modifier = Modifier.testTag("lapVideoLocked"),
+            )
+            // A lapsed owner keeps the link to a video already on YouTube, and
+            // the line for one still on its way (NS-46) — neither is Pro. The
+            // panel draws nothing else for a free account.
+            lap.clip?.let { clip ->
+                YouTubeLapPanel(
+                    api = api,
+                    clip = clip,
+                    viewer = viewer,
+                    readOnly = owner.readOnly,
+                    onUpload = onYouTubeUpload,
+                    onChanged = onDeleted,
+                )
+            }
+        }
         is LapVideoState.StudentLocked -> Note(state.text, modifier.testTag("lapVideoStudentLocked"))
         is LapVideoState.Retrying -> Pending(
             LapVideoText.pending(state, now).orEmpty(),
@@ -335,7 +359,10 @@ internal fun LapVideoCard(
         LapVideoState.WaitingForWifi,
         is LapVideoState.Uploading,
         -> Pending(LapVideoText.pending(state, now).orEmpty(), onRetry = null, modifier = modifier)
-        is LapVideoState.Playable -> Playable(api, state, lap, onDeleted, modifier)
+        is LapVideoState.Playable -> Playable(
+            api, state, lap, onDeleted, modifier,
+            youtube = if (state.menu) YouTubeSlot(viewer, onYouTubeUpload) else null,
+        )
     }
 }
 
@@ -393,6 +420,8 @@ private fun Playable(
     modifier: Modifier,
     /** Where the signed URL comes from: the owner's clip route, or a share link's (NS-48). */
     signedUrl: suspend (clipId: Int) -> String = { api.clipUrl(it).url },
+    /** The owner's YouTube panel under the player (NS-46); null on a coach's view and a shared page. */
+    youtube: YouTubeSlot? = null,
 ) {
     val colors = TrackTheme.colors
     val context = LocalContext.current
@@ -463,11 +492,21 @@ private fun Playable(
         (busy ?: message)?.let {
             Text(it, style = TrackTheme.typography.sm, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp))
         }
+        if (youtube != null) {
+            YouTubeLapPanel(
+                api = api,
+                clip = state.clip,
+                viewer = youtube.viewer,
+                readOnly = false,
+                onUpload = youtube.onUpload,
+                onChanged = onDeleted,
+            )
+        }
     }
 
     if (confirmDelete) {
         TEConfirmDialog(
-            text = LapVideoText.CONFIRM_DELETE,
+            text = confirmDeleteText(state.clip),
             confirm = "Delete video",
             onConfirm = {
                 confirmDelete = false
@@ -491,7 +530,16 @@ private fun Playable(
  * the facts. A deleted clip re-reads the page; the stage turns to replay.
  */
 @Composable
-internal fun StageVideoMenu(api: ApiClient, clipId: Int, onDeleted: () -> Unit, modifier: Modifier = Modifier) {
+internal fun StageVideoMenu(
+    api: ApiClient,
+    clip: LapClip,
+    onDeleted: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** The owner's tier and the way to the upload form, for the YouTube panel (NS-46). */
+    viewer: Entitlement? = null,
+    onYouTubeUpload: (clipId: Int) -> Unit = {},
+) {
+    val clipId = clip.id
     val colors = TrackTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -511,10 +559,18 @@ internal fun StageVideoMenu(api: ApiClient, clipId: Int, onDeleted: () -> Unit, 
             }
         }
         message?.let { Text(it, style = TrackTheme.typography.sm, color = colors.textMuted) }
+        YouTubeLapPanel(
+            api = api,
+            clip = clip,
+            viewer = viewer,
+            readOnly = false,
+            onUpload = onYouTubeUpload,
+            onChanged = onDeleted,
+        )
     }
     if (confirmDelete) {
         TEConfirmDialog(
-            text = LapVideoText.CONFIRM_DELETE,
+            text = confirmDeleteText(clip),
             confirm = "Delete video",
             onConfirm = {
                 confirmDelete = false
@@ -530,6 +586,21 @@ internal fun StageVideoMenu(api: ApiClient, clipId: Int, onDeleted: () -> Unit, 
             onDismiss = { confirmDelete = false },
         )
     }
+}
+
+/** What the owner's card needs to draw its YouTube panel (NS-46). */
+internal class YouTubeSlot(val viewer: Entitlement?, val onUpload: (clipId: Int) -> Unit)
+
+/**
+ * *Delete video*'s question — which says the YouTube copy stays, wherever that
+ * could surprise someone: on a clip whose upload is done (NS-46), going by the
+ * newest row this session has seen as well as the page's own.
+ */
+@Composable
+private fun confirmDeleteText(clip: LapClip): String {
+    val uploads by app.trackevolution.youtube.LocalYouTube.current.uploads.collectAsState()
+    val onYouTube = clip.withLatestUpload(uploads[clip.id]).youtube?.status == "done"
+    return LapVideoText.confirmDelete(onYouTube)
 }
 
 /**

@@ -167,6 +167,13 @@ struct SettingsScreen: View {
             TESectionHeader("Lap videos")
             lapVideosCard
 
+            // Publishing lap videos to YouTube (NS-46) — invisible wherever
+            // the server says the feature isn't available to this account.
+            if auth.me?.user.youtube?.available == true {
+                TESectionHeader("YouTube")
+                YouTubeSettingsCard()
+            }
+
             TESectionHeader("Share your history")
             shareCard(model)
 

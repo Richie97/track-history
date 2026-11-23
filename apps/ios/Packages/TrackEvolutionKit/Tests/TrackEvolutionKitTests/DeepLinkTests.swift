@@ -92,6 +92,13 @@ struct DeepLinkTests {
     }
 
     @Test
+    func theYouTubeConnectRedirectIsNeverARoute() {
+        // NS-46: read from the web-auth session's completion, like the code.
+        #expect(parse("trackevolution://youtube?result=connected") == nil)
+        #expect(parse("trackevolution://youtube?result=denied") == nil)
+    }
+
+    @Test
     func theCustomSchemeStillResolves() {
         #expect(parse("trackevolution://event/5") == .event(5))
         #expect(parse("trackevolution://track/7") == .track(7))

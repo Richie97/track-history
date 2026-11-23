@@ -225,6 +225,8 @@ fun LapDetailScreen(
     studentName: String? = null,
     /** Opens the session's best-lap trace on a real map (NS-53). Null draws no control. */
     onOpenMap: (() -> Unit)? = null,
+    /** Opens the *Upload to YouTube* form for one of this lap's clips (NS-46). */
+    onYouTubeUpload: (clipId: Int) -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -259,6 +261,7 @@ fun LapDetailScreen(
                 onCommentsGone = onCommentsGone,
                 studentName = studentName,
                 onOpenMap = onOpenMap,
+                onYouTubeUpload = onYouTubeUpload,
             )
             return@TELoadable
         }
@@ -290,6 +293,7 @@ fun LapDetailScreen(
                         sessionLaps = view.session.laps,
                         onSubscribe = onSubscribe,
                         onDeleted = model::load,
+                        onYouTubeUpload = onYouTubeUpload,
                     )
                 }
             }
@@ -418,6 +422,7 @@ private fun StagedLap(
     onCommentsGone: () -> Unit = {},
     studentName: String? = null,
     onOpenMap: (() -> Unit)? = null,
+    onYouTubeUpload: (clipId: Int) -> Unit = {},
 ) {
     val colors = TrackTheme.colors
     val units = LocalUnitSystem.current
@@ -526,7 +531,13 @@ private fun StagedLap(
         }
         item("facts") { Facts(CompareLaps.lapMetrics(entry), units) }
         if (canPlay && clip != null && videoApi != null && !owner.readOnly) {
-            item("video-menu") { StageVideoMenu(videoApi, clip.id, onDeleted) }
+            item("video-menu") {
+                StageVideoMenu(videoApi, clip, onDeleted, viewer = viewer, onYouTubeUpload = onYouTubeUpload)
+            }
+        } else if (clip != null && videoApi != null && !owner.readOnly) {
+            // A lapsed owner's stage has no player, but the link to a video
+            // already on YouTube isn't Pro (NS-46).
+            item("youtube") { YouTubeLapsedCard(videoApi, clip, viewer, onChanged = onDeleted) }
         }
     }
 }
