@@ -9,8 +9,8 @@ import java.net.URLDecoder
  *
  * Two sources, and only two:
  *
- *  - **App Links** for `https://<host>/share/<slug>`, `https://<host>/share/(e|s)/<token>`
- *    (NS-48) and `https://<host>/coach/<token>` (NS-38), the patterns the
+ *  - **App Links** for `https://<host>/share/<slug>`, `https://<host>/share/(e|s|l|c)/<token>`
+ *    (NS-48, NS-56) and `https://<host>/coach/<token>` (NS-38), the patterns the
  *    manifest's verified intent filter claims (`assetlinks.json` is per-app,
  *    not per-path). Share URLs may carry the web
  *    app's own hash route (`/share/eric#/track/7`).
@@ -42,8 +42,9 @@ public sealed interface DeepLink {
     public data class Shared(val slug: String) : DeepLink
 
     /**
-     * One shared event or session (NS-48): `https://<host>/share/e/<token>` or
-     * `/share/s/<token>`. Opens without signing in, like [Shared]. The prefixes
+     * One shared event or session (NS-48), lap or two-lap comparison (NS-56):
+     * `https://<host>/share/e/<token>`, `/share/s/…`, `/share/l/…` or
+     * `/share/c/…`. Opens without signing in, like [Shared]. The prefixes
      * are one letter so they can never be a logbook slug (three characters
      * minimum), which is why this is matched first.
      */
@@ -130,9 +131,9 @@ public sealed interface DeepLink {
 
             if (uri.scheme != "https" && uri.scheme != "http") return null
             val segments = pathSegments(uri.rawPath)
-            // /share/(e|s)/<token> — ahead of the slug rule, which would otherwise
+            // /share/(e|s|l|c)/<token> — ahead of the slug rule, which would otherwise
             // read `e` as a logbook. A malformed token is not a share link of
-            // either kind.
+            // any kind.
             if (segments.firstOrNull() == "share" && segments.size >= 2) {
                 ItemShareKind.forPrefix(segments[1])?.let { kind ->
                     val token = segments.getOrNull(2)

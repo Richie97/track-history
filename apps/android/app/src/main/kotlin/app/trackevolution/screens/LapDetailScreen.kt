@@ -19,6 +19,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import app.trackevolution.ui.charts.MapDot
 import androidx.compose.ui.Alignment
@@ -45,6 +46,7 @@ import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.SessionChannels
 import app.trackevolution.core.model.UnitSystem
+import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.TEEmpty
@@ -184,6 +186,10 @@ internal data class LapDetail(
  * A lap with no channel entry is today's page: its time, the plain video card,
  * the racing line if it is the best.
  *
+ * The owner's page carries *Share…* (NS-56) — this lap alone, through the
+ * event page's own [ItemShareState] — never for a coach, and not while the
+ * lap's id is still a temp one.
+ *
  * Reached from a lap row on the event page. Reads the event detail through the
  * same `EventModel` the page uses — the same offline-cached read — and finds
  * its session and lap in it, so a lap opened in a paddock costs no request.
@@ -243,6 +249,16 @@ fun LapDetailScreen(
             TEEmpty("This lap is no longer in the logbook.", Modifier.padding(16.dp))
             return@TELoadable
         }
+        // Share this lap (NS-56). Which dialog is open is saveable; the request
+        // runs in the model's scope, so a rotation re-asks and gets the same link.
+        val canShare = !owner.readOnly && !OfflineStore.isTemp(view.lap.id)
+        var sharing by rememberSaveable(view.lap.id) { mutableStateOf(false) }
+        ItemShareHost(
+            state = model.sharing,
+            target = ItemShareTarget.lap(view.lap.id).takeIf { sharing && canShare },
+            onDismiss = { sharing = false },
+        )
+        val onShare: (() -> Unit)? = if (canShare) { { sharing = true } } else null
         val channels = view.channels
         val entry = channels?.laps?.firstOrNull()
         if (channels != null && entry != null && entry.speed != null && (entry.speed?.size ?: 0) >= 2) {
@@ -251,6 +267,7 @@ fun LapDetailScreen(
                 channels = channels,
                 canViewChannels = canViewChannels,
                 onCompare = onCompare,
+                onShare = onShare,
                 onSubscribe = onSubscribe,
                 videoApi = videoApi,
                 owner = owner,
@@ -298,8 +315,8 @@ fun LapDetailScreen(
                 }
             }
 
-            if (view.canCompare) {
-                item("compare") { CompareButton(onCompare) }
+            if (view.canCompare || onShare != null) {
+                item("actions") { LapActions(onCompare.takeIf { view.canCompare }, onShare) }
             }
 
             val trace = view.trace
@@ -401,6 +418,15 @@ private fun CompareButton(onCompare: () -> Unit) {
     }
 }
 
+/** The lap page's own controls: the two-lap compare, and *Share…* for the owner (NS-56). */
+@Composable
+private fun LapActions(onCompare: (() -> Unit)?, onShare: (() -> Unit)?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        onCompare?.let { CompareButton(it) }
+        onShare?.let { ShareItemButton(it, Modifier.testTag("shareLap")) }
+    }
+}
+
 /**
  * The lap page with a stage (NS-51): header, the stage (one-sided, the delta to
  * the reference lap), the panel inline under it carrying the playhead — a tap
@@ -412,6 +438,8 @@ private fun StagedLap(
     channels: SessionChannels,
     canViewChannels: Boolean,
     onCompare: () -> Unit,
+    /** *Share…* for this lap (NS-56); null for a coach or a lap not yet synced. */
+    onShare: (() -> Unit)?,
     onSubscribe: () -> Unit,
     videoApi: ApiClient?,
     owner: LogbookOwner,
@@ -492,7 +520,9 @@ private fun StagedLap(
         notice = notice,
         header = {
             item("head") { LapHead(view) }
-            if (view.canCompare) item("compare") { CompareButton(onCompare) }
+            if (view.canCompare || onShare != null) {
+                item("actions") { LapActions(onCompare.takeIf { view.canCompare }, onShare) }
+            }
         },
         mapPins = commentPins(comments, view.lap.id, lapLen),
         onOpenMap = onOpenMap,

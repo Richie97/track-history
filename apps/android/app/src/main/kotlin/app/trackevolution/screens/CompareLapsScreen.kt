@@ -26,10 +26,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -84,6 +86,8 @@ fun CompareLapsScreen(
     videoApi: ApiClient? = null,
     /** Whether the viewer may play the owner's videos (`canSaveLapVideo` on the owner's tier). */
     canPlayVideo: Boolean = false,
+    /** A coach's view of a student's laps: no *Share…* (NS-56). */
+    readOnly: Boolean = false,
 ) {
     val colors = TrackTheme.colors
 
@@ -135,6 +139,12 @@ fun CompareLapsScreen(
             return@TELoadable
         }
 
+        // Share the picked pair (NS-56), A against B. The choice is saveable and
+        // the request is the model's, so a recreate re-asks for the same link.
+        val shareTarget = pair.shareTarget.takeIf { !readOnly }
+        var sharing by rememberSaveable { mutableStateOf(false) }
+        ItemShareHost(model.sharing, shareTarget.takeIf { sharing }, onDismiss = { sharing = false })
+
         // The stage (NS-51): A and B are the picks, each playing its own clip
         // when it has one and the viewer may play it, both on the aligned grid.
         val binding = remember(pair, canPlayVideo) { compareBinding(pair, canPlayVideo) }
@@ -153,6 +163,11 @@ fun CompareLapsScreen(
                     LapPicker("Lap B", colors.chartLineB, model.selB, model, model::pickB)
                 }
             }
+            if (shareTarget != null) {
+                item("share") {
+                    ShareItemButton(onClick = { sharing = true }, modifier = Modifier.testTag("shareCompare"))
+                }
+            }
             if (pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN) {
                 item("mismatch") {
                     Text(
@@ -166,7 +181,7 @@ fun CompareLapsScreen(
         }
         val staged = binding != null && holder.binding != null
         val body: LazyListScope.() -> Unit = {
-            item("head-to-head") { HeadToHead(pair) }
+            item("head-to-head") { LapPairHeadToHead(pair) }
             item("charts-hint") {
                 Text(
                     "The delta chart shows where time is gained or lost vs the faster lap; " +
@@ -270,7 +285,7 @@ private fun LapPicker(
 }
 
 @Composable
-private fun HeadToHead(pair: CompareLapsModel.LapPair) {
+internal fun LapPairHeadToHead(pair: CompareLapsModel.LapPair) {
     val units = LocalUnitSystem.current
     val mph = { kph: Double -> Units.fmtSpeedKph(kph, units) }
     val mphDelta = { kph: Double -> signed(kph, Units.fmtSpeedKph(abs(kph), units)) }

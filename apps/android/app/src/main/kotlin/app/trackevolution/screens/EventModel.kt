@@ -184,7 +184,7 @@ class EventModel(
     // Live, never queued: the link is the server's answer. The dialog words a
     // Transport failure as "Sharing needs a connection." (`ItemShareText`).
 
-    val sharing = ItemShareState(scope, api::shareItem, api::stopSharingItem)
+    val sharing = ItemShareState.over(scope, api)
 
     fun deleteEvent() {
         scope.launch {

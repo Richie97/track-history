@@ -142,6 +142,23 @@ class DeepLinkTest {
     }
 
     @Test
+    fun `a lap link and a comparison link are item links too (NS-56)`() {
+        val token = "k3Jx9_-AbCdEfGhIjKlMnO"
+        assertEquals(
+            DeepLink.SharedItem(ItemShareKind.LAP, token),
+            DeepLink.parse("https://trackevolution.app/share/l/$token"),
+        )
+        assertEquals(
+            DeepLink.SharedItem(ItemShareKind.COMPARE, token),
+            DeepLink.parse("https://trackevolution.app/share/c/$token"),
+        )
+        // Malformed, they are no link at all — never the logbook `l` or `c`.
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/l/x"))
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/c/"))
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/share/c/$token/more"))
+    }
+
+    @Test
     fun `a one-letter prefix is never read as a logbook slug`() {
         // Slugs are three characters minimum, so `/share/e/…` is always an item
         // link — and a malformed one is no link at all, never `Shared("e")`.

@@ -59,7 +59,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * One shared event or session's link, read (NS-48): `GET /api/share/(e|s)/:token`.
+ * One shared event, session or lap's link, read (NS-48, NS-56):
+ * `GET /api/share/(e|s|l)/:token`. A comparison is `SharedCompareModel`'s.
  *
  * Unauthenticated and past the cache (`ApiClient.sharedItem`): the token is the
  * whole permission, and a stale copy of something its owner has since stopped
@@ -104,8 +105,8 @@ class SharedItemModel(
 }
 
 /**
- * Where a `trackevolution.app/share/e/<token>` or `/share/s/<token>` App Link
- * lands (NS-48): the event page, narrowed — the header, the tiles, the best-lap
+ * Where a `trackevolution.app/share/e/<token>`, `/share/s/<token>` or
+ * `/share/l/<token>` App Link lands (NS-48, NS-56): the event page, narrowed — the header, the tiles, the best-lap
  * trace, each shared session with its laps and channel panel, and the best-lap
  * videos.
  *
@@ -127,6 +128,11 @@ class SharedItemModel(
  *
  * Below the analysis column's width a session's panel opens inline under its
  * card — this page has no destination of its own for it to go to.
+ *
+ * A **lap link** (NS-56) is the same page over the same shape — the one session
+ * cut down to the one lap — worded for one lap: its time alone in the tiles,
+ * the racing line only when the payload carries it (it does when this is the
+ * lap the line was drawn from), and the panel as that lap's telemetry.
  */
 @Composable
 fun SharedItemScreen(model: SharedItemModel, api: ApiClient, modifier: Modifier = Modifier) {
@@ -202,7 +208,8 @@ private fun SharedItemContent(
                 // A session link's best, laps and consistency are that session's:
                 // the server worked them out from it alone.
                 TEStatRow(
-                    listOfNotNull(
+                    // A lap link's one figure is the lap's own time (NS-56).
+                    if (kind == ItemShareKind.LAP) listOf("Lap time" to LapTime.fmtMs(event.bestMs)) else listOfNotNull(
                         "Best time" to LapTime.fmtMs(event.bestMs),
                         ("Days" to EventDates.fmtDays(event.days)).takeIf { kind == ItemShareKind.EVENT },
                         "Laps" to event.lapCount.toString(),
@@ -214,7 +221,10 @@ private fun SharedItemContent(
             bestLapTrace(detail.sessions).takeIf { !twoColumn }?.let { traced ->
                 item("trace") {
                     Column {
-                        TESectionHeader("Best lap trace", detail = "brighter is faster")
+                        TESectionHeader(
+                            if (kind == ItemShareKind.LAP) "Racing line" else "Best lap trace",
+                            detail = "brighter is faster",
+                        )
                         Text(
                             LapTime.fmtMs(traced.lapMs),
                             style = TrackTheme.typography.lapTime,
@@ -228,7 +238,13 @@ private fun SharedItemContent(
             }
 
             item("sessions-header") {
-                TESectionHeader(if (kind == ItemShareKind.EVENT) "Sessions" else "Session")
+                TESectionHeader(
+                    when (kind) {
+                        ItemShareKind.EVENT -> "Sessions"
+                        ItemShareKind.LAP -> "Lap"
+                        else -> "Session"
+                    },
+                )
             }
 
             if (detail.sessions.isEmpty()) {
@@ -244,6 +260,9 @@ private fun SharedItemContent(
                         selected = twoColumn && selectedSessionId == session.id,
                         panelLabel = when {
                             !hasChannels -> null
+                            // One lap has nothing to compare: the panel is its telemetry.
+                            kind == ItemShareKind.LAP ->
+                                if (!twoColumn && openSessionId == session.id) "Hide telemetry" else "Telemetry →"
                             twoColumn && selectedSessionId == session.id -> "Comparing laps →"
                             twoColumn -> "Compare laps →"
                             openSessionId == session.id -> "Hide lap comparison"

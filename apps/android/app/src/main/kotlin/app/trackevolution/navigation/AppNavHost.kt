@@ -77,6 +77,8 @@ import app.trackevolution.screens.TrackDaysGuideScreen
 import app.trackevolution.screens.SharedLogbookModel
 import app.trackevolution.screens.SharedLogbookScreen
 import app.trackevolution.screens.SharedItemModel
+import app.trackevolution.screens.SharedCompareModel
+import app.trackevolution.screens.SharedCompareScreen
 import app.trackevolution.screens.SharedItemScreen
 import app.trackevolution.screens.TrackMapModel
 import app.trackevolution.screens.TrackMapScreen
@@ -511,6 +513,7 @@ fun AppNavHost(
                                 videoApi = api,
                                 canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
                                 onClose = { comparing = false },
+                                readOnly = owner.readOnly,
                                 onNavigate = if (owner.readOnly) {
                                     null
                                 } else {
@@ -537,6 +540,7 @@ fun AppNavHost(
                         onNavigate = if (owner.readOnly) null else { { next: Route -> nav.navigate(next) } },
                         videoApi = api,
                         canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
+                        readOnly = owner.readOnly,
                     )
                 }
             }
@@ -740,14 +744,22 @@ fun AppNavHost(
                 SharedLogbookScreen(model = model)
             }
 
-            // One shared event or session (NS-48): read through its link, never
-            // through the viewer's logbook — the root client, unscoped.
+            // One shared event or session (NS-48), lap or comparison (NS-56):
+            // read through its link, never through the viewer's logbook — the
+            // root client, unscoped. A comparison is its own shape and screen.
             pageComposable<Route.SharedItem> { entry ->
                 val route = entry.toRoute<Route.SharedItem>()
-                val model = rememberScreenModel { scope, _ ->
-                    SharedItemModel(scope, api, route.itemKind, route.token)
+                if (route.itemKind == ItemShareKind.COMPARE) {
+                    val model = rememberScreenModel(key = "shared-compare") { scope, _ ->
+                        SharedCompareModel(scope, api, route.token)
+                    }
+                    SharedCompareScreen(model = model)
+                } else {
+                    val model = rememberScreenModel { scope, _ ->
+                        SharedItemModel(scope, api, route.itemKind, route.token)
+                    }
+                    SharedItemScreen(model = model, api = api)
                 }
-                SharedItemScreen(model = model, api = api)
             }
         }
 

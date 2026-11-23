@@ -419,15 +419,10 @@ fun EventScreen(
     // The open dialog follows the saveable choice, so a recreate reopens it.
     val shareTarget = when {
         readOnly -> null
-        sharingEvent -> ItemShareKind.EVENT to model.eventId
-        else -> sharingSession?.let { ItemShareKind.SESSION to it }
+        sharingEvent -> ItemShareTarget(ItemShareKind.EVENT, model.eventId)
+        else -> sharingSession?.let { ItemShareTarget(ItemShareKind.SESSION, it) }
     }
-    LaunchedEffect(shareTarget) {
-        if (shareTarget == null) model.sharing.close() else model.sharing.open(shareTarget.first, shareTarget.second)
-    }
-    if (shareTarget != null && model.sharing.target == shareTarget) {
-        ItemShareDialog(model.sharing, onDismiss = { sharingEvent = false; sharingSession = null })
-    }
+    ItemShareHost(model.sharing, shareTarget, onDismiss = { sharingEvent = false; sharingSession = null })
 
     confirmDeleteSession?.let { id ->
         TEConfirmDialog(
