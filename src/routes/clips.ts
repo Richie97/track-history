@@ -10,6 +10,7 @@ import {
   clipKey,
   partCount,
   partSize,
+  ClipKeyCache,
   signClipUrl,
   validateClipCreate,
   verifyClipUrl,
@@ -262,6 +263,9 @@ clips.delete("/clips/:id", async (c) => {
     .bind(c.req.param("id"), c.get("userId"))
     .run();
   if (!res.meta.changes) return c.json({ error: "not found" }, 404);
+  // A URL already handed out stops playing now on this isolate, and within
+  // CLIP_KEY_TTL_MS on any other.
+  clipKeys.delete(Number(c.req.param("id")));
   return c.json({ ok: true });
 });
 
@@ -300,6 +304,10 @@ clips.get("/clips/:id/download", requireEntitlement, async (c) => {
 // says nothing about whether the clip exists.
 export const clipFiles = new Hono<AppContext>();
 
+// Which R2 object a ready clip is, remembered per isolate for a minute — see
+// CLIP_KEY_TTL_MS for what that costs and why it is worth it.
+const clipKeys = new ClipKeyCache();
+
 clipFiles.get("/:file", async (c) => {
   const m = /^(\d{1,15})\.mp4$/.exec(c.req.param("file"));
   if (!m) return c.json({ error: "not found" }, 404);
@@ -310,27 +318,40 @@ clipFiles.get("/:file", async (c) => {
     return c.json({ error: "forbidden" }, 403);
 
   const download = c.req.query("dl") === "1";
-  const row = await c.env.DB.prepare(
-    `SELECT k.r2_key, l.lap_num, e.start_date, t.name AS track_name
-       FROM lap_clips k JOIN laps l ON l.id = k.lap_id JOIN sessions s ON s.id = l.session_id
-       JOIN events e ON e.id = s.event_id JOIN tracks t ON t.id = e.track_id
-      WHERE k.id = ? AND k.status = 'ready'`
-  )
-    .bind(id)
-    .first<{ r2_key: string; lap_num: number; start_date: string; track_name: string }>();
-  if (!row) return c.json({ error: "not found" }, 404);
-
   const headers = new Headers({
     "Content-Type": "video/mp4",
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, max-age=3600",
     "X-Content-Type-Options": "nosniff",
   });
-  if (download)
-    headers.set("Content-Disposition", `attachment; filename="${clipFilename(row.track_name, row.start_date, row.lap_num)}"`);
 
+  // Playback asks only "which object", a primary-key read, and remembers the
+  // answer: one viewing is dozens of range requests. A download also needs the
+  // file's name — the track, day and lap — and happens once, so it reads the
+  // lot and is never answered from memory.
+  let key: string | null = download ? null : clipKeys.get(id, Date.now());
+  if (key == null && download) {
+    const row = await c.env.DB.prepare(
+      `SELECT k.r2_key, l.lap_num, e.start_date, t.name AS track_name
+         FROM lap_clips k JOIN laps l ON l.id = k.lap_id JOIN sessions s ON s.id = l.session_id
+         JOIN events e ON e.id = s.event_id JOIN tracks t ON t.id = e.track_id
+        WHERE k.id = ? AND k.status = 'ready'`
+    )
+      .bind(id)
+      .first<{ r2_key: string; lap_num: number; start_date: string; track_name: string }>();
+    if (!row) return c.json({ error: "not found" }, 404);
+    key = row.r2_key;
+    headers.set("Content-Disposition", `attachment; filename="${clipFilename(row.track_name, row.start_date, row.lap_num)}"`);
+  } else if (key == null) {
+    const row = await c.env.DB.prepare("SELECT r2_key FROM lap_clips WHERE id = ? AND status = 'ready'")
+      .bind(id)
+      .first<{ r2_key: string }>();
+    if (!row) return c.json({ error: "not found" }, 404);
+    key = row.r2_key;
+    clipKeys.set(id, key, Date.now());
+  }
   if (c.req.method === "HEAD") {
-    const head = await bucket.head(row.r2_key);
+    const head = await bucket.head(key);
     if (!head) return c.json({ error: "not found" }, 404);
     headers.set("Content-Length", String(head.size));
     headers.set("ETag", head.httpEtag);
@@ -340,12 +361,16 @@ clipFiles.get("/:file", async (c) => {
   let object: R2ObjectBody | R2Object | null;
   const rangeHeader = c.req.header("Range");
   try {
-    object = await bucket.get(row.r2_key, rangeHeader ? { range: c.req.raw.headers } : undefined);
+    object = await bucket.get(key, rangeHeader ? { range: c.req.raw.headers } : undefined);
   } catch {
     // An unsatisfiable or malformed range.
     return new Response(null, { status: 416, headers: { "Content-Range": "bytes */*" } });
   }
-  if (!object || !("body" in object)) return c.json({ error: "not found" }, 404);
+  if (!object || !("body" in object)) {
+    // The object is gone (swept): don't go on answering from memory.
+    clipKeys.delete(id);
+    return c.json({ error: "not found" }, 404);
+  }
   headers.set("ETag", object.httpEtag);
 
   const range = object.range as { offset?: number; length?: number; suffix?: number } | undefined;

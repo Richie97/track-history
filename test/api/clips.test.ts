@@ -269,6 +269,17 @@ describe("playing a clip", () => {
     expect(tail.body).toEqual(data.slice(4000));
   });
 
+  it("stops playing the moment the video is deleted, though the URL is still good", async () => {
+    const user = await signedInProUser();
+    const { clipId } = await readyClip(user, 2048);
+    const { url } = (await user.api("GET", `/clips/${clipId}/url`)).body;
+    // Twice, so the second is answered from the remembered key.
+    expect((await play(url, { Range: "bytes=0-15" })).status).toBe(206);
+    expect((await play(url, { Range: "bytes=16-31" })).status).toBe(206);
+    expect((await user.api("DELETE", `/clips/${clipId}`)).status).toBe(200);
+    expect((await play(url, { Range: "bytes=0-15" })).status).toBe(404);
+  });
+
   it("answers HEAD with the size and no body", async () => {
     const user = await signedInProUser();
     const { clipId } = await readyClip(user, 1500);
