@@ -24,7 +24,7 @@ const plain = (s) => {
     prev = s;
     s = s.replace(/<[^>]+>/g, "");
   } while (s !== prev);
-  return s.replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  return s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 };
 
 describe("site pages", () => {
@@ -85,6 +85,49 @@ describe("site pages", () => {
     const faq = jsonLd(html)[0]["@graph"].find((n) => n["@type"] === "FAQPage");
     expect(shown.length).toBeGreaterThan(0);
     expect(faq.mainEntity.map((q) => [q.name, q.acceptedAnswer.text])).toEqual(shown);
+  });
+
+  // A numbered list marked `<ol id="howto-…">` is a procedure, and the page's
+  // HowTo markup is those steps (tools/site-howto.mjs writes it). Worked out
+  // here independently of the tool, so an edited step without a regenerate,
+  // or a HowTo with no list behind it, fails.
+  const HOWTO_PAGES = [
+    "docs/index.html",
+    "docs/lap-recording.html",
+    "docs/ai.html",
+    "docs/account-deletion.html",
+    "docs/corvette-pdr-lap-times.html",
+    "docs/cadillac-blackwing-pdr-lap-times.html",
+    "docs/gopro-lap-times.html",
+    "docs/aim-smartycam-lap-times.html",
+    "docs/vbo-file-lap-times.html",
+    "docs/porsche-track-precision-export.html",
+  ];
+  it.each(pages)("%s marks up the steps it shows as HowTo, word for word", (p) => {
+    const html = read(p);
+    const url = urlOf(p);
+    const h1 = plain(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)[1]);
+    const shown = [...html.matchAll(/<ol id="(howto-[a-z0-9-]+)">([\s\S]*?)<\/ol>/g)].map((m) => {
+      const heading = [...html.slice(0, m.index).matchAll(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/g)].at(-1);
+      return {
+        id: `${url}#${m[1]}`,
+        name: `${h1}: ${plain(heading[1])}`,
+        steps: [...m[2].matchAll(/<li>([\s\S]*?)<\/li>/g)].map((li) => plain(li[1])),
+      };
+    });
+    const marked = jsonLd(html)
+      .flatMap((d) => d["@graph"] ?? [d])
+      .filter((n) => n["@type"] === "HowTo")
+      .map((n) => {
+        expect(n.step.map((s) => [s["@type"], s.position])).toEqual(n.step.map((_, i) => ["HowToStep", i + 1]));
+        return { id: n["@id"], name: n.name, steps: n.step.map((s) => s.text) };
+      });
+    expect(marked).toEqual(shown);
+    for (const h of shown) {
+      expect(h.steps.length).toBeGreaterThan(1);
+      for (const s of h.steps) expect(s.length).toBeGreaterThan(10);
+    }
+    expect(shown.length > 0, "the step-by-step pages each carry a HowTo").toBe(HOWTO_PAGES.includes(p));
   });
 
   it("prices the app in structured data as the pricing section does", () => {

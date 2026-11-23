@@ -51,7 +51,9 @@ changes).
 
 For search engines and AI assistants the site also carries a canonical link
 and schema.org structured data on every page (the landing page's includes the
-app, its prices, the promo video and a visible FAQ), plus `site/sitemap.xml`,
+app, its prices, the promo video and a visible FAQ; the docs pages built
+around numbered steps mark them up as `HowTo`, written from the visible lists
+by `npm run site:howto`), plus `site/sitemap.xml`,
 `site/robots.txt` and `site/llms.txt` — a plain-language index an assistant
 can read in one request. The app host has its own `public/robots.txt` and
 `public/llms.txt`; unlisted share links (`/share/e/…`, `/share/s/…`) answer
