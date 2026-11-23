@@ -393,6 +393,8 @@ section.alt { background: var(--bg-subtle); border-block: 1px solid var(--border
   border-radius: 7px;
   color: var(--text-muted);
 }
+/* A page under the one above it: the per-source import pages. */
+.docs-sidebar li.sub a { padding: 4px 10px 4px 24px; font-size: 13.5px; }
 .docs-sidebar a:hover { color: var(--text-strong); background: var(--surface-raised); text-decoration: none; }
 .docs-sidebar a.active { color: var(--accent-ink); background: var(--accent-tint); font-weight: 500; }
 

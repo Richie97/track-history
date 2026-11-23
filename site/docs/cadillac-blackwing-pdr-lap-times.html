@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to get lap times from Cadillac Blackwing PDR video — Track Evolution docs</title>
+  <meta name="description" content="Get lap times, your racing line and the car's data out of a Cadillac V-Series Blackwing Performance Data Recorder video. The recorder's own lap times import exactly, on your own device.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to get lap times from Cadillac Blackwing PDR video — Track Evolution docs">
+  <meta property="og:description" content="Get lap times, your racing line and the car's data out of a Cadillac V-Series Blackwing Performance Data Recorder video. The recorder's own lap times import exactly, on your own device.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html#page",
+        "url": "https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html",
+        "headline": "How to get lap times from Cadillac Blackwing PDR video",
+        "description": "Get lap times, your racing line and the car's data out of a Cadillac V-Series Blackwing Performance Data Recorder video. The recorder's own lap times import exactly, on your own device.",
+        "inLanguage": "en",
+        "isPartOf": { "@type": "WebSite", "@id": "https://trackevolution.app/#website", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "about": { "@type": "SoftwareApplication", "@id": "https://trackevolution.app/#app", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "publisher": { "@type": "Organization", "@id": "https://trackevolution.app/#org", "name": "Track Evolution", "url": "https://trackevolution.app/" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Telemetry import",
+            "item": "https://docs.trackevolution.app/docs/telemetry-import.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Cadillac Blackwing PDR lap times",
+            "item": "https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li class="sub"><a href="./corvette-pdr-lap-times.html">Corvette PDR</a></li>
+      <li class="sub"><a href="./cadillac-blackwing-pdr-lap-times.html" class="active">Cadillac Blackwing PDR</a></li>
+      <li class="sub"><a href="./gopro-lap-times.html">GoPro</a></li>
+      <li class="sub"><a href="./aim-smartycam-lap-times.html">AiM SmartyCam</a></li>
+      <li class="sub"><a href="./vbo-file-lap-times.html">VBO files</a></li>
+      <li class="sub"><a href="./porsche-track-precision-export.html">Porsche Track Precision</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to get lap times from Cadillac Blackwing PDR video</h1>
+    <p class="lede">
+      The Performance Data Recorder (PDR) in Cadillac's V-Series Blackwing
+      cars times laps itself and saves them, with the car's data, inside the
+      video file. Track Evolution reads that file on your own computer or
+      phone and brings the recorder's lap times in exactly as the car timed
+      them, with no start/finish line to set.
+    </p>
+
+    <h2 id="need">What you need</h2>
+    <ul>
+      <li>The PDR's video files (<code>.mp4</code>) from the car's SD card.
+        One recording is one session.</li>
+      <li>A free Track Evolution account, on the web at
+        <a href="https://trackevolution.app">trackevolution.app</a> or in the
+        iPhone or Android app.</li>
+      <li>An event in your logbook for the day, or make one as you import.</li>
+    </ul>
+
+    <h2 id="browser">In the browser</h2>
+    <ol>
+      <li>Put the PDR's SD card in your computer, or copy the videos off
+        it.</li>
+      <li>Open the event at
+        <a href="https://trackevolution.app">trackevolution.app</a>, or start
+        a <strong>New event</strong>.</li>
+      <li>Press <strong>Import video / telemetry…</strong> and choose the
+        videos, or drag them onto the box. Each file becomes its own
+        session.</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+
+    <h2 id="phone">On your phone</h2>
+    <ol>
+      <li>Get the videos where the phone can see them, for example on a USB
+        stick or card reader that shows up in Files.</li>
+      <li>Open the event in the Track Evolution app and tap
+        <strong>Import video</strong>, then pick the clips. Or share a clip
+        to Track Evolution from Files (<strong>Open with</strong> on iPhone,
+        <strong>Share</strong> on Android).</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+    <p>
+      The video is read where it sits, and it is never uploaded.
+    </p>
+
+    <h2 id="laps">Where the lap times come from</h2>
+    <p>
+      From the recorder's own lap timer. Each lap the car timed arrives with
+      the time the car gave it, to the millisecond, so the numbers in your
+      logbook match the ones the car showed you.
+    </p>
+    <p>
+      If the car's timer wasn't timing laps during a recording, the file has
+      none to import. The review then shows the track map you drove:
+      <strong>click where the start/finish line is</strong> and laps are
+      timed on each pass across it, to within a few tenths of a second and
+      marked with a <code>~</code>. See
+      <a href="./telemetry-import.html#line-picker">the start/finish line
+      picker</a>.
+    </p>
+
+    <h2 id="get">What you get</h2>
+    <ul>
+      <li><strong>Lap times</strong> for every timed lap, and the session's
+        best.</li>
+      <li><strong>Your racing line</strong> for the best lap, drawn as a
+        track map.</li>
+      <li><strong>Top speed, max RPM and max lateral G</strong> for the
+        session.</li>
+      <li><strong>Graphs for every lap</strong>, laid over each other by
+        distance around the track: speed, throttle, brake, steering, RPM
+        and gear, cornering and braking force, and where ABS or traction
+        control cut in.</li>
+      <li><strong>The car's health, lap by lap</strong>: oil, coolant and
+        transmission temperatures, oil pressure, tire pressures and
+        temperatures, and fuel. This recorder doesn't log battery
+        voltage.</li>
+    </ul>
+
+    <h2 id="free-pro">What is free and what is Pro</h2>
+    <p>
+      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, the session's top figures, and the
+      speed, throttle and brake graphs for every lap.
+      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
+      $19.99 a year, one subscription across the web, iPhone and Android)
+      adds the other graphs, sector splits and a theoretical best lap, lap-against-lap
+      time deltas, the friction circle, the car-health readings and
+      <a href="./telemetry-import.html#best-lap-video">best-lap video</a>: a
+      clip of your fastest lap, or of every lap, kept with the session.
+    </p>
+
+    <h2 id="trouble">If it doesn't work</h2>
+    <ul>
+      <li><strong>The review shows a map and no laps.</strong> The car's lap
+        timer timed none in this recording. Click the start/finish line on
+        the map.</li>
+      <li><strong>"No laps cross the picked line".</strong> Click a different
+        spot, on a part of the track the car drove on every lap.</li>
+      <li><strong>"No PDR, SmartyCam or GoPro telemetry in this
+        video".</strong> The file has no data track. A video that was
+        re-encoded, trimmed in an editor or downloaded from a sharing site
+        has lost it; use the original from the SD card.</li>
+    </ul>
+
+    <h2 id="related">Related</h2>
+    <p>
+      The Corvette's recorder marks the line a different way: see
+      <a href="./corvette-pdr-lap-times.html">Corvette PDR video</a>. For
+      what to do with the graphs, start with
+      <a href="./lap-delta.html">how to find time with a lap delta</a> and
+      <a href="./friction-circle.html">how to read a friction circle</a>.
+    </p>
+    <p>
+      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
+      every supported source side by side, the start/finish line picker, and
+      what the channel graphs show once a session is in.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./corvette-pdr-lap-times.html"><span class="label">Previous</span>← Corvette PDR</a>
+      <a href="./gopro-lap-times.html"><span class="label">Next</span>GoPro →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

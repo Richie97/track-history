@@ -23,6 +23,12 @@ Key facts:
 - [Getting started](https://docs.trackevolution.app/docs/): sign in, log a first event, import telemetry, install on a phone, share progress
 - [Your first track day](https://docs.trackevolution.app/docs/track-days.html): what an HPDE is, what the car and driver need, where to find an event, and ways to record laps
 - [Telemetry import](https://docs.trackevolution.app/docs/telemetry-import.html): every supported source, the start/finish line picker, and how lap times are derived
+- [Corvette PDR lap times](https://docs.trackevolution.app/docs/corvette-pdr-lap-times.html): getting lap times, a racing line and the car's data out of Corvette Performance Data Recorder video, with and without the recorder's start/finish markers
+- [Cadillac Blackwing PDR lap times](https://docs.trackevolution.app/docs/cadillac-blackwing-pdr-lap-times.html): importing the lap times a Cadillac V-Series Blackwing's recorder timed, with the car's data, from its video
+- [GoPro lap times](https://docs.trackevolution.app/docs/gopro-lap-times.html): timing laps from the GPS in GoPro footage (HERO5 and newer, GPS on) by picking the start/finish line, and what to do when a video has no GPS
+- [AiM SmartyCam lap times](https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html): importing the AiM logger's own lap times, GPS, RPM, throttle and gear from a SmartyCam video; AiM logger files are not read
+- [VBO file lap times](https://docs.trackevolution.app/docs/vbo-file-lap-times.html): importing .vbo files from a Racelogic VBOX or exported from RaceChrono, TrackAddict or Harry's LapTimer
+- [Porsche Track Precision export](https://docs.trackevolution.app/docs/porsche-track-precision-export.html): importing a Track Precision CSV or VBO export, and how the two differ in where lap times come from
 - [Recording laps with your phone](https://docs.trackevolution.app/docs/lap-recording.html): the GPS lap recorder in the iPhone and Android apps and what accuracy to expect
 - [Data model and stats](https://docs.trackevolution.app/docs/data-model.html): tracks, events, sessions and laps, the best-time rule, consistency, costs, share-page privacy, and what a coach can see and comment on
 - [Garage and setup notebook](https://docs.trackevolution.app/docs/garage.html): pad, tire and fluid wear tracking with projections, and per-day setup sheets

@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Telemetry import: Corvette PDR, GoPro, VBO — Track Evolution docs</title>
-  <meta name="description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta name="description" content="Import Corvette and Cadillac PDR, GoPro, AiM SmartyCam, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Telemetry import: Corvette PDR, GoPro, VBO — Track Evolution docs">
-  <meta property="og:description" content="Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
+  <meta property="og:description" content="Import Corvette and Cadillac PDR, GoPro, AiM SmartyCam, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/telemetry-import.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -25,7 +25,7 @@
         "@id": "https://docs.trackevolution.app/docs/telemetry-import.html#page",
         "url": "https://docs.trackevolution.app/docs/telemetry-import.html",
         "headline": "Telemetry import",
-        "description": "Import Corvette and Cadillac PDR, GoPro, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.",
+        "description": "Import Corvette and Cadillac PDR, GoPro, AiM SmartyCam, Racelogic VBO and Porsche Track Precision recordings into Track Evolution — parsed entirely on your own device, in the browser or on your phone.",
         "inLanguage": "en",
         "isPartOf": { "@type": "WebSite", "@id": "https://trackevolution.app/#website", "name": "Track Evolution", "url": "https://trackevolution.app/" },
         "about": { "@type": "SoftwareApplication", "@id": "https://trackevolution.app/#app", "name": "Track Evolution", "url": "https://trackevolution.app/" },
@@ -86,6 +86,12 @@
       <li><a href="./">Getting started</a></li>
       <li><a href="./track-days.html">Your first track day</a></li>
       <li><a href="./telemetry-import.html" class="active">Telemetry import</a></li>
+      <li class="sub"><a href="./corvette-pdr-lap-times.html">Corvette PDR</a></li>
+      <li class="sub"><a href="./cadillac-blackwing-pdr-lap-times.html">Cadillac Blackwing PDR</a></li>
+      <li class="sub"><a href="./gopro-lap-times.html">GoPro</a></li>
+      <li class="sub"><a href="./aim-smartycam-lap-times.html">AiM SmartyCam</a></li>
+      <li class="sub"><a href="./vbo-file-lap-times.html">VBO files</a></li>
+      <li class="sub"><a href="./porsche-track-precision-export.html">Porsche Track Precision</a></li>
       <li><a href="./lap-recording.html">Recording laps</a></li>
       <li><a href="./data-model.html">Data model &amp; stats</a></li>
       <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
@@ -347,6 +353,11 @@
     </ul>
 
     <h2 id="sources">Supported sources</h2>
+    <p>
+      Each source has its own page with what you need, the steps in the
+      browser and on your phone, and what to do when a file won't import;
+      the table links to them.
+    </p>
     <div class="table-scroll">
       <table>
         <thead>
@@ -354,32 +365,32 @@
         </thead>
         <tbody>
           <tr>
-            <td>Corvette PDR (Cosworth) MP4</td>
+            <td><a href="./corvette-pdr-lap-times.html">Corvette PDR</a> (Cosworth) MP4</td>
             <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
             <td>Beacon events + odometer recovery, or latitude/odometer lap recovery when a recording has no beacons (see below)</td>
           </tr>
           <tr>
-            <td>Cadillac PDR (Cosworth AliveDrive) MP4<br><small>(the newer recorder in Cadillac's V-Series Blackwings)</small></td>
+            <td><a href="./cadillac-blackwing-pdr-lap-times.html">Cadillac PDR</a> (Cosworth AliveDrive) MP4<br><small>(the newer recorder in Cadillac's V-Series Blackwings)</small></td>
             <td>The newer recorder's telemetry track, read by byte range — GPS, the car channels and the slow readings, as with a Corvette</td>
             <td>The recorder's own lap timer — exact, with no line to pick. A recording whose timer timed no laps uses the line picker</td>
           </tr>
           <tr>
-            <td>GoPro MP4 (Hero 5+)</td>
+            <td><a href="./gopro-lap-times.html">GoPro</a> MP4 (Hero 5+)</td>
             <td>The GPS trace from the GPMF metadata track</td>
             <td>Start/finish line picker</td>
           </tr>
           <tr>
-            <td>AiM SmartyCam MOV</td>
+            <td><a href="./aim-smartycam-lap-times.html">AiM SmartyCam</a> MOV</td>
             <td>The GPS trace, RPM, throttle and gear the camera stores with the picture</td>
             <td>The AiM logger's own lap times — the ones on your dash, with no line to pick. A lap needs both of its crossings in the video, so the out-lap and a lap cut off by the end of the recording aren't imported. Best-lap video isn't saved from these files yet</td>
           </tr>
           <tr>
-            <td>Racelogic VBO<br><small>(VBOX; RaceChrono / TrackAddict / Harry's LapTimer / Porsche Track Precision exports)</small></td>
+            <td><a href="./vbo-file-lap-times.html">Racelogic VBO</a><br><small>(VBOX; RaceChrono / TrackAddict / Harry's LapTimer / Porsche Track Precision exports)</small></td>
             <td>The GPS samples in the file, plus any car channels it logged — RPM, throttle, brake, steering, G, gear and tire pressures</td>
             <td>The file's <code>[laptiming]</code> start line when present, otherwise the line picker</td>
           </tr>
           <tr>
-            <td>Porsche Track Precision CSV</td>
+            <td><a href="./porsche-track-precision-export.html">Porsche Track Precision</a> CSV</td>
             <td>The GPS samples, plus the car channels the app recorded — RPM, throttle, brake, steering, G, gear and tire pressures</td>
             <td>Track Precision's own lap timer — the same lap times the app showed you, with no line to pick. A recording whose timer never finished a lap uses the line picker</td>
           </tr>
@@ -614,7 +625,7 @@
 
     <nav class="docs-pager">
       <a href="./track-days.html"><span class="label">Previous</span>← Your first track day</a>
-      <a href="./lap-recording.html"><span class="label">Next</span>Recording laps →</a>
+      <a href="./corvette-pdr-lap-times.html"><span class="label">Next</span>Corvette PDR →</a>
     </nav>
   </article>
 
