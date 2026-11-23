@@ -21,6 +21,7 @@ import { renderTrackMap } from "./trackmap.js";
 import { fmtSpeedKph, convSpeedKph, currentUnits, speedUnit } from "./units.js";
 import { ordinal } from "./gears.js";
 import { PLAYBACK_LEAD_S } from "./import/clip.js";
+import { bindVideoWait, videoWaitHtml } from "./video-wait.js";
 import {
   DEFAULT_SYNC_MODE,
   SYNC_MODES,
@@ -142,6 +143,7 @@ export function bindLapStage(container, opts) {
     playable(key)
       ? `<div class="stage-slot" data-slot="${key}">
           <video playsinline preload="metadata"${key === st.masterKey ? "" : " muted"}></video>
+          ${videoWaitHtml(true)}
           ${chip(key)}
           <span class="stage-slot-note" hidden></span>
         </div>`
@@ -244,6 +246,9 @@ export function bindLapStage(container, opts) {
     const v = root.querySelector(`.stage-slot[data-slot="${key}"] video`);
     if (!v) continue;
     videos[key] = { el: v, ready: false, refetchedAt: 0 };
+    // Up from the start (the signed URL is still on its way), then following
+    // the element: its first load, a seek past what is buffered, a stall.
+    bindVideoWait(v, v.parentElement.querySelector(".video-wait"));
     loadVideo(key);
   }
   async function loadVideo(key) {
@@ -269,6 +274,7 @@ export function bindLapStage(container, opts) {
     const slot = root.querySelector(`.stage-slot[data-slot="${key}"]`);
     slot.classList.add("replay");
     vid.el.remove();
+    slot.querySelector(".video-wait")?.remove();
     if (opts.trace) {
       const c = document.createElement("canvas");
       c.className = "trackmap stage-replay-map";

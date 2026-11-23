@@ -34,6 +34,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -451,6 +452,10 @@ private fun VideoSlot(
                 factory = {
                     PlayerView(it).apply {
                         useController = false
+                        // Only while told to play: a paused scrub seeks on
+                        // every drag event and would flash it. The first load
+                        // is paused too, and has the spinner below.
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                         setShutterBackgroundColor(android.graphics.Color.BLACK)
                         // Two SurfaceViews that overlap have no defined order:
@@ -464,6 +469,18 @@ private fun VideoSlot(
                 onRelease = { it.player = null },
                 modifier = Modifier.fillMaxSize(),
             )
+            // Until the first frame: the signed URL, then the file's index.
+            if (!player.ready && player.error == null) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = if (inset) 2.dp else 4.dp,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .then(if (inset) Modifier.size(20.dp) else Modifier)
+                        .semantics { contentDescription = "Loading video" }
+                        .testTag("stageLoading:${key.name}"),
+                )
+            }
         } else {
             val trace = ctx.trace
             if (trace != null && trace.size >= 10 && !inset) {

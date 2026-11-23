@@ -66,18 +66,60 @@ final class StageVideo {
     let clip: LapClip
     fileprivate(set) var player: AVPlayer?
     fileprivate(set) var status: Status = .loading
+    /// The player was told to play and is waiting on the network — after a far
+    /// seek, or on a connection slower than the camera's bitrate. The slot
+    /// draws its spinner for this as it does for the first load.
+    fileprivate(set) var isBuffering = false
     /// Whether this player is the clock right now: playing, and the master.
     @ObservationIgnored fileprivate var isDriving = false
     @ObservationIgnored fileprivate var seeking = false
     @ObservationIgnored fileprivate var retried = false
     @ObservationIgnored fileprivate var lastRateAt: CFTimeInterval = 0
     @ObservationIgnored fileprivate var statusObservation: NSKeyValueObservation?
+    @ObservationIgnored fileprivate var waitObservation: NSKeyValueObservation?
+    @ObservationIgnored fileprivate var waitTask: Task<Void, Never>?
 
     init(clip: LapClip) {
         self.clip = clip
     }
 
     var isReady: Bool { status == .ready }
+
+    /// A wait shorter than this draws nothing: every `play()` passes through
+    /// `.waitingToPlayAtSpecifiedRate` for a moment, and a spinner on each one
+    /// would flash. The web's `WAIT_SHOW_MS`.
+    static let waitShowDelay: Duration = .milliseconds(300)
+
+    fileprivate func observeWaiting(_ player: AVPlayer) {
+        waitObservation = player.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+            let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
+            Task { @MainActor in self?.waitingChanged(waiting) }
+        }
+    }
+
+    private func waitingChanged(_ waiting: Bool) {
+        if !waiting {
+            waitTask?.cancel()
+            waitTask = nil
+            if isBuffering { isBuffering = false }
+        } else if !isBuffering, waitTask == nil {
+            waitTask = Task { [weak self] in
+                try? await Task.sleep(for: Self.waitShowDelay)
+                guard let self, !Task.isCancelled else { return }
+                self.waitTask = nil
+                // Still waiting once the delay is up?
+                if self.player?.timeControlStatus == .waitingToPlayAtSpecifiedRate { self.isBuffering = true }
+            }
+        }
+    }
+
+    fileprivate func stopObserving() {
+        statusObservation?.invalidate()
+        waitObservation?.invalidate()
+        waitTask?.cancel()
+        waitTask = nil
+        isBuffering = false
+    }
 }
 
 /// The lap stage's engine (NS-51): up to two sides, their players, the sync
@@ -222,7 +264,7 @@ final class LapStageModel: HeldOnRouter {
             let new = newInputs.first { $0.key == key }
             if old?.clip != new?.clip || new == nil {
                 videos[key]?.player?.pause()
-                videos[key]?.statusObservation?.invalidate()
+                videos[key]?.stopObserving()
                 videos[key] = nil
                 if let clip = new?.clip {
                     let video = StageVideo(clip: clip)
@@ -279,6 +321,7 @@ final class LapStageModel: HeldOnRouter {
         // target runs past its clip waits on its final frame.
         player.actionAtItemEnd = .pause
         video.player = player
+        video.observeWaiting(player)
         // KVO rather than a poll: the item says when it can play.
         video.statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self, weak video] item, _ in
             let status = item.status
@@ -302,7 +345,7 @@ final class LapStageModel: HeldOnRouter {
             apply(eMaster, seek: .exact)
             if playing { syncVideos(state, seek: nil) }
         case .failed:
-            video.statusObservation?.invalidate()
+            video.stopObserving()
             video.player = nil
             if !video.retried {
                 // A signed URL lasts an hour: on a failure fetch it again, past

@@ -8,6 +8,7 @@ import { bindChannelGraphs, bindChartSeek, channelDefs, deltaChartSvg, deltaSeri
 import { gridAtElapsed, referenceLap, stageSides, valueAt } from "./js/video-sync.js";
 import { axisAtGrid, lapAxisSeries } from "./js/lap-axis.js";
 import { VIDEO_NEEDS_CONNECTION, bindLapStage, destroyAllStages } from "./js/lap-stage.js";
+import { bindVideoWait, videoWaitHtml } from "./js/video-wait.js";
 import { sessionCorners } from "./js/corners.js";
 import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
@@ -2223,7 +2224,9 @@ async function showLapVideo(box, clipId) {
     if (!readOnly()) youtubePanel(body, id);
     return;
   }
-  body.innerHTML = `<p class="hint">Loading…</p>`;
+  // The frame the video will fill, with the loading mark already in it, so
+  // the page doesn't jump when the URL arrives.
+  body.innerHTML = `<div class="video-frame">${videoWaitHtml(true)}</div>`;
   let signed;
   try {
     signed = sharedView ? await sharedClipUrl(id) : await api(`/clips/${id}/url`, { cache: false });
@@ -2235,7 +2238,7 @@ async function showLapVideo(box, clipId) {
     return;
   }
   if (!current()) return;
-  body.innerHTML = `<video controls preload="metadata" playsinline src="${esc(signed.url)}"></video>
+  body.innerHTML = `<div class="video-frame"><video controls preload="metadata" playsinline></video>${videoWaitHtml(true)}</div>
     ${
       readOnly()
         ? ""
@@ -2246,11 +2249,14 @@ async function showLapVideo(box, clipId) {
     }`;
   youtubePanel(body, id);
   const video = body.querySelector("video");
+  // Bound before the src is set, so the first `loadstart` is heard.
+  bindVideoWait(video, body.querySelector(".video-wait"));
+  video.src = signed.url;
   // A couple of seconds of run-up, so the crossing is on screen.
   const offsetS = playbackStartMs(Number(v.offsetMs)) / 1000;
   video.addEventListener("loadedmetadata", () => { if (offsetS > 0 && offsetS < video.duration) video.currentTime = offsetS; }, { once: true });
   video.addEventListener("error", () => {
-    if (!navigator.onLine) body.querySelector("video")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
+    if (!navigator.onLine) body.querySelector(".video-frame")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
   }, { once: true });
   wireClipDelete(body, id);
 }

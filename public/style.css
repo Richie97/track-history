@@ -738,7 +738,45 @@ input::placeholder, textarea::placeholder { color: var(--text-faint); }
   display: block; width: 100%; max-height: 70vh; border-radius: var(--radius-xs);
   background: #000;
 }
+.lap-video-body .video-frame {
+  position: relative; background: #000; border-radius: var(--radius-xs); overflow: hidden;
+  /* Before the video is in: the shape it will most likely take. */
+  min-height: 120px;
+}
+.lap-video-body .video-frame:not(:has(video)) { aspect-ratio: 16 / 9; max-height: 70vh; }
+.lap-video-body .video-frame video { aspect-ratio: auto 16 / 9; border-radius: 0; }
 .lap-video-body .btn-row { margin-top: 8px; }
+
+/* The loading mark over a lap video (js/video-wait.js): the player's and the
+   stage's. It never takes a click — the native controls and the stage's own
+   are under it. */
+.video-wait {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+  pointer-events: none; color: #fff; font-size: var(--fs-xs);
+}
+.video-wait[hidden] { display: none; }
+.video-wait-ring {
+  width: 34px; height: 34px; border-radius: 50%; box-sizing: border-box;
+  border: 3px solid rgb(255 255 255 / 0.28); border-top-color: #fff;
+  /* A dark halo, so the ring reads over a bright frame too. */
+  box-shadow: 0 0 0 6px rgb(0 0 0 / 0.35); background: rgb(0 0 0 / 0.35);
+}
+.video-wait-text {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .video-wait-ring { animation: video-wait-spin 0.9s linear infinite; }
+  @keyframes video-wait-spin { to { transform: rotate(360deg); } }
+}
+/* With less motion asked for the ring stands still, so the words say it. */
+@media (prefers-reduced-motion: reduce) {
+  .video-wait-text {
+    position: static; width: auto; height: auto; clip-path: none;
+    padding: 3px 9px; border-radius: 999px; background: rgb(0 0 0 / 0.55);
+  }
+}
+.stage-compact .stage-videos.n2 .stage-slot:not(.master) .video-wait-ring { width: 18px; height: 18px; border-width: 2px; box-shadow: none; }
+.stage-compact .stage-videos.n2 .stage-slot:not(.master) .video-wait-text { display: none; }
 
 /* The lap stage (NS-51, js/lap-stage.js): the video(s), one transport and a
    now-strip, with a playhead every chart below carries. The layout class is
