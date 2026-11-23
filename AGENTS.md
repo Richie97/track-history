@@ -208,6 +208,29 @@ not a follow-up:**
      an image whose size changed owes its `width` / `height` in the page.
    - `site/docs/telemetry-import.html` — import sources, line picker, PDR
      derivation. Update when parsers or import behavior change.
+   - **A page per import source** (#456), each answering "how do I get lap
+     times out of X" for a driver searching by the thing they own:
+     `corvette-pdr-lap-times.html`, `cadillac-blackwing-pdr-lap-times.html`,
+     `gopro-lap-times.html`, `aim-smartycam-lap-times.html`,
+     `vbo-file-lap-times.html` (VBOX and the RaceChrono / TrackAddict /
+     Harry's LapTimer exports) and `porsche-track-precision-export.html`
+     (its CSV and VBO exports). One shape: what you need, the steps in the
+     browser and on the phone as numbered lists, where the lap times come
+     from, what you get, what is free and what is Pro, and *If it doesn't
+     work* — which **quotes the importer's own error messages**
+     (`public/js/import/parse.js`, `gpmf.js`, `vbo.js`, `csv.js`,
+     `smartycam.js`, and the review's hints in `ui.js`), so a reworded
+     message owes its page the edit. `telemetry-import.html` stays the
+     overview and its *Supported sources* table links to each; the pages
+     link back and don't repeat its analysis walkthrough. They sit under
+     *Telemetry import* in every sidebar as `<li class="sub">` items, and
+     in the pager between it and *Recording laps*. A change to a parser, to
+     which channels a source carries, to what a source's clip can save, or
+     to a tier owes the matching page; a new import source owes a new page,
+     plus the overview's table, `track-days.html`'s *Recording your laps*
+     table (which links to these pages) and `llms.txt`. They describe
+     another maker's product only as far as "export a `.vbo` / CSV from
+     the app": don't write menu-by-menu steps for an app that isn't ours.
    - `site/docs/lap-recording.html` — recording laps with the phone's GPS in
      the mobile apps (flow, accuracy expectations, on-device data handling).
      Update when the recorder's behavior changes.

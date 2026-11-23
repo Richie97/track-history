@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to export Porsche Track Precision laps and data — Track Evolution docs</title>
+  <meta name="description" content="Bring Porsche Track Precision sessions into a logbook: export the recording as CSV or VBO and import it into Track Evolution for the app's own lap times, your racing line and the car's data.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to export Porsche Track Precision laps and data — Track Evolution docs">
+  <meta property="og:description" content="Bring Porsche Track Precision sessions into a logbook: export the recording as CSV or VBO and import it into Track Evolution for the app's own lap times, your racing line and the car's data.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/porsche-track-precision-export.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/porsche-track-precision-export.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/porsche-track-precision-export.html#page",
+        "url": "https://docs.trackevolution.app/docs/porsche-track-precision-export.html",
+        "headline": "How to export Porsche Track Precision laps and data",
+        "description": "Bring Porsche Track Precision sessions into a logbook: export the recording as CSV or VBO and import it into Track Evolution for the app's own lap times, your racing line and the car's data.",
+        "inLanguage": "en",
+        "isPartOf": { "@type": "WebSite", "@id": "https://trackevolution.app/#website", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "about": { "@type": "SoftwareApplication", "@id": "https://trackevolution.app/#app", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "publisher": { "@type": "Organization", "@id": "https://trackevolution.app/#org", "name": "Track Evolution", "url": "https://trackevolution.app/" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Telemetry import",
+            "item": "https://docs.trackevolution.app/docs/telemetry-import.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Porsche Track Precision export",
+            "item": "https://docs.trackevolution.app/docs/porsche-track-precision-export.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li class="sub"><a href="./corvette-pdr-lap-times.html">Corvette PDR</a></li>
+      <li class="sub"><a href="./cadillac-blackwing-pdr-lap-times.html">Cadillac Blackwing PDR</a></li>
+      <li class="sub"><a href="./gopro-lap-times.html">GoPro</a></li>
+      <li class="sub"><a href="./aim-smartycam-lap-times.html">AiM SmartyCam</a></li>
+      <li class="sub"><a href="./vbo-file-lap-times.html">VBO files</a></li>
+      <li class="sub"><a href="./porsche-track-precision-export.html" class="active">Porsche Track Precision</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to export Porsche Track Precision laps and data</h1>
+    <p class="lede">
+      Porsche's Track Precision app records lap times, GPS and the car's own
+      data on your phone, and it can export a session as a file. Track
+      Evolution reads both of its export formats, CSV and VBO, on the phone
+      or in the browser, so the laps and data from the Porsche sit in the
+      same logbook as every other day you've driven.
+    </p>
+
+    <h2 id="need">What you need</h2>
+    <ul>
+      <li>A session recorded in the Track Precision app.</li>
+      <li>That session <strong>exported from the app as CSV or VBO</strong>.
+        Choose CSV when you can: it carries the app's own lap times.</li>
+      <li>A free Track Evolution account, in the iPhone or Android app or
+        on the web at
+        <a href="https://trackevolution.app">trackevolution.app</a>.</li>
+    </ul>
+
+    <h2 id="phone">On your phone</h2>
+    <p>
+      Track Precision records on your phone, so the export is already there.
+    </p>
+    <ol>
+      <li>Export the session from Track Precision.</li>
+      <li>Share the file to Track Evolution, or save it to Files, open the
+        event in the Track Evolution app, tap <strong>Import video</strong>
+        and pick it. A VBO export goes by way of Files.</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+
+    <h2 id="browser">In the browser</h2>
+    <ol>
+      <li>Get the exported file onto your computer.</li>
+      <li>Open the event at
+        <a href="https://trackevolution.app">trackevolution.app</a>, or start
+        a <strong>New event</strong>.</li>
+      <li>Press <strong>Import video / telemetry…</strong> and choose the
+        file, or drag it onto the box.</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+
+    <h2 id="laps">CSV or VBO: where the lap times come from</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Export</th><th>Lap times</th><th>Line to pick?</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>CSV</strong></td>
+            <td>Track Precision's own lap timer: the same times the app
+              showed you</td>
+            <td>No</td>
+          </tr>
+          <tr>
+            <td><strong>VBO</strong></td>
+            <td>Timed again from the GPS positions, on the start/finish
+              line the file names. Within a few tenths, marked
+              <code>~</code></td>
+            <td>Only if the file names no line</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      With a CSV export, a lap is kept when the app's timer ran the whole
+      way round, so a lap with a pit stop in it is left out. If the timer
+      never finished a lap in a recording, the review shows the track map
+      and you pick the line yourself. See
+      <a href="./telemetry-import.html#line-picker">the start/finish line
+      picker</a>.
+    </p>
+
+    <h2 id="get">What you get</h2>
+    <ul>
+      <li><strong>Lap times</strong> for every full lap, and the session's
+        best.</li>
+      <li><strong>Your racing line</strong> for the best lap, drawn as a
+        track map.</li>
+      <li><strong>Graphs for every lap</strong>, laid over each other by
+        distance around the track: speed, throttle, brake, steering, RPM
+        and gear, and cornering and braking force.</li>
+      <li><strong>Tire pressures</strong>, lap by lap.</li>
+    </ul>
+    <p>
+      If the car stopped sending data partway through a session, the laps
+      and the racing line still import; the car's graphs stop where the
+      data did.
+    </p>
+
+    <h2 id="free-pro">What is free and what is Pro</h2>
+    <p>
+      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, and the speed, throttle and brake
+      graphs for every lap.
+      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
+      $19.99 a year, one subscription across the web, iPhone and Android)
+      adds the other graphs, sector splits and a theoretical best lap,
+      lap-against-lap time deltas, the friction circle and the tire
+      pressure readings.
+    </p>
+    <p>
+      Track Precision's video isn't part of either export, so there is no
+      best-lap video to save.
+    </p>
+
+    <h2 id="trouble">If it doesn't work</h2>
+    <ul>
+      <li><strong>"Not a Porsche Track Precision CSV".</strong> The file is
+        a CSV from something else, or an export without position. Export
+        the session again from Track Precision.</li>
+      <li><strong>"Track Precision CSV contains no usable GPS
+        data".</strong> The recording has no positions in it, which happens
+        when the phone had no GPS position during the session.</li>
+      <li><strong>The review shows a map and no laps.</strong> The app's
+        timer finished no lap in this recording. Click the start/finish
+        line on the map.</li>
+      <li><strong>A lap is missing.</strong> A lap the timer didn't run
+        through from line to line, such as one with a pit stop, isn't
+        imported.</li>
+    </ul>
+
+    <h2 id="related">Related</h2>
+    <p>
+      VBO files from other devices and apps are covered in
+      <a href="./vbo-file-lap-times.html">how to get lap times from a VBO
+      file</a>. For the tire pressures, see
+      <a href="./tire-pressures.html">track-day tire pressures</a>.
+    </p>
+    <p>
+      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
+      every supported source side by side, the start/finish line picker, and
+      what the channel graphs show once a session is in.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./vbo-file-lap-times.html"><span class="label">Previous</span>← VBO files</a>
+      <a href="./lap-recording.html"><span class="label">Next</span>Recording laps →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>

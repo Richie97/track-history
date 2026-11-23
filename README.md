@@ -35,7 +35,10 @@ the app does it, and the newcomer's guide, `site/docs/track-days.html` — what
 an HPDE is, what the driver and the car need, where to find an event (the
 organizers' links), what happens on the day, and the tools drivers record
 laps with (PDR, Track Precision, VBOX, lap-timer apps, GoPro) with what each
-takes to import — keep that table in step with the importer's sources. Every client links to it from
+takes to import — keep that table in step with the importer's sources, and
+with the page each import source has of its own (`corvette-pdr-lap-times.html`,
+`gopro-lap-times.html` and four more: what you need, the steps on the web and
+the phone, and the importer's own error messages with their fixes). Every client links to it from
 the first-run welcome card and from Settings' *New to track days?* section, so
 the organizer list lives in one static page and changing it needs no app
 release.

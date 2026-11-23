@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to get lap times from AiM SmartyCam video — Track Evolution docs</title>
+  <meta name="description" content="Get lap times, your racing line and car data out of an AiM SmartyCam video. Track Evolution reads the data the camera stores with the picture and imports your AiM logger's own lap times.">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Track Evolution">
+  <meta property="og:title" content="How to get lap times from AiM SmartyCam video — Track Evolution docs">
+  <meta property="og:description" content="Get lap times, your racing line and car data out of an AiM SmartyCam video. Track Evolution reads the data the camera stores with the picture and imports your AiM logger's own lap times.">
+  <meta property="og:url" content="https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html">
+  <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Track Evolution — your track days, remembered lap by lap">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="canonical" href="https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "TechArticle",
+        "@id": "https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html#page",
+        "url": "https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html",
+        "headline": "How to get lap times from AiM SmartyCam video",
+        "description": "Get lap times, your racing line and car data out of an AiM SmartyCam video. Track Evolution reads the data the camera stores with the picture and imports your AiM logger's own lap times.",
+        "inLanguage": "en",
+        "isPartOf": { "@type": "WebSite", "@id": "https://trackevolution.app/#website", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "about": { "@type": "SoftwareApplication", "@id": "https://trackevolution.app/#app", "name": "Track Evolution", "url": "https://trackevolution.app/" },
+        "publisher": { "@type": "Organization", "@id": "https://trackevolution.app/#org", "name": "Track Evolution", "url": "https://trackevolution.app/" }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Track Evolution",
+            "item": "https://trackevolution.app/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Docs",
+            "item": "https://docs.trackevolution.app/docs/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Telemetry import",
+            "item": "https://docs.trackevolution.app/docs/telemetry-import.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "AiM SmartyCam lap times",
+            "item": "https://docs.trackevolution.app/docs/aim-smartycam-lap-times.html"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+  <link rel="icon" href="../favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../site.css">
+  <!-- Google Analytics, behind the UK/EU consent banner (analytics.js) -->
+  <script src="../analytics.js" defer></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="brand" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      Track Evolution
+    </a>
+    <nav class="site-nav">
+      <a href="../">Home</a>
+      <a href="./" class="active">Docs</a>
+      <a href="https://github.com/richie97/track-history">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+
+  <aside class="docs-sidebar">
+    <p class="group">Documentation</p>
+    <ul>
+      <li><a href="./">Getting started</a></li>
+      <li><a href="./track-days.html">Your first track day</a></li>
+      <li><a href="./telemetry-import.html">Telemetry import</a></li>
+      <li class="sub"><a href="./corvette-pdr-lap-times.html">Corvette PDR</a></li>
+      <li class="sub"><a href="./cadillac-blackwing-pdr-lap-times.html">Cadillac Blackwing PDR</a></li>
+      <li class="sub"><a href="./gopro-lap-times.html">GoPro</a></li>
+      <li class="sub"><a href="./aim-smartycam-lap-times.html" class="active">AiM SmartyCam</a></li>
+      <li class="sub"><a href="./vbo-file-lap-times.html">VBO files</a></li>
+      <li class="sub"><a href="./porsche-track-precision-export.html">Porsche Track Precision</a></li>
+      <li><a href="./lap-recording.html">Recording laps</a></li>
+      <li><a href="./data-model.html">Data model &amp; stats</a></li>
+      <li><a href="./garage.html">Garage &amp; setup notebook</a></li>
+      <li><a href="./ai.html">AI assistants</a></li>
+    </ul>
+    <p class="group">Guides</p>
+    <ul>
+      <li><a href="./prep-checklist.html">Track-day prep checklist</a></li>
+      <li><a href="./track-day-cost.html">What a track day costs</a></li>
+      <li><a href="./tire-pressures.html">Tire pressures</a></li>
+      <li><a href="./consumables.html">Brake pad &amp; tire wear</a></li>
+      <li><a href="./lap-consistency.html">Lap consistency</a></li>
+      <li><a href="./lap-delta.html">Finding time with a lap delta</a></li>
+      <li><a href="./brake-throttle-traces.html">Brake &amp; throttle traces</a></li>
+      <li><a href="./friction-circle.html">Reading a friction circle</a></li>
+      <li><a href="./understeer-oversteer.html">Understeer &amp; oversteer</a></li>
+      <li><a href="./shift-points.html">Shift points</a></li>
+      <li><a href="./setup-notebook.html">Keeping a setup notebook</a></li>
+      <li><a href="./temperatures.html">Temperatures on track</a></li>
+      <li><a href="./phone-gps-lap-timing.html">Phone GPS vs a lap timer</a></li>
+      <li><a href="./working-with-a-coach.html">Working with a coach</a></li>
+    </ul>
+    <p class="group">Legal</p>
+    <ul>
+      <li><a href="./privacy.html">Privacy policy</a></li>
+      <li><a href="./terms.html">Terms of use</a></li>
+      <li><a href="./account-deletion.html">Delete your account</a></li>
+    </ul>
+  </aside>
+
+  <article class="docs-content">
+    <h1>How to get lap times from AiM SmartyCam video</h1>
+    <p class="lede">
+      An AiM SmartyCam wired to an AiM dash or logger stores the logger's
+      data inside the video, alongside the picture it draws it over. Track
+      Evolution reads that data from the camera's <code>.MOV</code> file and
+      imports the logger's own lap times, the ones on your dash, with no
+      start/finish line to set. The video stays on your computer or phone.
+    </p>
+
+    <h2 id="need">What you need</h2>
+    <ul>
+      <li>The camera's video files (<code>.MOV</code>) from its memory
+        card. One recording is one session.</li>
+      <li>Lap timing working on the AiM dash or logger during the session.
+        The laps come from it, so a recording made while it timed no laps
+        has none to import.</li>
+      <li>A free Track Evolution account, on the web at
+        <a href="https://trackevolution.app">trackevolution.app</a> or in the
+        iPhone or Android app.</li>
+    </ul>
+    <p>
+      It is the camera's video that is read. AiM's logger files themselves
+      (from Race Studio) aren't.
+    </p>
+
+    <h2 id="browser">In the browser</h2>
+    <ol>
+      <li>Put the camera's memory card in your computer, or copy the videos
+        off it.</li>
+      <li>Open the event at
+        <a href="https://trackevolution.app">trackevolution.app</a>, or start
+        a <strong>New event</strong>.</li>
+      <li>Press <strong>Import video / telemetry…</strong> and choose the
+        videos, or drag them onto the box. Each file becomes its own
+        session.</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+
+    <h2 id="phone">On your phone</h2>
+    <ol>
+      <li>Get the videos where the phone can see them, for example on a
+        card reader that shows up in Files.</li>
+      <li>Open the event in the Track Evolution app and tap
+        <strong>Import video</strong>, then pick the clips. Or share a clip
+        to Track Evolution from Files (<strong>Open with</strong> on iPhone,
+        <strong>Share</strong> on Android).</li>
+      <li>Check the laps in the review, then save.</li>
+    </ol>
+
+    <h2 id="laps">Where the lap times come from</h2>
+    <p>
+      From the AiM logger. Each lap arrives with the time the logger gave
+      it, so your logbook matches your dash and nothing is estimated.
+    </p>
+    <p>
+      A lap is imported when both of its line crossings are in the video.
+      That leaves out the out-lap, and a lap cut off by the end of the
+      recording.
+    </p>
+
+    <h2 id="get">What you get</h2>
+    <ul>
+      <li><strong>Lap times</strong> for every full lap in the video, and
+        the session's best.</li>
+      <li><strong>Your racing line</strong> for the best lap, drawn as a
+        track map.</li>
+      <li><strong>Graphs for every lap</strong>, laid over each other by
+        distance around the track: speed, and the RPM, throttle and gear
+        the camera stored.</li>
+    </ul>
+    <p>
+      Which car readings a file carries depends on how the camera and
+      logger are set up. A reading the file doesn't have, or one that
+      doesn't look right, is left out and the rest still imports.
+    </p>
+
+    <h2 id="free-pro">What is free and what is Pro</h2>
+    <p>
+      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, and the speed and throttle graphs for
+      every lap.
+      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
+      $19.99 a year, one subscription across the web, iPhone and Android)
+      adds the RPM and gear graphs with your shift points, sector splits and a
+      theoretical best lap, and lap-against-lap time deltas.
+    </p>
+    <p>
+      <a href="./telemetry-import.html#best-lap-video">Best-lap video</a>
+      isn't saved from SmartyCam files yet.
+    </p>
+
+    <h2 id="trouble">If it doesn't work</h2>
+    <ul>
+      <li><strong>"This recording wasn't finished by the camera and can't
+        be read."</strong> The camera lost power before it closed the file.
+        That recording can't be imported; the others on the card can.</li>
+      <li><strong>The session has no laps, or fewer than you drove.</strong>
+        Only laps the logger timed, with both crossings in the video, are
+        imported. A recording that starts after you crossed the line loses
+        its first lap, and one made while the logger timed no laps has
+        none.</li>
+      <li><strong>"No GPS data in this SmartyCam video".</strong> The
+        logger had no GPS position during the recording.</li>
+      <li><strong>"No PDR, SmartyCam or GoPro telemetry in this
+        video".</strong> The file isn't the camera's original. A video that
+        was edited or re-encoded has lost its data; use the one from the
+        card.</li>
+    </ul>
+
+    <h2 id="related">Related</h2>
+    <p>
+      For what to do with the graphs, see
+      <a href="./shift-points.html">when to shift on track</a> and
+      <a href="./lap-delta.html">how to find time with a lap delta</a>.
+    </p>
+    <p>
+      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
+      every supported source side by side, the start/finish line picker, and
+      what the channel graphs show once a session is in.
+    </p>
+
+    <nav class="docs-pager">
+      <a href="./gopro-lap-times.html"><span class="label">Previous</span>← GoPro</a>
+      <a href="./vbo-file-lap-times.html"><span class="label">Next</span>VBO files →</a>
+    </nav>
+  </article>
+
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span class="footer-about">
+      <span>Track Evolution — a personal HPDE / track-day logbook.</span>
+      <span class="footer-vob"><svg class="footer-vob-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>Veteran-owned business · Speedshift LLC</span>
+    </span>
+    <span>
+      <a href="./">Docs</a> ·
+      <a href="./privacy.html">Privacy</a> ·
+      <a href="./terms.html">Terms</a> ·
+      <a href="https://github.com/richie97/track-history">GitHub</a> ·
+      <button type="button" class="footer-cookies" data-consent-open>Cookies</button>
+    </span>
+  </div>
+</footer>
+
+</body>
+</html>
