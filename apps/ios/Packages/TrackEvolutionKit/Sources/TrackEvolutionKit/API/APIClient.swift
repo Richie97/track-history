@@ -737,6 +737,42 @@ public actor APIClient {
         try await get("/clips/\(id)/url", cached: false, as: ClipURL.self)
     }
 
+    // MARK: - Publish to YouTube (NS-46)
+
+    /// A single-use, 5-minute address to open in the system browser: the phone
+    /// can't hand its bearer token to one, so the server mints a ticket. 404
+    /// while the feature isn't available to this account.
+    public func youTubeConnectURL() async throws -> URL {
+        try await send("POST", "/youtube/connect", body: NoBody?.none, as: YouTubeConnect.self).url
+    }
+
+    /// Revoke the grant at Google and forget it. Free, always; videos already
+    /// uploaded stay on YouTube.
+    public func disconnectYouTube() async throws {
+        _ = try await send("DELETE", "/youtube", body: NoBody?.none, as: OKResponse.self)
+    }
+
+    /// The form's pre-filled title, description and visibility (Pro). Past the
+    /// cache: a draft read back offline would offer a form that can't be sent.
+    public func youTubeDraft(clipId: Int) async throws -> YouTubeDraft {
+        guard studentId == nil else { throw APIError.readOnly }
+        return try await get("/clips/\(clipId)/youtube/draft", cached: false, as: YouTubeDraft.self)
+    }
+
+    /// Queue the upload (Pro; the server does the copying). Live, never queued
+    /// offline — publishing is not something to replay silently later.
+    public func startYouTubeUpload(clipId: Int, _ body: YouTubeUploadBody) async throws -> YouTubeUpload {
+        try await send("POST", "/clips/\(clipId)/youtube", body: body, as: YouTubeUpload.self)
+    }
+
+    /// Where an upload has got to — the lap page's status line, polled.
+    public func youTubeUpload(clipId: Int) async throws -> YouTubeUpload {
+        guard studentId == nil else { throw APIError.readOnly }
+        return try await get("/clips/\(clipId)/youtube", cached: false, as: YouTubeUpload.self)
+    }
+
+    private struct YouTubeConnect: Decodable { let url: URL }
+
     /// An authenticated request for an `/api` path, built but not sent — for the
     /// transfers that can't go through this actor: a clip part sent by a
     /// background `URLSession` that outlives the app, and a clip download.

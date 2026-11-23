@@ -35,6 +35,24 @@ class DeepLinkTest {
     }
 
     @Test
+    fun `the YouTube connect's way back carries its result`() {
+        // NS-46: /youtube/callback redirects a phone here.
+        assertEquals(DeepLink.YouTubeConnect("connected"), DeepLink.parse("trackevolution://youtube?result=connected"))
+        assertEquals(DeepLink.YouTubeConnect("denied"), DeepLink.parse("trackevolution://youtube?result=denied"))
+        assertEquals(DeepLink.YouTubeConnect("error"), DeepLink.parse("trackevolution://youtube?result=error"))
+    }
+
+    @Test
+    fun `a YouTube redirect with no result, or one nobody sends, is an error`() {
+        // Whatever it was, YouTube was not connected — and it is never a route.
+        assertEquals(DeepLink.YouTubeConnect("error"), DeepLink.parse("trackevolution://youtube"))
+        assertEquals(DeepLink.YouTubeConnect("error"), DeepLink.parse("trackevolution://youtube?result=granted"))
+        assertEquals(DeepLink.YouTubeConnect("error"), DeepLink.parse("trackevolution://youtube?other=connected"))
+        // Only the custom scheme: a web URL that says "youtube" is the dashboard.
+        assertEquals(DeepLink.Dashboard, DeepLink.parse("https://trackevolution.app/youtube?result=connected"))
+    }
+
+    @Test
     fun `hash routes resolve`() {
         assertEquals(DeepLink.Event(5), DeepLink.parse("https://trackevolution.app/#/event/5"))
         assertEquals(DeepLink.EditEvent(5), DeepLink.parse("https://trackevolution.app/#/event/5/edit"))

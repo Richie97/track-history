@@ -53,6 +53,7 @@ final class AnalyticsPathTests: XCTestCase {
         // The racing line on a map (NS-53): the web's own routes.
         (.trackMap(source: .session(eventId: 12, sessionId: 40)), "/event/:id/session/:id/map"),
         (.trackMap(source: .leaderboardLap(trackId: 3, lapId: 991)), "/track/:id/leaderboard/:id/map"),
+        (.youtubeUpload(clipId: 77), "/event/:id/lap/:id/youtube"),
         (
             .student(id: 8, page: .trackMap(eventId: 12, sessionId: 40)),
             "/student/:id/event/:id/session/:id/map"

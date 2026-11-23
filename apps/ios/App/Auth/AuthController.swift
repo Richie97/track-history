@@ -92,6 +92,56 @@ final class AuthController {
         await inbox.seen(seen)
     }
 
+    // MARK: - YouTube (NS-46)
+
+    /// The newest answer about each clip's YouTube upload this session — the
+    /// form's 202 and every poll — keyed by clip id. The event detail's
+    /// `clip.youtube` is only as fresh as its last read, and the form is a
+    /// different page from the lap that shows the status line, so the two share
+    /// this. An entry goes once the event has been re-read past it.
+    private(set) var youtubeUploads: [Int: YouTubeUpload] = [:]
+
+    func noteYouTubeUpload(_ clipId: Int, _ upload: YouTubeUpload) {
+        youtubeUploads[clipId] = upload
+    }
+
+    func forgetYouTubeUploads() {
+        youtubeUploads = [:]
+    }
+
+    /// What a lap's video offers, with the freshest upload state known.
+    func youtubeOffer(for clip: LapClip, readOnly: Bool) -> YouTubeOffer {
+        var clip = clip
+        if let latest = youtubeUploads[clip.id] {
+            clip.youtube = LapClipYouTube(
+                status: latest.status, videoId: clip.youtube?.videoId, url: latest.url, privacy: latest.privacy
+            )
+        }
+        return YouTubeUpload.youtubeOffer(clip, entitlement, me?.user.youtube, readOnly)
+    }
+
+    /// Connect a YouTube channel: a single-use ticket address from the server,
+    /// opened in the system browser, coming back to
+    /// `trackevolution://youtube?result=…`. Answers `connected`, `denied` or
+    /// `error` (`YOUTUBE_RESULT_TEXT`'s keys), or nil when the browser was
+    /// dismissed. The account is re-read either way.
+    func connectYouTube() async -> String? {
+        let result: String?
+        do {
+            let url = try await api.youTubeConnectURL()
+            let callback = try await webAuth.authenticate(url: url, callbackScheme: TrackEvolutionKit.callbackScheme)
+            result = YouTubeUpload.connectResult(callback)
+        } catch is CancellationError {
+            result = nil
+        } catch let authError as ASWebAuthenticationSessionError where authError.code == .canceledLogin {
+            result = nil
+        } catch {
+            result = "error"
+        }
+        await refreshAccount()
+        return result
+    }
+
     /// Re-fetch the account, best effort. Failing leaves whatever was there — the
     /// caller has usually just applied a fresher entitlement than the cache holds.
     /// The fetch itself writes the offline cache, which is the point: the paddock
@@ -314,6 +364,7 @@ final class AuthController {
         // unsent writes — nor their lap videos waiting to upload.
         await api.clearOffline()
         AppServices.clips.clear()
+        youtubeUploads = [:]
         state = .signedOut
     }
 

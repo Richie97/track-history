@@ -34,11 +34,17 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import app.trackevolution.auth.AuthController
 import app.trackevolution.auth.AuthProvidersStore
 import app.trackevolution.auth.AuthState
+import app.trackevolution.auth.CustomTabs
+import app.trackevolution.youtube.LocalYouTube
+import app.trackevolution.youtube.YouTubeController
 import app.trackevolution.auth.units
 import app.trackevolution.auth.ServerPreference
 import app.trackevolution.auth.ServerOverride
@@ -95,6 +101,12 @@ class MainActivity : ComponentActivity() {
      */
     private lateinit var pendingInvite: PendingInvite
 
+    /**
+     * Publishing to YouTube (NS-46): the account's connection off the auth
+     * state, and the connect step — a Custom Tab, which has to be opened from
+     * this Activity. Activity-scoped like [auth], which it reads.
+     */
+    private lateinit var youtube: YouTubeController
 
     /**
      * Set when the app was opened by tapping the recording notification, which
@@ -169,6 +181,14 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             services.billing.entitlement.filterNotNull().collect(auth::setEntitlement)
         }
+        youtube = YouTubeController(
+            api = api,
+            account = auth.state
+                .map { (it as? AuthState.SignedIn)?.user?.youtube }
+                .stateIn(lifecycleScope, SharingStarted.Eagerly, null),
+            refreshMe = auth::refreshUser,
+            openBrowser = { url -> CustomTabs.open(this, url) },
+        )
         // A recording a previous launch never finished is offered back rather
         // than left on disk unmentioned.
         Recorder.recoverPending(this)
@@ -219,6 +239,7 @@ class MainActivity : ComponentActivity() {
                         LocalUnitSystem provides state.units,
                         LocalClipStatus provides services.clips,
                         LocalCommentPush provides services.push,
+                        LocalYouTube provides youtube,
                     ) {
                         TrackTheme(choice) {
                             when (state) {
@@ -248,6 +269,7 @@ class MainActivity : ComponentActivity() {
                                         // logbook (NS-45): none may upload under
                                         // the next account.
                                         services.clips.clear()
+                                        youtube.clear()
                                         auth.signOut()
                                     },
                                     incomingImport = incomingImport,
@@ -346,6 +368,22 @@ class MainActivity : ComponentActivity() {
             // than in the router: signing in to accept it is a trip to the
             // browser, and the process may not be here when it comes back.
             is DeepLink.CoachInvite -> pendingInvite.park(link.token)
+            // Back from connecting YouTube (NS-46): re-read `/me`, which is
+            // what says *connected*, then show Settings, where the outcome is
+            // said once. Ignored signed out — nobody was connecting anything.
+            is DeepLink.YouTubeConnect -> {
+                // Consumed: a rotation re-reads this intent in onCreate, and
+                // must not say the outcome — or reset the stack — a second time.
+                intent?.data = null
+                lifecycleScope.launch {
+                    // A cold start hasn't read `/me` yet; wait for it rather
+                    // than racing the session the result belongs to.
+                    val settled = auth.state.first { it !is AuthState.Loading && it !is AuthState.SigningIn }
+                    if (settled !is AuthState.SignedIn) return@launch
+                    youtube.onConnectResult(link.result)
+                    router.offer(link)
+                }
+            }
             else -> router.offer(link)
         }
     }

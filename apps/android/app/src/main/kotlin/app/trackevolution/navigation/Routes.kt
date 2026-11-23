@@ -189,6 +189,15 @@ public sealed interface Route {
     }
 
     /**
+     * The *Upload to YouTube* form for one best-lap clip (NS-46), from its lap
+     * page. A clip only exists on a real lap, so nothing here is ever a temp
+     * id; never under a student (a coach can't publish a student's video), and
+     * not a `DeepLink` case.
+     */
+    @Serializable
+    public data class YouTubeUpload(val clipId: Int) : Route
+
+    /**
      * Season Wrapped (NS-36): one calendar year as a story of cards, opened from
      * the dashboard's November banner. It **owns the window** — the scaffold
      * drops to one pane for it, as for the recorder — and it is not a
@@ -278,6 +287,9 @@ public fun routeFor(link: DeepLink): Route? = when (link) {
     is DeepLink.CoachInvite -> Route.CoachInvite(link.token)
     // A tapped coach-comment notification (NS-54): the lap, else the event,
     // in the student's logbook when the recipient was their coach.
+    // Back from connecting YouTube (NS-46): Settings is where the outcome is
+    // said — `MainActivity` has already re-read `/me` and parked the sentence.
+    is DeepLink.YouTubeConnect -> Route.Settings
     is DeepLink.CommentPush -> when (val lapId = link.lapId) {
         null -> Route.Event(link.eventId, student = link.studentId)
         else -> Route.Lap(link.eventId, link.sessionId, lapId, student = link.studentId)

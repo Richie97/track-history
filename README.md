@@ -2497,9 +2497,10 @@ A Pro driver's stored best-lap clip (above) can be published to their YouTube
 channel from its lap (NS-46, `docs/specs/native/NS-46-youtube-upload.md`). The
 **server** does the upload — R2 to YouTube's resumable endpoint — so it works
 from every client, the phone can close, and nothing goes over cellular. A
-client is a form and a status line. Ticket 1 (this server, the shared logic
-and the web) has landed; the phones are tickets 2 and 3, and launch waits on
-Google's review (ticket 0, see deploy step 8).
+client is a form and a status line. The server, the shared logic and all
+three clients' forms have landed (the phones push a page from the lap's video
+menu and connect through the system browser); launch waits on Google's review
+(ticket 0, see deploy step 8).
 
 - **Connecting** is its own Google grant, separate from sign-in — so Apple
   sign-ins can use it and the channel can be a different or brand account —

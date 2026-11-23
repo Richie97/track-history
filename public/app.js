@@ -2894,8 +2894,8 @@ async function openYouTubeDialog(panel, id) {
       <div class="field"><label for="yt-d-${id}">Description</label>
         <textarea id="yt-d-${id}" name="description" rows="6">${esc(values.description)}</textarea></div>
       <fieldset class="field yt-privacy"><legend>Visibility</legend>
-        <div class="btn-row">${YOUTUBE_PRIVACY.map(
-          (p) => `<label class="dry-toggle"><input type="radio" name="privacy" value="${p.value}" ${p.value === privacy ? "checked" : ""}> ${p.label}</label>`
+        <div class="yt-seg">${YOUTUBE_PRIVACY.map(
+          (p) => `<label><input type="radio" name="privacy" value="${p.value}" ${p.value === privacy ? "checked" : ""}>${p.label}</label>`
         ).join("")}</div>
       </fieldset>
       <p class="hint">${draft.account ? `Uploading to ${esc(draft.account)} · ` : ""}${YOUTUBE_KIDS_TEXT}</p>

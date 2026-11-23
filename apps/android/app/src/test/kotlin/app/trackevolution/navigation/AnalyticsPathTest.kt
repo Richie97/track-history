@@ -47,6 +47,8 @@ class AnalyticsPathTest {
         Route.Lap(12, 40, 991, student = 8) to "/student/:id/event/:id/lap/:id",
         Route.SessionCompare(12, 40, 991, student = 8) to "/student/:id/event/:id/session/:id/compare",
         Route.TrackDaysGuide to "/guide/track-days",
+        // NS-46: the upload form, a dialog on the web's event page.
+        Route.YouTubeUpload(77) to "/event/:id/lap/:id/youtube",
         // NS-53: the web's two map routes.
         Route.TrackMap.session(12, 40) to "/event/:id/session/:id/map",
         Route.TrackMap.session(12, 40, student = 8) to "/student/:id/event/:id/session/:id/map",

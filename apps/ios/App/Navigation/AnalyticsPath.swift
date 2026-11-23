@@ -47,6 +47,8 @@ extension Route {
         // The web's own routes for the same page.
         case .trackMap(.session): "/event/:id/session/:id/map"
         case .trackMap(.leaderboardLap): "/track/:id/leaderboard/:id/map"
+        // The web uploads from a dialog on the event page; the phones push a form.
+        case .youtubeUpload: "/event/:id/lap/:id/youtube"
         }
     }
 

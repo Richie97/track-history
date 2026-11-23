@@ -583,8 +583,8 @@ models gain an optional `youtube` and both `User`s an optional `youtube`.
 ## As built (ticket 1: server, shared logic, web)
 
 Landed as specified, with these decisions the spec left open or that the code
-forced. Tickets 0, 2 and 3 are still open, so production has no secrets and
-`available` is false everywhere.
+forced. Ticket 0 is still open, so production has no secrets and `available`
+is false everywhere; tickets 2 and 3 are written up below.
 
 - **Migration `0035_youtube.sql`**, as the spec's schema plus two indexes
   (`youtube_uploads(user_id, created_at)` for the daily limit and
@@ -692,6 +692,54 @@ forced. Tickets 0, 2 and 3 are still open, so production has no secrets and
   landing page's Pro line waits for launch. The iOS UI test's stub upload
   server (`YOUTUBE_API_BASE` under `DEV_MODE`) is ticket 2's: the injected
   `fetch` covers the server's own tests.
+
+## As built (ticket 2: iOS)
+
+Built in November 2026 — the ticket had been closed without a change behind
+it. As specified, with these differences:
+
+- **The port's home.** `YouTubeUpload` was already the Kit's response model,
+  so the JS module's names are statics on it (`Models/YouTubeRules.swift`),
+  with `YouTubeOffer` as `youtubeOffer`'s answer. `youtubeStatusLine` takes
+  the status row or the event detail's `clip.youtube`, which has no progress.
+- **Connect is on the upload page.** *Connect YouTube…* in the lap's video
+  menu pushes the same `Route.youtubeUpload(clipId:)` page as *Upload to
+  YouTube…*; it shows the consent text and Connect until there is a live
+  grant and the form after, so the consent text sits above Connect without a
+  second route. Settings uses the same step.
+- **The status line's freshness.** The form is a different page from the lap,
+  so the 202 and each poll land in `AuthController.youtubeUploads`, which the
+  menu and the status line read over the event detail's `clip.youtube`.
+- **A scoped client refuses the reads too.** The coach mount has no YouTube
+  route, so `youTubeDraft` and `youTubeUpload` throw `readOnly` rather than
+  ask for a 404.
+- **No UI test.** The spec's test needs a stub upload server
+  (`YOUTUBE_API_BASE` under `DEV_MODE`), which the Worker doesn't have, and
+  `available` is false against `npm run dev` without the secrets. The pure
+  half, the routes and the redirect's refusal are covered in the Kit
+  (`YouTubeUploadTests`, `DeepLinkTests`); the screens are not.
+
+## As built (ticket 3: Android)
+
+Built with ticket 2. As specified, with these differences:
+
+- **The redirect needed its own intent filter.** The scheme filter claimed
+  only `trackevolution://auth`, so the manifest gains one for host `youtube`.
+  `MainActivity` reads it as `DeepLink.YouTubeConnect(result)` (a missing or
+  unknown result is `error`), clears the intent's data so a rotation doesn't
+  repeat it, ignores it when signed out, re-reads `/me`
+  (`AuthController.refreshUser`) and shows Settings with the sentence once.
+- **A panel, not menu items.** *Upload to YouTube…* / *Connect YouTube…* and
+  the status line are one `YouTubeLapPanel` row in the lap video card and in
+  the stage's video card, since the status has to live there anyway.
+- **One seam.** `YouTubeHost` / `LocalYouTube` / `YouTubeController`
+  (`app/.../youtube/`) carries the account, connect, disconnect, the result
+  said once, the newest upload row per clip and the last-sent form values for
+  *Try again*; inert by default, like `LocalClipStatus`.
+- **Tests** are Robolectric over `MockEngine` (`screens/YouTubeUploadTest`,
+  `YouTubeControllerTest`) plus `:core`'s `YouTubeUploadTest` (every fixture
+  row), `YouTubeApiTest` and `DeepLinkTest`. The Custom Tab round trip has not
+  been run on a device.
 
 ## Follow-ups, deliberately not here
 
