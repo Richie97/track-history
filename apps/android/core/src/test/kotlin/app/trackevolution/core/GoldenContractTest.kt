@@ -29,7 +29,9 @@ import app.trackevolution.core.model.ServerErrorBody
 import app.trackevolution.core.model.SetupPrefill
 import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
+import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.ItemShareLink
+import app.trackevolution.core.model.SharedCompare
 import app.trackevolution.core.model.SharedItem
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
@@ -131,9 +133,12 @@ class GoldenContractTest {
             "share-set" -> roundTrip(entry.name, ShareSlug.serializer())
             // Share one event or session (NS-48). The shared item's `event` is the
             // ordinary EventDetail, hidden fields null — the coach mount's rule.
-            "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session" ->
-                roundTrip(entry.name, ItemShareLink.serializer())
-            "shared-event", "shared-session" -> roundTrip(entry.name, SharedItem.serializer())
+            "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session",
+            // One lap, or two laps compared (NS-56): the same link shape.
+            "item-share-lap-create", "item-share-lap", "item-share-compare-create", "item-share-compare",
+            -> roundTrip(entry.name, ItemShareLink.serializer())
+            "shared-event", "shared-session", "shared-lap" -> roundTrip(entry.name, SharedItem.serializer())
+            "shared-compare" -> roundTrip(entry.name, SharedCompare.serializer())
             // Publishing a best-lap video to YouTube (NS-46).
             "youtube-draft" -> roundTrip(entry.name, app.trackevolution.core.model.YouTubeDraft.serializer())
             "youtube-upload" -> roundTrip(entry.name, app.trackevolution.core.model.YouTubeUpload.serializer())
@@ -144,7 +149,8 @@ class GoldenContractTest {
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
-            "item-share-event-delete", "comment-delete",
+            "item-share-event-delete", "item-share-session-delete", "item-share-lap-delete",
+            "item-share-compare-delete", "comment-delete",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(
@@ -226,7 +232,7 @@ class GoldenContractTest {
     /** A shared item's narrowing (NS-48): the private fields arrive null or empty. */
     @Test
     fun `a shared item carries no notes, costs, setups or garage link`() {
-        for (name in listOf("shared-event", "shared-session")) {
+        for (name in listOf("shared-event", "shared-session", "shared-lap")) {
             val item = Goldens.decode(name, SharedItem.serializer())
             assertNull(item.event.event.notes, name)
             assertNull(item.event.event.costCents, name)
@@ -237,5 +243,30 @@ class GoldenContractTest {
         val session = Goldens.decode("shared-session", SharedItem.serializer())
         assertEquals(1, session.event.sessions.size)
         assertEquals(session.sessionId, session.event.sessions.single().id)
+        assertNull(session.lapId)
+    }
+
+    /** One lap, and two compared (NS-56): each is the one session with the one lap. */
+    @Test
+    fun `a shared lap and each side of a comparison carry one lap alone`() {
+        val lap = Goldens.decode("shared-lap", SharedItem.serializer())
+        assertEquals(ItemShareKind.LAP, lap.kind)
+        assertEquals(lap.sessionId, lap.event.sessions.single().id)
+        assertEquals(lap.lapId, lap.event.sessions.single().laps.single().id)
+        assertEquals(1, lap.event.event.lapCount)
+
+        val compare = Goldens.decode("shared-compare", SharedCompare.serializer())
+        assertEquals(ItemShareKind.COMPARE, compare.kind)
+        for (side in listOf(compare.a, compare.b)) {
+            val session = side.event.sessions.single()
+            assertEquals(side.sessionId, session.id)
+            assertEquals(side.lapId, session.laps.single().id)
+            assertNull(side.event.event.notes)
+            assertNull(side.event.event.costCents)
+            assertNull(side.event.event.vehicleId)
+            assertNull(session.notes)
+            assertTrue(side.event.setups.isEmpty())
+            assertTrue((session.channels?.laps?.size ?: 1) == 1)
+        }
     }
 }

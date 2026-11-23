@@ -276,3 +276,183 @@ describe("GET /share/(e|s)/:token (the page)", () => {
     expect(await res.text()).not.toContain("track day at");
   });
 });
+
+// NS-56: share one lap, or two laps compared.
+describe("lap and comparison links", () => {
+  const lapsOf = async (user: User, eventId: number, sessionId: number) => {
+    const { body } = await user.api("GET", `/events/${eventId}`);
+    return body.sessions.find((s: any) => s.id === sessionId).laps as { id: number; lap_num: number; time_ms: number }[];
+  };
+
+  it("mints one link per lap, apart from its session's, and revokes it", async () => {
+    const user = await signedInProUser();
+    const { eventId, s1 } = await dayWithTwoSessions(user);
+    const [lap1, lap2] = await lapsOf(user, eventId, s1);
+    const session = await user.api("POST", `/sessions/${s1}/share`);
+
+    expect((await user.api("GET", `/laps/${lap1.id}/share`)).status).toBe(404);
+    const first = await user.api("POST", `/laps/${lap1.id}/share`);
+    expect(first.status).toBe(201);
+    expect(first.body.kind).toBe("lap");
+    expect(first.body.url).toBe(`https://example.com/share/l/${first.body.token}`);
+    expect((await user.api("POST", `/laps/${lap1.id}/share`)).body).toEqual(first.body);
+    expect((await user.api("GET", `/laps/${lap1.id}/share`)).body).toEqual(first.body);
+    const second = await user.api("POST", `/laps/${lap2.id}/share`);
+    expect(new Set([session.body.token, first.body.token, second.body.token]).size).toBe(3);
+    // The session's own link is still the session's.
+    expect((await user.api("GET", `/sessions/${s1}/share`)).body).toEqual(session.body);
+    expect((await anon(`/api/share/s/${session.body.token}`)).body.event.sessions[0].laps).toHaveLength(3);
+
+    expect((await user.api("DELETE", `/laps/${lap1.id}/share`)).body).toEqual({ ok: true });
+    expect((await anon(`/api/share/l/${first.body.token}`)).status).toBe(404);
+    expect((await anon(`/api/share/l/${second.body.token}`)).status).toBe(200);
+    // Stopping the session's link leaves the lap's alone, and the other way.
+    await user.api("DELETE", `/sessions/${s1}/share`);
+    expect((await anon(`/api/share/l/${second.body.token}`)).status).toBe(200);
+  });
+
+  it("a lap link carries that lap alone: its row, its channel entry, its figures", async () => {
+    const user = await signedInProUser();
+    const { eventId, s1 } = await dayWithTwoSessions(user);
+    const laps = await lapsOf(user, eventId, s1);
+    const slow = laps.find((l) => l.time_ms === 104_000)!;
+    const best = laps.find((l) => l.time_ms === 102_000)!;
+
+    const { body: link } = await user.api("POST", `/laps/${slow.id}/share`);
+    const { status, body } = await anon(`/api/share/l/${link.token}`);
+    expect(status).toBe(200);
+    expect(body.kind).toBe("lap");
+    expect(body.session_id).toBe(s1);
+    expect(body.lap_id).toBe(slow.id);
+    const session = body.event.sessions[0];
+    expect(body.event.sessions).toHaveLength(1);
+    expect(session.laps.map((l: any) => l.id)).toEqual([slow.id]);
+    expect(session.channels.laps).toHaveLength(1);
+    expect(session.channels.laps[0].timeMs).toBe(104_000);
+    // The stored line is the best lap's, not this one's.
+    expect(session.trace).toBeNull();
+    expect(session.notes).toBeNull();
+    expect(body.event.best_ms).toBe(104_000);
+    expect(body.event.best_time_ms).toBeNull();
+    expect(body.event.lap_count).toBe(1);
+    expect(body.event.consistency).toBeNull();
+    const raw = JSON.stringify(body);
+    for (const hidden of ["102000", "103000", "secret", user.email]) expect(raw).not.toContain(hidden);
+
+    const bestLink = (await user.api("POST", `/laps/${best.id}/share`)).body;
+    const shared = (await anon(`/api/share/l/${bestLink.token}`)).body;
+    expect(shared.event.sessions[0].trace.length).toBeGreaterThan(10);
+    expect(shared.event.sessions[0].trace_geo).toBeNull();
+  });
+
+  it("a comparison link carries the two laps, from different days, and nothing else", async () => {
+    const user = await signedInProUser();
+    const day1 = await dayWithTwoSessions(user);
+    const day2 = await dayWithTwoSessions(user);
+    const a = (await lapsOf(user, day1.eventId, day1.s1))[1];
+    const b = (await lapsOf(user, day2.eventId, day2.s2))[1];
+
+    const first = await user.api("POST", `/laps/${a.id}/compare/${b.id}/share`);
+    expect(first.status).toBe(201);
+    expect(first.body.kind).toBe("compare");
+    expect(first.body.url).toBe(`https://example.com/share/c/${first.body.token}`);
+    expect((await user.api("POST", `/laps/${a.id}/compare/${b.id}/share`)).body).toEqual(first.body);
+    expect((await user.api("GET", `/laps/${a.id}/compare/${b.id}/share`)).body).toEqual(first.body);
+    // B against A is its own link; a lap against itself is not a comparison.
+    expect((await user.api("GET", `/laps/${b.id}/compare/${a.id}/share`)).status).toBe(404);
+    expect((await user.api("POST", `/laps/${a.id}/compare/${a.id}/share`)).status).toBe(400);
+    // Lap A's own link is a different thing.
+    expect((await user.api("GET", `/laps/${a.id}/share`)).status).toBe(404);
+
+    const { status, body } = await anon(`/api/share/c/${first.body.token}`);
+    expect(status).toBe(200);
+    expect(Object.keys(body).sort()).toEqual(["a", "b", "kind", "name", "pro"]);
+    expect(body.kind).toBe("compare");
+    expect(body.pro).toBe(true);
+    expect(body.a.lap_id).toBe(a.id);
+    expect(body.a.session_id).toBe(day1.s1);
+    expect(body.b.lap_id).toBe(b.id);
+    expect(body.b.session_id).toBe(day2.s2);
+    for (const [side, lap] of [[body.a, a], [body.b, b]] as const) {
+      expect(side.event.sessions).toHaveLength(1);
+      expect(side.event.sessions[0].laps.map((l: any) => l.id)).toEqual([lap.id]);
+      expect(side.event.sessions[0].channels.laps.map((l: any) => l.timeMs)).toEqual([lap.time_ms]);
+      expect(side.event.notes).toBeNull();
+    }
+    expect(JSON.stringify(body)).not.toContain("secret");
+
+    expect((await anon(`/api/share/l/${first.body.token}`)).status).toBe(404);
+    expect((await user.api("DELETE", `/laps/${a.id}/compare/${b.id}/share`)).body).toEqual({ ok: true });
+    expect((await anon(`/api/share/c/${first.body.token}`)).status).toBe(404);
+  });
+
+  it("two laps of one session compare too", async () => {
+    const user = await signedInProUser();
+    const { eventId, s1 } = await dayWithTwoSessions(user);
+    const [l1, l2] = await lapsOf(user, eventId, s1);
+    const { body: link } = await user.api("POST", `/laps/${l1.id}/compare/${l2.id}/share`);
+    const { body } = await anon(`/api/share/c/${link.token}`);
+    expect(body.a.event.sessions[0].laps[0].id).toBe(l1.id);
+    expect(body.b.event.sessions[0].laps[0].id).toBe(l2.id);
+    expect(body.a.event.sessions[0].channels.laps[0].timeMs).toBe(l1.time_ms);
+    expect(body.b.event.sessions[0].channels.laps[0].timeMs).toBe(l2.time_ms);
+  });
+
+  it("refuses laps at different tracks, and another driver's laps", async () => {
+    const owner = await signedInUser();
+    const other = await signedInUser();
+    const { eventId, s1 } = await dayWithTwoSessions(owner);
+    const [l1, l2] = await lapsOf(owner, eventId, s1);
+    const elsewhere = await createEvent(owner.api, { track_name: "Another Raceway", start_date: "2026-07-01" });
+    const s = await owner.api("POST", `/events/${elsewhere}/sessions`, telemetrySession([90_000, 91_000], "S"));
+    const [far] = await lapsOf(owner, elsewhere, s.body.id);
+    const mixed = await owner.api("POST", `/laps/${l1.id}/compare/${far.id}/share`);
+    expect(mixed.status).toBe(400);
+    expect(mixed.body.error).toBe("laps must be at the same track");
+
+    await owner.api("POST", `/laps/${l1.id}/share`);
+    await owner.api("POST", `/laps/${l1.id}/compare/${l2.id}/share`);
+    for (const path of [`/laps/${l1.id}/share`, `/laps/${l1.id}/compare/${l2.id}/share`]) {
+      expect((await other.api("POST", path)).status, path).toBe(404);
+      expect((await other.api("GET", path)).status, path).toBe(404);
+      expect((await other.api("DELETE", path)).status, path).toBe(404);
+      expect((await owner.api("GET", path)).status, path).toBe(200);
+    }
+  });
+
+  it("goes when either lap's session goes", async () => {
+    const user = await signedInUser();
+    const { eventId, s1, s2 } = await dayWithTwoSessions(user);
+    const [a] = await lapsOf(user, eventId, s1);
+    const [b] = await lapsOf(user, eventId, s2);
+    const lap = (await user.api("POST", `/laps/${b.id}/share`)).body;
+    const cmp = (await user.api("POST", `/laps/${a.id}/compare/${b.id}/share`)).body;
+    await user.api("DELETE", `/sessions/${s2}`);
+    expect((await anon(`/api/share/l/${lap.token}`)).status).toBe(404);
+    expect((await anon(`/api/share/c/${cmp.token}`)).status).toBe(404);
+    const left = await env.DB.prepare("SELECT COUNT(*) AS n FROM item_shares WHERE user_id = ?").bind(user.id).first<{ n: number }>();
+    expect(left!.n).toBe(0);
+  });
+
+  it("follows the owner's tier, and titles the link preview", async () => {
+    const user = await signedInUser();
+    const { eventId, s1 } = await dayWithTwoSessions(user);
+    const [l1, l2] = await lapsOf(user, eventId, s1);
+    const lap = (await user.api("POST", `/laps/${l1.id}/share`)).body;
+    const cmp = (await user.api("POST", `/laps/${l1.id}/compare/${l2.id}/share`)).body;
+    const shared = (await anon(`/api/share/l/${lap.token}`)).body;
+    expect(shared.pro).toBe(false);
+    expect(shared.event.sessions[0].channels.laps[0].speed).toBeDefined();
+    expect(shared.event.sessions[0].channels.laps[0].rpm).toBeUndefined();
+    expect((await anon(`/api/share/c/${cmp.token}`)).body.pro).toBe(false);
+
+    const page = await SELF.fetch(`https://example.com/share/l/${lap.token}`);
+    const html = await page.text();
+    expect(page.headers.get("X-Robots-Tag")).toBe("noindex");
+    expect(html).toContain("Test User&#39;s lap at Share Raceway");
+    expect(html).toContain("1:44.0 ·");
+    const cmpHtml = await (await SELF.fetch(`https://example.com/share/c/${cmp.token}`)).text();
+    expect(cmpHtml).toContain("lap comparison at Share Raceway");
+    expect(cmpHtml).toContain("1:44.0 against 1:42.0");
+  });
+});

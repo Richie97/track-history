@@ -1,0 +1,11 @@
+{
+  "method": "POST",
+  "path": "/laps/:id/share",
+  "status": 201,
+  "body": {
+    "created_at": 0,
+    "kind": "lap",
+    "token": "AAAAAAAAAAAAAAAAAAAAAA",
+    "url": "https://trackevolution.app/share/l/AAAAAAAAAAAAAAAAAAAAAA"
+  }
+}

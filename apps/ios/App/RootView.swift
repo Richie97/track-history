@@ -371,7 +371,13 @@ struct RootView: View {
         case .shared(let slug):
             SharedLogbookScreen(slug: slug)
         case .sharedItem(let kind, let token):
-            SharedItemScreen(kind: kind, token: token)
+            // Two laps compared (NS-56) is a screen of its own: two sides, no
+            // event page to narrow.
+            if kind == .compare {
+                SharedCompareScreen(token: token)
+            } else {
+                SharedItemScreen(kind: kind, token: token)
+            }
         case .lap(let eventId, let sessionId, let lapId):
             LapDetailScreen(eventId: eventId, sessionId: sessionId, lapId: lapId)
                 .publishingFoldGeometry()

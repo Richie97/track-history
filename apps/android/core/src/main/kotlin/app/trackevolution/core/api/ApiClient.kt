@@ -35,6 +35,7 @@ import app.trackevolution.core.model.ShareData
 import app.trackevolution.core.model.ShareSlug
 import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.ItemShareLink
+import app.trackevolution.core.model.SharedCompare
 import app.trackevolution.core.model.SharedItem
 import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.TrackLeaderboard
@@ -997,7 +998,7 @@ public class ApiClient private constructor(
     public suspend fun sharedLogbook(slug: String): ShareData =
         get("/share/$slug", ShareData.serializer(), authenticated = false)
 
-    // ---- Share one event or session (NS-48) -------------------------------
+    // ---- Share one event, session, lap or comparison (NS-48, NS-56) -------
     //
     // Live, every one: the link is the server's answer, so none of these is on
     // the offline queue (`OfflineStoreTest` pins that) and none reads the cache
@@ -1005,32 +1006,48 @@ public class ApiClient private constructor(
     // cached token is a secret kept for no reason. Offline they throw
     // Transport, which the dialog words as "Sharing needs a connection."
 
-    private fun itemSharePath(kind: ItemShareKind, id: Int): String = when (kind) {
+    /**
+     * [id] is the event, session or lap; for [ItemShareKind.COMPARE] it is
+     * side A's lap and [otherId] side B's — ordered, B against A is another link.
+     */
+    private fun itemSharePath(kind: ItemShareKind, id: Int, otherId: Int?): String = when (kind) {
         ItemShareKind.EVENT -> "/events/$id/share"
         ItemShareKind.SESSION -> "/sessions/$id/share"
+        ItemShareKind.LAP -> "/laps/$id/share"
+        ItemShareKind.COMPARE -> {
+            val other = requireNotNull(otherId) { "a comparison is two laps" }
+            "/laps/$id/compare/$other/share"
+        }
     }
 
     /** The item's link, minted on first use (201) and answered again after (200). Free. */
-    public suspend fun shareItem(kind: ItemShareKind, id: Int): ItemShareLink = send(
-        "POST", itemSharePath(kind, id), buildJsonObject { }, ItemShareLink.serializer(), cached = false,
+    public suspend fun shareItem(kind: ItemShareKind, id: Int, otherId: Int? = null): ItemShareLink = send(
+        "POST", itemSharePath(kind, id, otherId), buildJsonObject { }, ItemShareLink.serializer(), cached = false,
     )
 
     /** The item's link if it has one; a 404 ([ApiException.isNotFound]) when it isn't shared. */
-    public suspend fun itemShare(kind: ItemShareKind, id: Int): ItemShareLink =
-        send("GET", itemSharePath(kind, id), null, ItemShareLink.serializer(), cached = false)
+    public suspend fun itemShare(kind: ItemShareKind, id: Int, otherId: Int? = null): ItemShareLink =
+        send("GET", itemSharePath(kind, id, otherId), null, ItemShareLink.serializer(), cached = false)
 
     /** Stops sharing: the link answers 404 from now on, and a later share mints a new one. */
-    public suspend fun stopSharingItem(kind: ItemShareKind, id: Int) {
-        send("DELETE", itemSharePath(kind, id), null, OkResponse.serializer(), cached = false)
+    public suspend fun stopSharingItem(kind: ItemShareKind, id: Int, otherId: Int? = null) {
+        send("DELETE", itemSharePath(kind, id, otherId), null, OkResponse.serializer(), cached = false)
     }
 
     /**
-     * A shared event or session, as anyone with the link sees it. Unauthenticated
-     * on purpose, like [sharedLogbook]; a token that doesn't resolve — unknown,
-     * revoked, or its item deleted — is a 404 that says nothing more.
+     * A shared event, session or lap, as anyone with the link sees it.
+     * Unauthenticated on purpose, like [sharedLogbook]; a token that doesn't
+     * resolve — unknown, revoked, or its item deleted — is a 404 that says
+     * nothing more. A comparison is another shape: [sharedCompare].
      */
     public suspend fun sharedItem(kind: ItemShareKind, token: String): SharedItem = send(
         "GET", "/share/${kind.prefix}/${token.urlEncoded()}", null, SharedItem.serializer(),
+        authenticated = false, cached = false,
+    )
+
+    /** Two shared laps compared (NS-56), read the way [sharedItem] is: no token, past the cache. */
+    public suspend fun sharedCompare(token: String): SharedCompare = send(
+        "GET", "/share/${ItemShareKind.COMPARE.prefix}/${token.urlEncoded()}", null, SharedCompare.serializer(),
         authenticated = false, cached = false,
     )
 

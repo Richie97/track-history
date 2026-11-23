@@ -152,6 +152,11 @@ class OfflineStoreTest {
         assertFalse(OfflineStore.isQueueable("DELETE", "/events/12/share"))
         assertFalse(OfflineStore.isQueueable("POST", "/sessions/4/share"))
         assertFalse(OfflineStore.isQueueable("DELETE", "/sessions/4/share"))
+        // One lap, or two compared (NS-56) — though `DELETE /laps/:id` itself queues.
+        assertFalse(OfflineStore.isQueueable("POST", "/laps/9/share"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/laps/9/share"))
+        assertFalse(OfflineStore.isQueueable("POST", "/laps/9/compare/11/share"))
+        assertFalse(OfflineStore.isQueueable("DELETE", "/laps/9/compare/11/share"))
         // Coach comments (NS-52): every write is live — "Commenting needs a
         // connection." — whichever side writes it.
         assertFalse(OfflineStore.isQueueable("POST", "/sessions/4/comments"))

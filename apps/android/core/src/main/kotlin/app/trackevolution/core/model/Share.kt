@@ -77,27 +77,34 @@ public data class ShareSlug(
 )
 
 /**
- * Which kind of thing one share link carries (NS-48): a whole track day, or a
- * single session of one.
+ * Which kind of thing one share link carries: a whole track day or a single
+ * session of one (NS-48), one lap, or two laps compared (NS-56).
  */
 @Serializable
 public enum class ItemShareKind(
-    /** The one-letter path prefix: `/share/e/<token>`, `/share/s/<token>`. */
+    /** The one-letter path prefix: `/share/e/<token>`, `/share/s/<token>`, `/share/l/…`, `/share/c/…`. */
     public val prefix: String,
 ) {
     @SerialName("event") EVENT("e"),
     @SerialName("session") SESSION("s"),
+
+    /** One lap (NS-56). */
+    @SerialName("lap") LAP("l"),
+
+    /** Two laps at one track, A against B (NS-56). Read as [SharedCompare], not [SharedItem]. */
+    @SerialName("compare") COMPARE("c"),
     ;
 
     public companion object {
-        /** `"e"` → [EVENT], `"s"` → [SESSION], anything else null. */
+        /** `"e"` → [EVENT], `"s"` → [SESSION], `"l"` → [LAP], `"c"` → [COMPARE], anything else null. */
         public fun forPrefix(prefix: String): ItemShareKind? = entries.firstOrNull { it.prefix == prefix }
     }
 }
 
 /**
- * `POST` / `GET /api/events/:id/share` and `/api/sessions/:id/share` — the one
- * link an item has (NS-48). Separate from the logbook's [ShareSlug]: sharing one
+ * `POST` / `GET /api/events/:id/share`, `/api/sessions/:id/share`,
+ * `/api/laps/:id/share` and `/api/laps/:id/compare/:otherId/share` — the one
+ * link an item has (NS-48, NS-56). Separate from the logbook's [ShareSlug]: sharing one
  * day exposes nothing else.
  */
 @Serializable
@@ -111,14 +118,16 @@ public data class ItemShareLink(
 )
 
 /**
- * `GET /api/share/(e|s)/:token` — **unauthenticated**: one shared event or one
- * shared session (NS-48).
+ * `GET /api/share/(e|s|l)/:token` — **unauthenticated**: one shared event, one
+ * shared session (NS-48) or one shared lap (NS-56).
  *
  * Unlike [ShareData], [event] is the ordinary [EventDetail] the event page
  * decodes: the server sends `GET /events/:id`'s shape with every hidden field —
  * notes, checklist, costs, setups, the garage link — null or `[]`, so a coach's
  * and a link's reads share one model. A session link's event carries that one
- * session, with the header's figures worked out from it alone.
+ * session, with the header's figures worked out from it alone; a lap link's
+ * carries that session cut down to the one lap — its row, its own channel
+ * entry, its clip — and `trace` only when it is the lap the line was drawn from.
  */
 @Serializable
 public data class SharedItem(
@@ -132,5 +141,39 @@ public data class SharedItem(
     val pro: Boolean,
     /** The shared session's id, for a session link; null for an event link. */
     @SerialName("session_id") val sessionId: Int? = null,
+    /** The shared lap's id, for a lap link (NS-56); null for an event or session link. */
+    @SerialName("lap_id") val lapId: Int? = null,
     val event: EventDetail,
+)
+
+/**
+ * One side of a shared comparison (NS-56): a lap link's payload without the
+ * envelope. [event] carries the one session with the one lap, and that
+ * session's `channels.laps` the lap's one entry — or `channels` null when the
+ * lap stored no telemetry.
+ */
+@Serializable
+public data class SharedLapSide(
+    @SerialName("session_id") val sessionId: Int,
+    @SerialName("lap_id") val lapId: Int,
+    val event: EventDetail,
+)
+
+/**
+ * `GET /api/share/c/:token` — **unauthenticated**: two of one driver's laps at
+ * one track, [a] against [b] (NS-56). The laps may be from different days, and
+ * nothing else of either day comes with them.
+ */
+@Serializable
+public data class SharedCompare(
+    val kind: ItemShareKind,
+    /** The owner's display name. */
+    val name: String? = null,
+    /**
+     * The **owner's** tier. The compare is a Pro view: with `false` the link
+     * still resolves, and a client shows both lap times and one sentence.
+     */
+    val pro: Boolean,
+    val a: SharedLapSide,
+    val b: SharedLapSide,
 )

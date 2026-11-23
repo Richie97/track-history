@@ -26,6 +26,12 @@ struct DeepLinkTests {
         #expect(parse("https://trackevolution.app/share/e/\(token)") == .sharedItem(kind: .event, token: token))
         #expect(parse("https://trackevolution.app/share/s/\(token)") == .sharedItem(kind: .session, token: token))
         #expect(parse("https://trackevolution.app/share/s/\(token)/") == .sharedItem(kind: .session, token: token))
+        // NS-56: one lap, and two laps compared.
+        #expect(parse("https://trackevolution.app/share/l/\(token)") == .sharedItem(kind: .lap, token: token))
+        #expect(parse("https://trackevolution.app/share/c/\(token)") == .sharedItem(kind: .compare, token: token))
+        #expect(parse("https://trackevolution.app/share/c/\(token)/") == .sharedItem(kind: .compare, token: token))
+        #expect(parse("https://trackevolution.app/share/l") == .dashboard)
+        #expect(parse("https://trackevolution.app/share/c/short") == .dashboard)
         // A one-letter segment is never a slug (three characters minimum), so a
         // malformed token — short, long, a stray character, or none — is nobody's
         // link rather than someone's logbook.

@@ -30,6 +30,12 @@ class RoutesTest {
             Route.SharedItem("s", "AAAAAAAAAAAAAAAAAAAAAA"),
             routeFor(DeepLink.SharedItem(app.trackevolution.core.model.ItemShareKind.SESSION, "AAAAAAAAAAAAAAAAAAAAAA")),
         )
+        // A lap, and two laps compared (NS-56): the same route, by prefix.
+        val lap = routeFor(DeepLink.SharedItem(app.trackevolution.core.model.ItemShareKind.LAP, "AAAAAAAAAAAAAAAAAAAAAA"))
+        assertEquals(Route.SharedItem("l", "AAAAAAAAAAAAAAAAAAAAAA"), lap)
+        val compare = routeFor(DeepLink.SharedItem(app.trackevolution.core.model.ItemShareKind.COMPARE, "AAAAAAAAAAAAAAAAAAAAAA"))
+        assertEquals(Route.SharedItem("c", "AAAAAAAAAAAAAAAAAAAAAA"), compare)
+        assertEquals(app.trackevolution.core.model.ItemShareKind.COMPARE, (compare as Route.SharedItem).itemKind)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package app.trackevolution.screens
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -10,7 +11,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import app.trackevolution.core.ChannelGraphs
 import app.trackevolution.core.Corners
@@ -42,6 +45,10 @@ import app.trackevolution.ui.theme.TrackTheme
  * changes the stage, and both laps' videos play from one transport. With fewer
  * than two lit laps, or for a free account (B and the delta are Pro), the stage
  * is one-sided.
+ *
+ * The owner's page carries *Share…* (NS-56) for the **first two lit laps** —
+ * the first lit is side A — enabled once two are lit, and gone for a coach or
+ * while either lap's id is a temp one ([sessionShareTarget]).
  *
  * At expanded width the event page has the same panel as its analysis column
  * and the card's button selects the session there instead; this destination is
@@ -94,6 +101,11 @@ fun SessionCompareScreen(
         val trace = remember(session.trace) {
             session.trace?.takeIf { it.size >= 10 }?.map { TraceSample(x = it.x, y = it.y, v = it.v) }
         }
+        // Share the two lit laps compared (NS-56): the first lit is A.
+        val shareTarget = if (owner.readOnly) null else sessionShareTarget(matched, lit)
+        val offerShare = !owner.readOnly && (lit.size < 2 || shareTarget != null)
+        var sharing by rememberSaveable(session.id) { mutableStateOf(false) }
+        ItemShareHost(model.sharing, shareTarget.takeIf { sharing }, onDismiss = { sharing = false })
         val commentMarks = rememberSessionCommentMarks(comments, session)
         val pins = sessionCommentPins(comments, session)
         val panel: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
@@ -119,7 +131,21 @@ fun SessionCompareScreen(
         }
         val header: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
             item("title") {
-                Text(session.label ?: "Compare laps", style = TrackTheme.typography.h2, color = colors.textStrong)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        session.label ?: "Compare laps",
+                        style = TrackTheme.typography.h2,
+                        color = colors.textStrong,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (offerShare) {
+                        ShareItemButton(
+                            onClick = { sharing = true },
+                            modifier = Modifier.testTag("shareCompare"),
+                            enabled = shareTarget != null,
+                        )
+                    }
+                }
             }
         }
         if (binding == null || holder.binding == null) {
@@ -134,6 +160,19 @@ fun SessionCompareScreen(
         }
         LapStagePage(holder = holder, trace = trace, header = header, mapPins = pins, body = panel)
     }
+}
+
+/**
+ * What the session compare's *Share…* shares (NS-56): the first two lit laps,
+ * the first lit as side A — by their real lap ids, found through the same
+ * match that pairs lap rows to channel entries. Null with fewer than two lit,
+ * when a lit entry has no lap row behind it, or while either lap's id is still
+ * a temp one.
+ */
+internal fun sessionShareTarget(matched: List<ChannelGraphs.LapMatch>, lit: List<Int>): ItemShareTarget? {
+    if (lit.size < 2) return null
+    fun lapId(chIdx: Int): Int? = matched.firstOrNull { it.hasChannels && it.chIdx == chIdx }?.lap?.id
+    return ItemShareTarget.compare(lapId(lit[0]), lapId(lit[1]))
 }
 
 /**

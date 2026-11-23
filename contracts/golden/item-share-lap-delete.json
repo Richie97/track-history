@@ -1,0 +1,8 @@
+{
+  "method": "DELETE",
+  "path": "/laps/:id/share",
+  "status": 200,
+  "body": {
+    "ok": true
+  }
+}

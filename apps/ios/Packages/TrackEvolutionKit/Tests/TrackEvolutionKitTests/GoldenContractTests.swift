@@ -62,9 +62,11 @@ struct GoldenContractTests {
         case "part-equip": try roundTrip(PartEquip.self, entry.name)
         case "part-mount-edit": try roundTrip(PartMountEdit.self, entry.name)
         case "share-set": try roundTrip(ShareSlug.self, entry.name)
-        case "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session":
+        case "item-share-event-create", "item-share-event", "item-share-session-create", "item-share-session",
+             "item-share-lap-create", "item-share-lap", "item-share-compare-create", "item-share-compare":
             try roundTrip(ItemShareLink.self, entry.name)
-        case "shared-event", "shared-session": try roundTrip(SharedItem.self, entry.name)
+        case "shared-event", "shared-session", "shared-lap": try roundTrip(SharedItem.self, entry.name)
+        case "shared-compare": try roundTrip(SharedCompare.self, entry.name)
         // Publishing a best-lap video to YouTube (NS-46).
         case "youtube-draft": try roundTrip(YouTubeDraft.self, entry.name)
         case "youtube-upload": try roundTrip(YouTubeUpload.self, entry.name)
@@ -75,7 +77,10 @@ struct GoldenContractTests {
              "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
              "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
              "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
-             "item-share-event-delete", "item-share-session-delete", "comment-delete":
+             "item-share-event-delete", "item-share-session-delete", "comment-delete",
+             // Captured as 404s today (answered above as errors); mapped so a
+             // re-capture that answers `{ ok }` still has a model.
+             "item-share-lap-delete", "item-share-compare-delete":
             try roundTrip(OKResponse.self, entry.name)
         default:
             Issue.record("""

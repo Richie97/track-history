@@ -472,33 +472,34 @@ public actor APIClient {
         _ = try await send("DELETE", "/push/device", body: NoBody?.none, as: OKResponse.self)
     }
 
-    // MARK: - Sharing one event or session (NS-48)
+    // MARK: - Sharing one event, session, lap or comparison (NS-48, NS-56)
 
-    /// Share an event or a session: the existing link if there is one (200),
-    /// else a new one (201). Free. A live write, **never queued**: a link minted
-    /// later by a replay would be a link nobody was shown — the sheet says
-    /// *Sharing needs a connection* instead.
-    public func createItemShare(_ kind: ItemShareKind, id: Int) async throws -> ItemShareLink {
-        try await send("POST", "/\(kind.ownerCollection)/\(id)/share", body: NoBody?.none, as: ItemShareLink.self)
+    /// Share an event, a session, a lap or two laps compared: the existing link
+    /// if there is one (200), else a new one (201). Free. A live write, **never
+    /// queued**: a link minted later by a replay would be a link nobody was
+    /// shown — the sheet says *Sharing needs a connection* instead.
+    public func createItemShare(_ target: ItemShareTarget) async throws -> ItemShareLink {
+        try await send("POST", target.ownerPath, body: NoBody?.none, as: ItemShareLink.self)
     }
 
     /// The item's link, or nil when it isn't shared (the server's 404
     /// `not shared`). Read past the cache: a link that was stopped elsewhere
     /// must not come back from an offline copy.
-    public func itemShare(_ kind: ItemShareKind, id: Int) async throws -> ItemShareLink? {
+    public func itemShare(_ target: ItemShareTarget) async throws -> ItemShareLink? {
         do {
-            return try await get("/\(kind.ownerCollection)/\(id)/share", cached: false, as: ItemShareLink.self)
+            return try await get(target.ownerPath, cached: false, as: ItemShareLink.self)
         } catch let error as APIError where error.status == 404 {
             return nil
         }
     }
 
     /// *Stop sharing*: the link answers 404 from now on. Live, never queued.
-    public func deleteItemShare(_ kind: ItemShareKind, id: Int) async throws {
-        _ = try await send("DELETE", "/\(kind.ownerCollection)/\(id)/share", body: NoBody?.none, as: OKResponse.self)
+    public func deleteItemShare(_ target: ItemShareTarget) async throws {
+        _ = try await send("DELETE", target.ownerPath, body: NoBody?.none, as: OKResponse.self)
     }
 
-    /// What a `/share/e/<token>` or `/share/s/<token>` link shows. Unauthenticated
+    /// What a `/share/e/<token>`, `/share/s/<token>` or `/share/l/<token>` link
+    /// shows (a comparison is ``sharedCompare(token:)``). Unauthenticated
     /// — no token is sent — and read past the cache like the coach invite's
     /// preview, since the path carries the link's whole permission and a copy
     /// kept offline would outlive *Stop sharing*.
@@ -507,6 +508,16 @@ public actor APIClient {
         return try await get(
             "/share/\(kind.pathLetter)/\(Self.pathSegment(token))",
             authenticated: false, cached: false, as: SharedItem.self
+        )
+    }
+
+    /// What a `/share/c/<token>` link shows (NS-56): two laps, A against B.
+    /// Unauthenticated and read past the cache, like ``sharedItem(kind:token:)``.
+    public func sharedCompare(token: String) async throws -> SharedCompare {
+        if let parent { return try await parent.sharedCompare(token: token) }
+        return try await get(
+            "/share/\(ItemShareKind.compare.pathLetter)/\(Self.pathSegment(token))",
+            authenticated: false, cached: false, as: SharedCompare.self
         )
     }
 

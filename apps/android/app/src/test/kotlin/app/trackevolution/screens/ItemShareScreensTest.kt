@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.api.StaticToken
 import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.ui.LoadState
@@ -47,8 +48,8 @@ import java.io.IOException
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Share one event or session (NS-48): the owner's *Share…* dialog on the event
- * page, and the read-only page a link opens.
+ * Share one event or session (NS-48), one lap or two laps compared (NS-56): the
+ * owner's *Share…* dialog, and the read-only page a link opens.
  *
  * Fixtures are the golden contract's own captures, with ids made unique (the
  * capture normalises every id to 1, which a keyed `LazyColumn` refuses).
@@ -77,6 +78,10 @@ class ItemShareScreensTest {
                 path.startsWith("/api/share/") -> respond(sharedBody, HttpStatusCode.OK, JSON)
                 path.endsWith("/share") && method == "DELETE" -> respond("""{"ok":true}""", HttpStatusCode.OK, JSON)
                 path.endsWith("/events/1/share") -> respond(golden("item-share-event-create"), HttpStatusCode.Created, JSON)
+                path.contains("/compare/") && path.endsWith("/share") ->
+                    respond(golden("item-share-compare-create"), HttpStatusCode.Created, JSON)
+                path.startsWith("/api/laps/") && path.endsWith("/share") ->
+                    respond(golden("item-share-lap-create"), HttpStatusCode.Created, JSON)
                 path.endsWith("/share") -> respond(golden("item-share-session-create"), HttpStatusCode.Created, JSON)
                 path.endsWith("/tracks") -> respond("[]", HttpStatusCode.OK, JSON)
                 else -> respond(EVENT_DETAIL, HttpStatusCode.OK, JSON)
@@ -180,6 +185,72 @@ class ItemShareScreensTest {
         assertTrue(!tagged("shareSession-1"))
     }
 
+    // ---- One lap (NS-56) ----------------------------------------------------
+
+    private fun showLap(owner: LogbookOwner = LogbookOwner.Me) {
+        val model = runBlocking {
+            EventModel(CoroutineScope(Dispatchers.Default), api, 1).also { model ->
+                model.load()
+                withTimeout(5_000) { while (model.state != LoadState.Ready) delay(5) }
+            }
+        }
+        compose.setContent {
+            ProvideLayoutMetrics {
+                TrackTheme {
+                    LapDetailScreen(
+                        model = model,
+                        sessionId = 1,
+                        lapId = 1,
+                        canViewChannels = true,
+                        onCompare = {},
+                        owner = owner,
+                    )
+                }
+            }
+        }
+        eventually { tagged("lapDetail") }
+    }
+
+    @Test
+    fun `the lap page's Share shares that lap, in the lap's own words`() {
+        showLap()
+        compose.onNodeWithTag("shareLap").performClick()
+        eventually { tagged("itemShareUrl") }
+        assertTrue(shown("https://trackevolution.app/share/l/AAAAAAAAAAAAAAAAAAAAAA"))
+        assertTrue(shown(ItemShareText.explanation(ItemShareKind.LAP)))
+        assertTrue(sent.any { it.method.value == "POST" && it.url.encodedPath == "/api/laps/1/share" })
+
+        compose.onNodeWithTag("itemShareStop").performClick()
+        eventually { !tagged("itemShareDialog") }
+        assertTrue(sent.any { it.method.value == "DELETE" && it.url.encodedPath == "/api/laps/1/share" })
+    }
+
+    @Test
+    fun `a coach's lap page offers no Share`() {
+        showLap(owner = LogbookOwner.Student(id = 8, name = "Sam", pro = true))
+        assertTrue(!tagged("shareLap"))
+    }
+
+    @Test
+    fun `a comparison is shared A against B, and never with a lap the server hasn't seen`() {
+        compose.setContent { }
+        val state = ItemShareState.over(scope, api)
+        val target = ItemShareTarget.compare(9, 11)!!
+        state.open(target)
+        eventually { state.link != null }
+        assertEquals(ItemShareKind.COMPARE, state.link?.kind)
+        assertTrue(sent.any { it.method.value == "POST" && it.url.encodedPath == "/api/laps/9/compare/11/share" })
+        assertEquals(
+            "Anyone with this link can see these two laps compared — their times, telemetry and video. " +
+                "Nothing else in your logbook is shared.",
+            ItemShareText.explanation(ItemShareKind.COMPARE),
+        )
+        // The same lap twice, a missing lap and a temp id are nothing to share.
+        assertNull(ItemShareTarget.compare(9, 9))
+        assertNull(ItemShareTarget.compare(9, null))
+        assertNull(ItemShareTarget.compare(-3, 11))
+    }
+
     // ---- The page a link opens ----------------------------------------------
 
     private fun showShared(kind: ItemShareKind = ItemShareKind.EVENT): SharedItemModel {
@@ -231,6 +302,71 @@ class ItemShareScreensTest {
         assertTrue(shown(ItemShareText.byline(ItemShareKind.SESSION, "Dev User")))
         assertEquals(1, compose.onAllNodesWithTag("sharedSession-1").fetchSemanticsNodes().size)
         assertTrue(!tagged("sharedSession-2"))
+    }
+
+    @Test
+    fun `a lap link's page is that one lap`() {
+        sharedBody = sharedJson("shared-lap", pro = true)
+        showShared(ItemShareKind.LAP)
+        assertEquals("A lap shared by Dev User.", ItemShareText.byline(ItemShareKind.LAP, "Dev User"))
+        assertTrue(shown(ItemShareText.byline(ItemShareKind.LAP, "Dev User")))
+        assertTrue(shown("Lap time"))
+        assertTrue(sent.any { it.url.encodedPath == "/api/share/l/$TOKEN" })
+        assertEquals(1, compose.onAllNodesWithTag("sharedSession-1").fetchSemanticsNodes().size)
+    }
+
+    private fun showSharedCompare(): SharedCompareModel {
+        val model = SharedCompareModel(scope, api, TOKEN)
+        compose.setContent {
+            ProvideLayoutMetrics {
+                TrackTheme { SharedCompareScreen(model = model) }
+            }
+        }
+        eventually { model.state != LoadState.Loading }
+        compose.waitForIdle()
+        return model
+    }
+
+    @Test
+    fun `a comparison link shows both laps, read as nobody`() {
+        sharedBody = golden("shared-compare")
+        showSharedCompare()
+        assertEquals(
+            "Two laps compared, shared by Dev User.",
+            ItemShareText.byline(ItemShareKind.COMPARE, "Dev User"),
+        )
+        assertTrue(shown(ItemShareText.byline(ItemShareKind.COMPARE, "Dev User")))
+        val read = sent.single { it.url.encodedPath == "/api/share/c/$TOKEN" }
+        assertNull("a link is read as nobody", read.headers[HttpHeaders.Authorization])
+        assertTrue(tagged("sharedCompareSides"))
+        // The capture's two laps were typed in, so there is nothing to lay over:
+        // the page is their times and says why.
+        assertTrue(tagged("sharedCompareNoTelemetry"))
+        assertTrue(!tagged("sharedCompareFreeNote"))
+        assertTrue(!tagged("shareCompare"))
+    }
+
+    @Test
+    fun `a free owner's comparison is the two times and one sentence, never an upsell`() {
+        sharedBody = JsonObject(goldenBody("shared-compare").jsonObject + mapOf("pro" to JsonPrimitive(false))).toString()
+        showSharedCompare()
+        assertEquals(
+            "Dev User is on the free plan, so this link shows the two lap times. " +
+                "The comparison shows while they have Pro.",
+            ItemShareText.freeCompareNote("Dev User"),
+        )
+        assertTrue(shown(ItemShareText.freeCompareNote("Dev User")))
+        assertTrue(tagged("sharedCompareSides"))
+        assertTrue(!tagged("sharedCompareNoTelemetry"))
+        assertTrue(!tagged("channelProCard"))
+    }
+
+    @Test
+    fun `a revoked comparison says so, with no retry`() {
+        sharedStatus = HttpStatusCode.NotFound
+        val model = showSharedCompare()
+        assertTrue(shown(ItemShareText.NOT_FOUND))
+        assertTrue(!(model.state as LoadState.Failed).retryable)
     }
 
     @Test

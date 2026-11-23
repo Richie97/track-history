@@ -407,6 +407,7 @@
       "vehicle_id": null
     },
     "kind": "event",
+    "lap_id": null,
     "name": "Dev User",
     "pro": true,
     "session_id": null

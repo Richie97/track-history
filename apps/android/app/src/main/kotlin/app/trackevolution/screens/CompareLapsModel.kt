@@ -48,6 +48,12 @@ class CompareLapsModel(
     private var lapsBySession: Map<Int, List<Lap>> = emptyMap()
     private var traceBySession: Map<Int, List<app.trackevolution.core.model.TracePoint>> = emptyMap()
 
+    /**
+     * *Share…* for the picked pair (NS-56): live, never queued, and running in
+     * this model's scope so a rotation neither restarts nor loses the request.
+     */
+    val sharing = ItemShareState.over(scope, api)
+
     /** Indexes into [rows] — seeded by [CompareLaps.defaultComparePicks]. */
     var selA by mutableStateOf(0)
         private set
@@ -123,7 +129,13 @@ class CompareLapsModel(
         val lapB: Lap? = null,
         /** Side A's session's stored best-lap trace — both dots go on it. */
         val traceA: List<app.trackevolution.core.model.TracePoint>? = null,
-    )
+    ) {
+        /**
+         * What *Share…* shares (NS-56): lap A against lap B by their real ids,
+         * or null when a pick no longer resolves to a lap the server knows.
+         */
+        val shareTarget: ItemShareTarget? get() = ItemShareTarget.compare(lapA?.id, lapB?.id)
+    }
 
     val pair: LapPair?
         get() {

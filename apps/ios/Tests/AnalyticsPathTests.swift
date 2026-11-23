@@ -25,6 +25,8 @@ final class AnalyticsPathTests: XCTestCase {
         (.shared(slug: "eric-r"), "/share/:slug"),
         (.sharedItem(kind: .event, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/e/:token"),
         (.sharedItem(kind: .session, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/s/:token"),
+        (.sharedItem(kind: .lap, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/l/:token"),
+        (.sharedItem(kind: .compare, token: "s3cr3tT0k3nAAAAAAAAAAA"), "/share/c/:token"),
         (.lap(eventId: 12, sessionId: 40, lapId: 991), "/event/:id/lap/:id"),
         (.sessionCompare(eventId: 12, sessionId: 40, lapId: 991), "/event/:id/session/:id/compare"),
         (.sessionCompare(eventId: 12, sessionId: 40, lapId: nil), "/event/:id/session/:id/compare"),

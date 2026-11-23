@@ -25,6 +25,9 @@ struct CompareLapsScreen: View {
     @Environment(\.layout) private var layout
     @State private var model: CompareLapsModel?
     @State private var stage: LapStageModel?
+    /// The picked pair's share sheet (NS-56) — this view's one modal
+    /// presentation; the stage's full-bleed cover is `LapStageView`'s own.
+    @State private var sharing: ItemShareTarget?
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -33,6 +36,9 @@ struct CompareLapsScreen: View {
             }
         }
         .background(Color(.bgPage))
+        .sheet(item: $sharing) { target in
+            ItemShareSheet(target: target)
+        }
         .task {
             if model == nil {
                 let api = auth.api.scoped(to: owner)
@@ -86,6 +92,18 @@ struct CompareLapsScreen: View {
                         .foregroundStyle(Color(.textStrong))
                     picker("Lap A", selection: model.selA, color: Color(.chartLine), model) { model.pick(a: $0) }
                     picker("Lap B", selection: model.selB, color: Color(.chartLineB), model) { model.pick(b: $0) }
+                    // Share the picked pair, A against B (NS-56). Never for a
+                    // coach's read-only view, nor for a lap not yet synced.
+                    if !owner.isReadOnly, let target = model.shareTarget {
+                        Button {
+                            stage.pause(announce: false)
+                            sharing = target
+                        } label: {
+                            Label("Share…", systemImage: "square.and.arrow.up")
+                        }
+                        .buttonStyle(TEButtonStyle(kind: .quiet))
+                        .accessibilityIdentifier("shareCompare")
+                    }
                     if pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
                         Text("⚠️ These laps cover driven distances \(Int((pair.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
                             .teStyle(.xs)
@@ -94,7 +112,7 @@ struct CompareLapsScreen: View {
                 }
             } content: {
                 VStack(alignment: .leading, spacing: 14) {
-                    if !phone { headToHead(pair) }
+                    if !phone { CompareHeadToHead(pair: pair) }
                     Text("The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the videos there.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
@@ -106,7 +124,7 @@ struct CompareLapsScreen: View {
                     // selection is @State seeded on appear, and a stale selection
                     // against new channel data would highlight the wrong laps.
                     .id("\(model.selA)-\(model.selB)")
-                    if phone { headToHead(pair) }
+                    if phone { CompareHeadToHead(pair: pair) }
                 }
             }
             .task(id: StageKey(selA: model.selA, selB: model.selB, clipA: pair.clipA, clipB: pair.clipB, playsVideo: playsVideo)) {
@@ -178,10 +196,18 @@ struct CompareLapsScreen: View {
             .accessibilityLabel("\(label): \(model.pickLabel(selection))")
         }
     }
+}
 
-    // MARK: - Head to head
+/// The two laps' numbers side by side — lap time, speeds, RPM, lateral G and
+/// the throttle / brake shares — with the delta, B against A. Its own view so
+/// the track's compare and a shared comparison (NS-56, `SharedCompareScreen`)
+/// draw one table rather than two copies.
+struct CompareHeadToHead: View {
+    let pair: CompareLapsModel.Pair
 
-    private func headToHead(_ pair: CompareLapsModel.Pair) -> some View {
+    @Environment(AuthController.self) private var auth
+
+    var body: some View {
         TECard {
             VStack(spacing: 0) {
                 statRow("Lap time", fmt: { LapTime.fmtMs($0.timeMs) }, delta: deltaMs(pair), pair)
@@ -370,6 +396,22 @@ final class CompareLapsModel {
 
     private func clip(_ row: CompareLaps.Row) -> LapClip? {
         lapsBySession[row.sessionId]?.first { $0.lapNum == row.lapNum }?.clip
+    }
+
+    /// A pick's real lap id — `Row` is pinned and carries none — found the way
+    /// its clip is.
+    private func lapId(_ row: CompareLaps.Row) -> Int? {
+        lapsBySession[row.sessionId]?.first { $0.lapNum == row.lapNum }?.id
+    }
+
+    /// What *Share…* shares (NS-56): the picked pair, A against B — nil without
+    /// two different laps, or while either is still a temp id.
+    var shareTarget: ItemShareTarget? {
+        guard rows.indices.contains(selA), rows.indices.contains(selB), selA != selB,
+              let a = lapId(rows[selA]), let b = lapId(rows[selB]), a != b
+        else { return nil }
+        let target = ItemShareTarget.compare(a: a, b: b)
+        return target.hasTempId ? nil : target
     }
 
     var pair: Pair? {

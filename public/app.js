@@ -1594,12 +1594,80 @@ async function viewLapCompare(trackId, params) {
   if (rowB === rowA) rowB = rows[picks.a === rows.indexOf(rowA) ? picks.b : picks.a];
   if (rowB === rowA) rowB = rows.find((r) => r !== rowA);
 
-  const chanFor = (r) => sessionsById.get(String(r.sessionId)).channels;
+  const sideColors = LAP_PAIR_COLORS;
+  const sessionOf = (r) => sessionsById.get(String(r.sessionId));
+  const lapOf = (r) => sessionOf(r).laps.find((l) => l.lap_num === r.lapNum) ?? null;
+  // Share the picked pair (NS-56). Not for a coach's read-only view, and not
+  // for a lap the server hasn't given an id yet.
+  const [lapA, lapB] = [lapOf(rowA), lapOf(rowB)];
+  const canShare = !readOnly() && [lapA, lapB].every((l) => l && !String(l.id).startsWith("tmp-"));
+  const pickerOpts = (selKey) => {
+    let html = "", lastGroup = null;
+    for (const r of rows) {
+      const g = `${fmtDate(r.date)}${r.club ? " · " + esc(r.club) : ""}${r.sessionLabel ? " — " + esc(r.sessionLabel) : ""}`;
+      if (g !== lastGroup) {
+        html += `${lastGroup != null ? "</optgroup>" : ""}<optgroup label="${g}">`;
+        lastGroup = g;
+      }
+      html += `<option value="${keyOf(r)}" ${keyOf(r) === selKey ? "selected" : ""}>Lap ${r.lapNum} — ${fmtMs(r.timeMs)}</option>`;
+    }
+    return `${html}</optgroup>`;
+  };
+
+
+  const view = renderLapPair(
+    [
+      { row: rowA, session: sessionOf(rowA) },
+      { row: rowB, session: sessionOf(rowB) },
+    ],
+    `${backHtml}
+    <h1>Compare two laps</h1>
+    <p class="sub">
+      <span class="swatch" style="background:${sideColors[0]}"></span> <select id="lap-a">${pickerOpts(keyOf(rowA))}</select>
+      &nbsp;vs&nbsp;
+      <span class="swatch" style="background:${sideColors[1]}"></span> <select id="lap-b">${pickerOpts(keyOf(rowB))}</select>
+      ${canShare ? `&nbsp;<button class="btn small" id="share-compare" aria-expanded="false" aria-controls="share-panel-compare">Share</button>` : ""}
+    </p>
+    ${canShare ? `<div class="panel share-item" id="share-panel-compare" hidden></div>` : ""}`
+  );
+  if (canShare)
+    bindSharePanel(view.querySelector("#share-compare"), view.querySelector("#share-panel-compare"), {
+      kind: "compare",
+      path: `/laps/${lapA.id}/compare/${lapB.id}/share`,
+      title: `${trackName} — two laps compared`,
+    });
+
+  const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
+  const go = () => {
+    location.hash = L(`#/track/${trackId}/lap-compare?a=${encodeURIComponent(selA.value)}&b=${encodeURIComponent(selB.value)}`);
+  };
+  // Picking the same lap on both sides swaps instead of comparing it to itself.
+  selA.onchange = () => {
+    if (selA.value === selB.value) selB.value = keyOf(rowA);
+    go();
+  };
+  selB.onchange = () => {
+    if (selA.value === selB.value) selA.value = keyOf(rowB);
+    go();
+  };
+}
+
+const LAP_PAIR_COLORS = ["var(--chart-line)", "var(--chart-line-b)"];
+
+// The compare page below its heading: two laps head to head, the stage, the
+// sector table and the charts. `sides` is [{ row, session }] — a
+// `comparableLaps` row and the session it came from — so the signed-in page
+// (two picks out of a track's history) and a shared comparison (NS-56: two
+// one-lap sessions, which may share an id) draw through the same code.
+function renderLapPair(sides, headHtml) {
+  const [rowA, rowB] = sides.map((x) => x.row);
+  const sessionOf = (r) => (r === rowA ? sides[0] : sides[1]).session;
+  const chanFor = (r) => sessionOf(r).channels;
   const [entryA, entryB] = [chanFor(rowA).laps[rowA.chIdx], chanFor(rowB).laps[rowB.chIdx]];
   const [stepA, stepB] = [chanFor(rowA).dStepM, chanFor(rowB).dStepM];
   const aligned = alignLapPair(entryA, stepA, entryB, stepB);
   const mismatch = lengthMismatchRatio(entryA, stepA, entryB, stepB);
-  const sideColors = ["var(--chart-line)", "var(--chart-line-b)"];
+  const sideColors = LAP_PAIR_COLORS;
   const sideLabels = [rowA, rowB].map((r) => `Lap ${r.lapNum} (${fmtDate(r.date)})`);
   const lit = new Map(sideColors.map((c, i) => [i, c]));
   const refIdx = aligned.laps[0].timeMs <= aligned.laps[1].timeMs ? 0 : 1;
@@ -1627,19 +1695,6 @@ async function viewLapCompare(trackId, params) {
       ${metricRow("On the brakes", (v) => (v == null ? "—" : `${v.toFixed(0)}% of lap`), mA.brakingPct, mB.brakingPct, signed((d) => `${d.toFixed(1)}pp`))}
     </tbody></table></div>`;
 
-  const pickerOpts = (selKey) => {
-    let html = "", lastGroup = null;
-    for (const r of rows) {
-      const g = `${fmtDate(r.date)}${r.club ? " · " + esc(r.club) : ""}${r.sessionLabel ? " — " + esc(r.sessionLabel) : ""}`;
-      if (g !== lastGroup) {
-        html += `${lastGroup != null ? "</optgroup>" : ""}<optgroup label="${g}">`;
-        lastGroup = g;
-      }
-      html += `<option value="${keyOf(r)}" ${keyOf(r) === selKey ? "selected" : ""}>Lap ${r.lapNum} — ${fmtMs(r.timeMs)}</option>`;
-    }
-    return `${html}</optgroup>`;
-  };
-
   // Distance is measured from each lap's own start line, so laps from
   // different imports can be shifted relative to each other; a big length gap
   // means the comparison probably isn't corner-for-corner.
@@ -1663,14 +1718,8 @@ async function viewLapCompare(trackId, params) {
     .map((c) => `<div class="ch-chart">${c}</div>`)
     .join("");
 
-  const view = shell(`
-    ${backHtml}
-    <h1>Compare two laps</h1>
-    <p class="sub">
-      <span class="swatch" style="background:${sideColors[0]}"></span> <select id="lap-a">${pickerOpts(keyOf(rowA))}</select>
-      &nbsp;vs&nbsp;
-      <span class="swatch" style="background:${sideColors[1]}"></span> <select id="lap-b">${pickerOpts(keyOf(rowB))}</select>
-    </p>
+  const view = (sharedView ? shareShell : shell)(`
+    ${headHtml}
     ${warnHtml}
     <div id="cmp-stage" class="lap-stage-box"></div>
     <h2>Head to head</h2>
@@ -1690,7 +1739,7 @@ async function viewLapCompare(trackId, params) {
   // The stage (NS-51): both laps' videos from one transport, kept together by
   // place or by time, over the aligned pair the charts draw. Each pick's clip
   // is on its lap row in the event detail it came from.
-  const lapRow = (r) => sessionsById.get(String(r.sessionId))?.laps.find((l) => l.lap_num === r.lapNum) ?? null;
+  const lapRow = (r) => sessionOf(r).laps.find((l) => l.lap_num === r.lapNum) ?? null;
   const analysis = view.querySelector("#cmp-analysis");
   const stageSpec = (r, i) => ({
     entry: aligned.laps[i],
@@ -1708,26 +1757,13 @@ async function viewLapCompare(trackId, params) {
     lockedHtml: stageLockedHtml(),
     clipUrl: stageClipUrl,
     describeError: stageErrorText,
-    trace: sessionsById.get(String(rowA.sessionId))?.trace ?? null,
+    trace: sides[0].session.trace ?? null,
     corners: sessionCorners(aligned),
     units: currentUnits(),
     onFrame: (st, sides) => showPlayhead(analysis, stageMark(st, sides, { idxA: 0, idxB: 1, colorA: "--chart-line", colorB: "--chart-line-b", deltaFor })),
   });
   bindChartSeek(analysis, aligned.dStepM, (k, { final }) => cmpStage?.seekGrid(k, { final }));
-
-  const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
-  const go = () => {
-    location.hash = L(`#/track/${trackId}/lap-compare?a=${encodeURIComponent(selA.value)}&b=${encodeURIComponent(selB.value)}`);
-  };
-  // Picking the same lap on both sides swaps instead of comparing it to itself.
-  selA.onchange = () => {
-    if (selA.value === selB.value) selB.value = keyOf(rowA);
-    go();
-  };
-  selB.onchange = () => {
-    if (selA.value === selB.value) selA.value = keyOf(rowB);
-    go();
-  };
+  return view;
 }
 
 // --- track leaderboard ---
@@ -3320,7 +3356,7 @@ async function viewEvent(eventId) {
     <p class="sub">${[esc([e.club, e.run_group].filter(Boolean).join(" · ") || ""), carHtml, fmtConditions(e)]
       .filter(Boolean)
       .join(" · ")}</p>
-    ${sharedView ? `<p class="hint shared-by">${sharedView.kind === "session" ? "A session" : "A track day"} shared by ${esc(sharedView.name || "a driver")}.</p>` : ""}
+    ${sharedView ? `<p class="hint shared-by">${{ session: "A session", lap: "A lap" }[sharedView.kind] ?? "A track day"} shared by ${esc(sharedView.name || "a driver")}.</p>` : ""}
     ${pbBanner}
     ${upcoming ? `<div class="panel countdown-banner"><strong>${fmtCountdown(e.start_date)}</strong> — ${ro ? "sessions show up here once they're logged." : "log sessions here once you're back from the track."}</div>` : ""}
     <div class="tiles">
@@ -3865,7 +3901,7 @@ async function viewEvent(eventId) {
   paintClipUploads();
 }
 
-// ---------- share one event or session (NS-48) -------------------------------
+// ---------- share an event, a session, a lap or two laps (NS-48, NS-56) -------
 
 // What every client says above the link — the same words on all three.
 const SHARE_ITEM_TEXT = {
@@ -3875,6 +3911,12 @@ const SHARE_ITEM_TEXT = {
   session:
     "Anyone with this link can see this session — its laps, racing line, telemetry and video. " +
     "Notes, costs and setup sheets stay private.",
+  lap:
+    "Anyone with this link can see this lap — its time, racing line, telemetry and video. " +
+    "The rest of the session, notes, costs and setup sheets stay private.",
+  compare:
+    "Anyone with this link can see these two laps compared — their times, telemetry and video. " +
+    "Nothing else in your logbook is shared.",
 };
 const SHARE_NEEDS_CONNECTION = "Sharing needs a connection.";
 const isNetworkError = (err) => err instanceof OfflineError || err instanceof TypeError;
@@ -3890,69 +3932,144 @@ function shareItemPanelHtml(kind, link) {
     </div>`;
 }
 
-// The event's Share and each session's: a toggle that opens a panel under it.
-// Opening asks for the link — POST answers the one already out there, so this
-// never mints a second — and Stop sharing deletes it. Live writes: the offline
-// queue doesn't carry them, so with no connection the panel says so.
-function bindItemShare(view, e) {
-  const targets = [
-    { btn: view.querySelector("#share-event"), panel: view.querySelector("#share-panel-event"), kind: "event", path: `/events/${e.id}/share` },
-    ...[...view.querySelectorAll("[data-share-session]")].map((btn) => ({
-      btn,
-      panel: view.querySelector(`[data-share-panel="${btn.dataset.shareSession}"]`),
-      kind: "session",
-      path: `/sessions/${btn.dataset.shareSession}/share`,
-    })),
-  ].filter((t) => t.btn && t.panel);
-  const close = (t) => {
-    t.panel.hidden = true;
-    t.panel.innerHTML = "";
-    t.btn.setAttribute("aria-expanded", "false");
+// One item's link, drawn into `body`. `t` is { kind, path, title }. With
+// `mint` the link is asked for with POST — which answers the one already out
+// there, so it never makes a second; without it the link is only *read*, and
+// an item with none yet gets a Create link button, so that browsing a
+// session's laps in the chooser below doesn't publish each one looked at.
+// Live requests: the offline queue doesn't carry them, so with no connection
+// the panel says so.
+async function showShareLink(body, t, { mint, onStopped }) {
+  body.dataset.shareFor = t.path;
+  const stale = () => !body.isConnected || body.dataset.shareFor !== t.path;
+  body.innerHTML = `<p class="hint">Getting the link…</p>`;
+  let link;
+  try {
+    link = await api(t.path, mint ? { method: "POST" } : { cache: false });
+  } catch (err) {
+    if (stale()) return;
+    if (!mint && err instanceof ApiError && err.status === 404) {
+      body.innerHTML = `<p class="hint" style="margin:0 0 8px">${SHARE_ITEM_TEXT[t.kind]}</p>
+        <div class="btn-row"><button class="btn small primary" type="button" data-share-create>Create link</button></div>`;
+      body.querySelector("[data-share-create]").onclick = () => showShareLink(body, t, { mint: true, onStopped });
+      return;
+    }
+    body.innerHTML = `<p class="hint">${esc(isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message)}</p>`;
+    return;
+  }
+  if (stale()) return;
+  body.innerHTML = shareItemPanelHtml(t.kind, link);
+  const msg = body.querySelector("[data-share-msg]");
+  const input = body.querySelector("[data-share-url]");
+  input.onfocus = () => input.select();
+  body.querySelector("[data-share-copy]").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(link.url);
+      msg.textContent = "Copied.";
+    } catch {
+      input.focus();
+      msg.textContent = "Selected — copy it with ⌘C or Ctrl+C.";
+    }
   };
-  for (const t of targets) {
-    t.btn.onclick = async () => {
-      if (!t.panel.hidden) return close(t);
-      t.panel.hidden = false;
-      t.btn.setAttribute("aria-expanded", "true");
-      t.panel.innerHTML = `<p class="hint">Getting the link…</p>`;
-      let link;
-      try {
-        link = await api(t.path, { method: "POST" });
-      } catch (err) {
-        if (!t.panel.hidden) t.panel.innerHTML = `<p class="hint">${esc(isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message)}</p>`;
+  body.querySelector("[data-share-system]")?.addEventListener("click", () => {
+    navigator.share({ title: t.title, url: link.url }).catch(() => {});
+  });
+  body.querySelector("[data-share-stop]").onclick = async () => {
+    if (!confirm("Stop sharing? The link stops working for everyone who has it.")) return;
+    try {
+      await api(t.path, { method: "DELETE" });
+    } catch (err) {
+      // Already stopped (from another device) is what was asked for.
+      if (!(err instanceof ApiError && err.status === 404)) {
+        msg.textContent = isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message;
         return;
       }
-      if (t.panel.hidden) return;
-      t.panel.innerHTML = shareItemPanelHtml(t.kind, link);
-      const msg = t.panel.querySelector("[data-share-msg]");
-      const input = t.panel.querySelector("[data-share-url]");
-      input.onfocus = () => input.select();
-      t.panel.querySelector("[data-share-copy]").onclick = async () => {
-        try {
-          await navigator.clipboard.writeText(link.url);
-          msg.textContent = "Copied.";
-        } catch {
-          input.focus();
-          msg.textContent = "Selected — copy it with ⌘C or Ctrl+C.";
-        }
-      };
-      t.panel.querySelector("[data-share-system]")?.addEventListener("click", () => {
-        navigator.share({ title: `${e.track_name} — ${fmtDate(e.start_date)}`, url: link.url }).catch(() => {});
-      });
-      t.panel.querySelector("[data-share-stop]").onclick = async () => {
-        if (!confirm("Stop sharing? The link stops working for everyone who has it.")) return;
-        try {
-          await api(t.path, { method: "DELETE" });
-        } catch (err) {
-          // Already stopped (from another device) is what was asked for.
-          if (!(err instanceof ApiError && err.status === 404)) {
-            msg.textContent = isNetworkError(err) ? SHARE_NEEDS_CONNECTION : err.message;
-            return;
-          }
-        }
-        close(t);
-      };
+    }
+    onStopped();
+  };
+}
+
+// A session's Share can be the session, one of its laps, or — for a lap with
+// telemetry, on an account that has the compare — that lap against another
+// (NS-56). The chooser's rows; null when the session has no lap the server
+// knows yet, and the panel is then the session's link alone.
+function shareChooser(session) {
+  const laps = (session?.laps ?? []).filter((l) => !String(l.id).startsWith("tmp-"));
+  if (!laps.length) return null;
+  const withTelemetry = new Set(
+    session.channels?.laps?.length && canViewChannels(ent())
+      ? matchLapsToChannels(session.laps, session.channels.laps).filter((r) => r.chIdx >= 0).map((r) => String(r.lap.id))
+      : []
+  );
+  const opt = (l, sel) => `<option value="${esc(l.id)}" ${sel ? "selected" : ""}>Lap ${l.lap_num} — ${fmtMs(l.time_ms)}</option>`;
+  return {
+    html: `<div class="share-what">
+        <label>Share <select data-share-what><option value="">This session</option>${laps.map((l) => opt(l)).join("")}</select></label>
+        <label data-share-vs-wrap hidden>compared with <select data-share-vs></select></label>
+      </div>`,
+    // The laps a picked lap can be put against: the others with telemetry.
+    vsOptions: (lapId) =>
+      withTelemetry.has(String(lapId)) && withTelemetry.size > 1
+        ? `<option value="">—</option>${laps.filter((l) => String(l.id) !== String(lapId) && withTelemetry.has(String(l.id))).map((l) => opt(l)).join("")}`
+        : "",
+  };
+}
+
+// A Share button and the panel it opens under it. `target` is the button's
+// own item ({ kind, path, title }), whose link is minted on opening;
+// `target.session` adds the lap chooser above it.
+function bindSharePanel(btn, panel, target) {
+  if (!btn || !panel) return;
+  const close = () => {
+    panel.hidden = true;
+    panel.innerHTML = "";
+    btn.setAttribute("aria-expanded", "false");
+  };
+  btn.onclick = () => {
+    if (!panel.hidden) return close();
+    panel.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    const chooser = target.session ? shareChooser(target.session) : null;
+    panel.innerHTML = `${chooser?.html ?? ""}<div data-share-body></div>`;
+    const body = panel.querySelector("[data-share-body]");
+    showShareLink(body, target, { mint: true, onStopped: close });
+    if (!chooser) return;
+    const what = panel.querySelector("[data-share-what]");
+    const vs = panel.querySelector("[data-share-vs]");
+    const vsWrap = panel.querySelector("[data-share-vs-wrap]");
+    const show = () => {
+      if (!what.value) return showShareLink(body, target, { mint: true, onStopped: close });
+      const t = vs.value
+        ? { kind: "compare", path: `/laps/${what.value}/compare/${vs.value}/share`, title: `${target.title} — two laps compared` }
+        : { kind: "lap", path: `/laps/${what.value}/share`, title: `${target.title} — ${what.selectedOptions[0].textContent}` };
+      showShareLink(body, t, { mint: false, onStopped: close });
     };
+    what.onchange = () => {
+      const opts = what.value ? chooser.vsOptions(what.value) : "";
+      vs.innerHTML = opts;
+      vsWrap.hidden = !opts;
+      show();
+    };
+    vs.onchange = show;
+  };
+}
+
+// The event's Share and each session's.
+function bindItemShare(view, e) {
+  const title = `${e.track_name} — ${fmtDate(e.start_date)}`;
+  bindSharePanel(view.querySelector("#share-event"), view.querySelector("#share-panel-event"), {
+    kind: "event",
+    path: `/events/${e.id}/share`,
+    title,
+  });
+  for (const btn of view.querySelectorAll("[data-share-session]")) {
+    const id = btn.dataset.shareSession;
+    bindSharePanel(btn, view.querySelector(`[data-share-panel="${id}"]`), {
+      kind: "session",
+      path: `/sessions/${id}/share`,
+      title,
+      session: e.sessions.find((x) => String(x.id) === id),
+    });
   }
 }
 
@@ -6766,7 +6883,7 @@ async function shareRoute() {
 // /share/e/<token> is a track day and /share/s/<token> one session of it,
 // opened by anyone with the link. The page is viewEvent itself, read-only,
 // over the public payload (see `sharedView`), in the share page's own shell.
-const ITEM_SHARE_MATCH = location.pathname.match(/^\/share\/([es])\/([A-Za-z0-9_-]+)\/?$/) || [];
+const ITEM_SHARE_MATCH = location.pathname.match(/^\/share\/([eslc])\/([A-Za-z0-9_-]+)\/?$/) || [];
 
 // A URL to play a best-lap video on the shared item — outside api(), which
 // would send the visitor's own session (if any) and cache the answer.
@@ -6795,9 +6912,45 @@ async function shareItemRoute() {
   }
   const data = await res.json();
   sharedView = { ...data, prefix, token };
+  const who = data.name || "A driver";
+  if (data.kind === "compare") {
+    document.title = `${who}'s lap comparison at ${data.a.event.track_name} — Track Evolution`;
+    return viewSharedCompare(data);
+  }
   const e = data.event;
-  document.title = `${data.name || "A driver"}'s ${data.kind === "session" ? "session" : "track day"} at ${e.track_name} — Track Evolution`;
+  document.title = `${who}'s ${SHARED_NOUN[data.kind]} at ${e.track_name} — Track Evolution`;
   await viewEvent(e.id);
+}
+const SHARED_NOUN = { event: "track day", session: "session", lap: "lap" };
+
+// Two shared laps compared (NS-56): the compare page's own rendering over the
+// two sides, with no pickers. Each side is a one-lap event, so its lap's row
+// is the only one `comparableLaps` finds — or none, for a lap with no
+// telemetry. The comparison is a Pro view and follows the *owner's* tier, as
+// everything on a shared page does; without it the page is the two lap times.
+function viewSharedCompare(data) {
+  destroyAllStages();
+  const sides = [data.a, data.b].map((x) => ({ row: comparableLaps([x.event])[0] ?? null, session: x.event.sessions[0], event: x.event }));
+  const who = esc(data.name || "a driver");
+  const lapText = (x) => {
+    const lap = x.session.laps[0];
+    return `Lap ${lap.lap_num} · ${fmtDate(x.event.start_date)} — <span class="t">${fmtMs(lap.time_ms)}</span>`;
+  };
+  const head = `
+    <h1>${esc(data.a.event.track_name)} — two laps compared</h1>
+    <p class="sub">
+      <span class="swatch" style="background:${LAP_PAIR_COLORS[0]}"></span> ${lapText(sides[0])}
+      &nbsp;vs&nbsp;
+      <span class="swatch" style="background:${LAP_PAIR_COLORS[1]}"></span> ${lapText(sides[1])}
+    </p>
+    <p class="hint shared-by">Two laps compared, shared by ${who}.</p>`;
+  const note = !data.pro
+    ? `${esc(data.name || "This driver")} is on the free plan, so this link shows the two lap times. The comparison shows while they have Pro.`
+    : sides.some((x) => !x.row)
+      ? "These laps have no telemetry to compare, so this link shows the two lap times."
+      : null;
+  if (note) return shareShell(`${head}<div class="panel"><p class="hint" style="margin:0">${note}</p></div>`);
+  renderLapPair(sides, head);
 }
 
 // ---------- router ----------------------------------------------------------

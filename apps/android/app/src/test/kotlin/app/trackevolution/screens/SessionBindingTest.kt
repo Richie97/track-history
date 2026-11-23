@@ -1,11 +1,13 @@
 package app.trackevolution.screens
 
 import app.trackevolution.core.ChannelGraphs
+import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.Lap
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.SessionChannels
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -36,6 +38,27 @@ class SessionBindingTest {
         assertEquals("A is lap 3, lit second", 1, b.a.slot)
         assertEquals(1, b.b!!.chIdx)
         assertEquals("B is lap 2, lit first", 0, b.b!!.slot)
+    }
+
+    /** NS-56: *Share…* is the first two lit laps by their real ids, the first lit as A. */
+    @Test
+    fun `the share is the first two lit laps, in the order they were lit`() {
+        assertEquals(ItemShareTarget(ItemShareKind.COMPARE, 2, 3), sessionShareTarget(matched, listOf(1, 2)))
+        assertEquals(ItemShareTarget(ItemShareKind.COMPARE, 3, 2), sessionShareTarget(matched, listOf(2, 1)))
+        // A third lit lap changes nothing: the first two.
+        assertEquals(ItemShareTarget(ItemShareKind.COMPARE, 3, 1), sessionShareTarget(matched, listOf(2, 0, 1)))
+    }
+
+    @Test
+    fun `fewer than two lit laps, or a lap the server hasn't seen, is nothing to share`() {
+        assertNull(sessionShareTarget(matched, emptyList()))
+        assertNull(sessionShareTarget(matched, listOf(1)))
+        // A channel entry with no lap row behind it has no id to share by.
+        assertNull(sessionShareTarget(matched, listOf(1, 7)))
+        // Offline-created laps carry temp (negative) ids until their create flushes.
+        val temp = listOf(Lap(id = -1, sessionId = 10, lapNum = 1, timeMs = 101_400), laps[1])
+        val tempMatched = ChannelGraphs.matchLapsToChannels(temp, session.channels!!.laps)
+        assertNull(sessionShareTarget(tempMatched, listOf(0, 1)))
     }
 
     @Test

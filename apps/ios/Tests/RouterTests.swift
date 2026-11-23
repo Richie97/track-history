@@ -351,6 +351,10 @@ final class RouterTests: XCTestCase {
             ("https://trackevolution.app/share/slug", .shared(slug: "slug")),
             ("https://trackevolution.app/share/s/AAAAAAAAAAAAAAAAAAAAAA",
              .sharedItem(kind: .session, token: "AAAAAAAAAAAAAAAAAAAAAA")),
+            ("https://trackevolution.app/share/l/AAAAAAAAAAAAAAAAAAAAAA",
+             .sharedItem(kind: .lap, token: "AAAAAAAAAAAAAAAAAAAAAA")),
+            ("https://trackevolution.app/share/c/AAAAAAAAAAAAAAAAAAAAAA",
+             .sharedItem(kind: .compare, token: "AAAAAAAAAAAAAAAAAAAAAA")),
             ("trackevolution://event/12", .event(12)),
         ]
         for (url, expected) in cases {

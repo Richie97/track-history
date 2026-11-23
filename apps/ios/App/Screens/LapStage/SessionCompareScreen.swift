@@ -26,6 +26,35 @@ struct SessionCompareScreen: View {
     /// The event's coach comments (NS-52), for the ◆ marks only — the thread
     /// itself is read on the lap page. Through the unscoped client.
     @State private var comments: CommentsModel?
+    /// The lit pair's share sheet (NS-56) — this view's one modal presentation;
+    /// the stage's full-bleed cover is `LapStageView`'s own.
+    @State private var sharing: ItemShareTarget?
+
+    /// The session, once it is loaded and has telemetry — what the page draws.
+    private var comparable: (session: Session, channels: SessionChannels)? {
+        guard let session = model?.detail?.sessions.first(where: { $0.id == sessionId }),
+              let channels = session.channels, !channels.laps.isEmpty
+        else { return nil }
+        return (session, channels)
+    }
+
+    /// What *Share…* shares (NS-56): the first two lit laps, the first lit as A.
+    /// Nil with fewer than two lit, or while either lap is still a temp id.
+    static func shareTarget(session: Session, channels: SessionChannels, lit: [Int]) -> ItemShareTarget? {
+        guard lit.count >= 2 else { return nil }
+        let matched = ChannelGraphs.matchLapsToChannels(session.laps, channels.laps)
+        let ids = lit.prefix(2).compactMap { chIdx in
+            matched.first { $0.chIdx == chIdx && $0.hasChannels }?.lap.id
+        }
+        guard ids.count == 2, ids[0] != ids[1] else { return nil }
+        let target = ItemShareTarget.compare(a: ids[0], b: ids[1])
+        return target.hasTempId ? nil : target
+    }
+
+    private var litShareTarget: ItemShareTarget? {
+        guard let comparable else { return nil }
+        return Self.shareTarget(session: comparable.session, channels: comparable.channels, lit: lit)
+    }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -43,6 +72,26 @@ struct SessionCompareScreen: View {
         .background(Color(.bgPage))
         .navigationTitle("Compare laps")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Offered wherever there is something to compare, and enabled once
+            // two laps are lit. Never in a coach's read-only view.
+            if !owner.isReadOnly, comparable != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        stage?.pause(announce: false)
+                        sharing = litShareTarget
+                    } label: {
+                        Label("Share…", systemImage: "square.and.arrow.up")
+                    }
+                    .disabled(litShareTarget == nil)
+                    .accessibilityIdentifier("shareCompare")
+                    .accessibilityHint("Shares the first two lit laps, compared.")
+                }
+            }
+        }
+        .sheet(item: $sharing) { target in
+            ItemShareSheet(target: target)
+        }
         .task {
             if model == nil {
                 // Held on the router, keyed by this page's route, so a resize

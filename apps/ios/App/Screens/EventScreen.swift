@@ -41,12 +41,12 @@ struct EventScreen: View {
 
     private enum FormSheet: Identifiable {
         case editSession(Session)
-        case share(ItemShareKind, id: Int)
+        case share(ItemShareTarget)
 
         var id: String {
             switch self {
             case .editSession(let session): "edit-\(session.id)"
-            case .share(let kind, let id): "share-\(kind.rawValue)-\(id)"
+            case .share(let target): "share-\(target.id)"
             }
         }
     }
@@ -135,7 +135,7 @@ struct EventScreen: View {
                             Label("Edit event", systemImage: "pencil")
                         }
                         Button {
-                            formSheet = .share(.event, id: model.eventId)
+                            formSheet = .share(.event(model.eventId))
                         } label: {
                             Label("Share…", systemImage: "square.and.arrow.up")
                         }
@@ -198,8 +198,8 @@ struct EventScreen: View {
                 SessionEditSheet(session: session) { label, notes in
                     await model?.updateSession(id: session.id, label: label, notes: notes) ?? false
                 }
-            case .share(let kind, let id):
-                ItemShareSheet(kind: kind, id: id)
+            case .share(let target):
+                ItemShareSheet(target: target)
             }
         }
     }
@@ -783,7 +783,7 @@ struct EventScreen: View {
                             Label("Edit label & notes", systemImage: "pencil")
                         }
                         Button {
-                            formSheet = .share(.session, id: session.id)
+                            formSheet = .share(.session(session.id))
                         } label: {
                             Label("Share…", systemImage: "square.and.arrow.up")
                         }

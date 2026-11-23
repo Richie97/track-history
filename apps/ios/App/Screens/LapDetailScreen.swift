@@ -25,9 +25,10 @@ import TrackEvolutionKit
 /// line; any other lap would be drawn on a line it never took. The channel
 /// traces are per lap and every lap that has an entry gets its own.
 ///
-/// *Compare laps* is a push now (`Route.sessionCompare`), not the sheet it was:
-/// the page presents one thing — the stage's full-bleed cover — and nothing
-/// else, which is the one-modal-per-view rule AGENTS.md lists.
+/// *Compare laps* is a push now (`Route.sessionCompare`), not the sheet it was.
+/// The page's own one presentation is the share sheet (NS-56, *Share…* in the
+/// toolbar); the full-bleed cover belongs to `LapStageView`, a view of its own
+/// — the one-modal-per-view rule AGENTS.md lists.
 struct LapDetailScreen: View {
     let eventId: Int
     let sessionId: Int
@@ -45,8 +46,26 @@ struct LapDetailScreen: View {
     /// The event's coach comments (NS-52), through the unscoped client — the
     /// read-only seam's one exception. Held on the router with the stage.
     @State private var comments: CommentsModel?
+    /// The lap's share sheet (NS-56) — this view's one modal presentation.
+    @State private var sharing: ItemShareTarget?
 
     private var route: Route { owner.link(.lap(eventId: eventId, sessionId: sessionId, lapId: lapId)) }
+
+    /// What *Share…* shares: this lap — nil in a coach's read-only view, for a
+    /// lap created offline and not yet synced, and until the lap is on screen.
+    private var lapShareTarget: ItemShareTarget? {
+        guard let detail = model?.detail else { return nil }
+        return Self.shareTarget(detail, sessionId: sessionId, lapId: lapId, readOnly: owner.isReadOnly)
+    }
+
+    static func shareTarget(_ detail: EventDetail, sessionId: Int, lapId: Int, readOnly: Bool) -> ItemShareTarget? {
+        let target = ItemShareTarget.lap(lapId)
+        guard !readOnly, !target.hasTempId,
+              let session = detail.sessions.first(where: { $0.id == sessionId }),
+              session.laps.contains(where: { $0.id == lapId })
+        else { return nil }
+        return target
+    }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -65,6 +84,22 @@ struct LapDetailScreen: View {
         .background(Color(.bgPage))
         .navigationTitle("Lap")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let target = lapShareTarget {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        stage?.pause(announce: false)
+                        sharing = target
+                    } label: {
+                        Label("Share…", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("shareLap")
+                }
+            }
+        }
+        .sheet(item: $sharing) { target in
+            ItemShareSheet(target: target)
+        }
         .task {
             if model == nil {
                 // Held on the router, keyed by this page's route, so a resize
