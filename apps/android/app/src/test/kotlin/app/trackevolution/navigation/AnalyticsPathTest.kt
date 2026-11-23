@@ -33,6 +33,9 @@ class AnalyticsPathTest {
         Route.Shared("eric-r") to "/share/:slug",
         Route.SharedItem("e", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/e/:token",
         Route.SharedItem("s", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/s/:token",
+        // NS-56: one lap, and two laps compared.
+        Route.SharedItem("l", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/l/:token",
+        Route.SharedItem("c", "s3cr3tAAAAAAAAAAAAAAAA") to "/share/c/:token",
         Route.Lap(12, 40, 991) to "/event/:id/lap/:id",
         Route.SessionCompare(12, 40) to "/event/:id/session/:id/compare",
         Route.Wrapped(2026) to "/wrapped/2026",

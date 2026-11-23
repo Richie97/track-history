@@ -123,8 +123,8 @@ public sealed interface Route {
     public data class Shared(val slug: String) : Route
 
     /**
-     * One shared event or session (NS-48), where a `/share/e/<token>` or
-     * `/share/s/<token>` App Link lands. [kind] is the link's one-letter
+     * One shared event or session (NS-48), lap or two-lap comparison (NS-56),
+     * where a `/share/(e|s|l|c)/<token>` App Link lands. [kind] is the link's one-letter
      * prefix (`ItemShareKind.prefix`) rather than the enum, so the argument is a
      * plain string. The token is the link's whole permission: it rides the back
      * stack's saved state and never reaches analytics.

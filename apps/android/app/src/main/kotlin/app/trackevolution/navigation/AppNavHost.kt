@@ -35,6 +35,7 @@ import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.model.Entitlement
+import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
 import app.trackevolution.recording.RecordScreen
