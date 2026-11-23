@@ -31,6 +31,52 @@ export const STALE_UPLOAD_MS = 7 * 24 * 60 * 60 * 1000;
 // Tombstones drained per cron run.
 export const SWEEP_BATCH = 500;
 
+// How long /clips/<id>.mp4 remembers which R2 object a clip is, per isolate.
+// A player makes dozens of range requests for one viewing and each used to
+// read D1; with this, one in a minute does. The cost is stated: a clip whose
+// row goes by a cascade (its lap, session, event or account deleted) can keep
+// playing from a URL already handed out for up to this long. *Delete video*
+// itself forgets the key at once, where it can.
+export const CLIP_KEY_TTL_MS = 60_000;
+export const CLIP_KEY_CACHE_MAX = 500;
+
+// A small clock-injected TTL map: insertion-ordered, so the oldest entry is
+// the first key and goes when the map is full.
+export class ClipKeyCache {
+  private entries = new Map<number, { key: string; until: number }>();
+  constructor(
+    private ttlMs = CLIP_KEY_TTL_MS,
+    private max = CLIP_KEY_CACHE_MAX
+  ) {}
+
+  get(clipId: number, now: number): string | null {
+    const hit = this.entries.get(clipId);
+    if (!hit) return null;
+    if (hit.until <= now) {
+      this.entries.delete(clipId);
+      return null;
+    }
+    return hit.key;
+  }
+
+  set(clipId: number, key: string, now: number): void {
+    this.entries.delete(clipId);
+    if (this.entries.size >= this.max) {
+      const oldest = this.entries.keys().next();
+      if (!oldest.done) this.entries.delete(oldest.value);
+    }
+    this.entries.set(clipId, { key, until: now + this.ttlMs });
+  }
+
+  delete(clipId: number): void {
+    this.entries.delete(clipId);
+  }
+
+  get size(): number {
+    return this.entries.size;
+  }
+}
+
 export function partCount(size: number): number {
   return Math.max(1, Math.ceil(size / CLIP_PART_BYTES));
 }

@@ -81,3 +81,13 @@ export function bindVideoWait(video, mark) {
   };
   for (const type of EVENTS) video.addEventListener(type, handle);
 }
+
+// A video URL that opens at `seconds` — a media fragment (`#t=`), which every
+// browser reads before it fetches a frame. Setting `currentTime` once the
+// metadata is in does the same thing a request later: the browser has by then
+// started on the clip's first seconds, which are thrown away.
+export function srcAt(url, seconds) {
+  const t = Number(seconds);
+  if (!Number.isFinite(t) || t <= 0) return url;
+  return `${String(url).split("#")[0]}#t=${Math.round(t * 1000) / 1000}`;
+}

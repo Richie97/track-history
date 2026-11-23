@@ -322,6 +322,13 @@ final class LapStageModel: HeldOnRouter {
         player.actionAtItemEnd = .pause
         video.player = player
         video.observeWaiting(player)
+        // Ask for the playhead's place before the item is ready, so the first
+        // bytes fetched after the file's index are the ones shown rather than
+        // the start of the clip. `itemStatusChanged` still lands it exactly.
+        if let st = state, let ss = key == .A ? st.a : st.b, let clipMs = ss.clipMs {
+            let ms = min(max(clipMs, 0), Double(video.clip.durationMs))
+            player.seek(to: CMTime(value: CMTimeValue(ms.rounded()), timescale: 1000), toleranceBefore: .zero, toleranceAfter: .zero) { _ in }
+        }
         // KVO rather than a poll: the item says when it can play.
         video.statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self, weak video] item, _ in
             let status = item.status

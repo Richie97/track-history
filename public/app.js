@@ -8,7 +8,7 @@ import { bindChannelGraphs, bindChartSeek, channelDefs, deltaChartSvg, deltaSeri
 import { gridAtElapsed, referenceLap, stageSides, valueAt } from "./js/video-sync.js";
 import { axisAtGrid, lapAxisSeries } from "./js/lap-axis.js";
 import { VIDEO_NEEDS_CONNECTION, bindLapStage, destroyAllStages } from "./js/lap-stage.js";
-import { bindVideoWait, videoWaitHtml } from "./js/video-wait.js";
+import { bindVideoWait, srcAt, videoWaitHtml } from "./js/video-wait.js";
 import { sessionCorners } from "./js/corners.js";
 import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
@@ -2251,10 +2251,14 @@ async function showLapVideo(box, clipId) {
   const video = body.querySelector("video");
   // Bound before the src is set, so the first `loadstart` is heard.
   bindVideoWait(video, body.querySelector(".video-wait"));
-  video.src = signed.url;
-  // A couple of seconds of run-up, so the crossing is on screen.
+  // A couple of seconds of run-up, so the crossing is on screen — asked for
+  // in the URL, so the browser's first fetch after the index is that place.
   const offsetS = playbackStartMs(Number(v.offsetMs)) / 1000;
-  video.addEventListener("loadedmetadata", () => { if (offsetS > 0 && offsetS < video.duration) video.currentTime = offsetS; }, { once: true });
+  video.src = srcAt(signed.url, offsetS);
+  // The backstop, for a browser that didn't take the fragment.
+  video.addEventListener("loadedmetadata", () => {
+    if (offsetS > 0 && offsetS < video.duration && Math.abs(video.currentTime - offsetS) > 0.05) video.currentTime = offsetS;
+  }, { once: true });
   video.addEventListener("error", () => {
     if (!navigator.onLine) body.querySelector(".video-frame")?.insertAdjacentHTML("afterend", `<p class="hint">${VIDEO_NEEDS_CONNECTION}</p>`);
   }, { once: true });

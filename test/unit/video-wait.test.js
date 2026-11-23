@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WAIT_SHOW_MS, videoWaitHtml, waitingAfter } from "../../public/js/video-wait.js";
+import { WAIT_SHOW_MS, srcAt, videoWaitHtml, waitingAfter } from "../../public/js/video-wait.js";
 
 describe("waitingAfter", () => {
   it("waits on a load, a stall and a seek", () => {
@@ -38,5 +38,23 @@ describe("videoWaitHtml", () => {
 
   it("waits long enough that a buffered seek draws nothing", () => {
     expect(WAIT_SHOW_MS).toBeGreaterThanOrEqual(200);
+  });
+});
+
+describe("srcAt", () => {
+  const url = "https://example.com/clips/7.mp4?exp=1&sig=ab";
+
+  it("opens the video at a time, to the millisecond", () => {
+    expect(srcAt(url, 1.317)).toBe(`${url}#t=1.317`);
+    expect(srcAt(url, 2)).toBe(`${url}#t=2`);
+    expect(srcAt(url, 0.12345)).toBe(`${url}#t=0.123`);
+  });
+
+  it("leaves the URL alone at the start, or without a usable time", () => {
+    for (const t of [0, -1, NaN, undefined, null, Infinity]) expect(srcAt(url, t)).toBe(url);
+  });
+
+  it("replaces a fragment rather than stacking one", () => {
+    expect(srcAt(`${url}#t=9`, 3)).toBe(`${url}#t=3`);
   });
 });

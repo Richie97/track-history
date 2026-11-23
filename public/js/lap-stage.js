@@ -21,7 +21,7 @@ import { renderTrackMap } from "./trackmap.js";
 import { fmtSpeedKph, convSpeedKph, currentUnits, speedUnit } from "./units.js";
 import { ordinal } from "./gears.js";
 import { PLAYBACK_LEAD_S } from "./import/clip.js";
-import { bindVideoWait, videoWaitHtml } from "./video-wait.js";
+import { bindVideoWait, srcAt, videoWaitHtml } from "./video-wait.js";
 import {
   DEFAULT_SYNC_MODE,
   SYNC_MODES,
@@ -257,7 +257,11 @@ export function bindLapStage(container, opts) {
     try {
       const signed = await opts.clipUrl(specs[key].clip.id);
       if (st.destroyed) return;
-      vid.el.src = signed.url;
+      // Open where the playhead already is, rather than at the clip's start
+      // and then seeking: `syncVideos` on loadedmetadata still lands it.
+      const at = playheadAt(sides, st.masterKey, st.eM, st.mode);
+      const side = key === "A" ? at.a : at.b;
+      vid.el.src = srcAt(signed.url, side?.inClip ? side.clipMs / 1000 : 0);
       note.hidden = true;
     } catch (err) {
       if (st.destroyed) return;

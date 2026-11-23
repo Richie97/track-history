@@ -249,14 +249,17 @@ struct LapVideoPlayer: View {
         let item = AVPlayerItem(url: signed.url)
         let player = AVPlayer(playerItem: item)
         self.player = player
-        // Seek once the item can, so the first play starts a couple of seconds
-        // before the line and the crossing is on screen.
+        // A couple of seconds before the line, so the crossing is on screen.
+        // Asked for at once — before the item is ready — so the first bytes
+        // fetched after the file's index are the ones shown, not the start of
+        // the clip; and again once it is ready, which is what lands it exactly.
+        let offset = CMTime(value: CMTimeValue(LapClips.playbackStartMs(clip.lapOffsetMs)), timescale: 1000)
+        player.seek(to: offset, toleranceBefore: .zero, toleranceAfter: .zero) { _ in }
         while item.status == .unknown, !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(100))
         }
         switch item.status {
         case .readyToPlay:
-            let offset = CMTime(value: CMTimeValue(LapClips.playbackStartMs(clip.lapOffsetMs)), timescale: 1000)
             await player.seek(to: offset, toleranceBefore: .zero, toleranceAfter: .zero)
             ready = true
         case .failed:

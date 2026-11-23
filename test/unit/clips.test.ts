@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLIP_KEY_TTL_MS,
   CLIP_PART_BYTES,
+  ClipKeyCache,
   CLIP_URL_TTL_S,
   MAX_CLIP_BYTES,
   clipFilename,
@@ -114,5 +116,46 @@ describe("validateClipCreate", () => {
     expect(validateClipCreate({ ...ok, lap_offset_ms: 105_000 })).toEqual({ error: "invalid lap_offset_ms" });
     expect(validateClipCreate({ ...ok, duration_ms: 0 })).toEqual({ error: "invalid duration_ms" });
     for (const lap_num of [0, -2, 1.5, "2"]) expect(validateClipCreate({ ...ok, lap_num })).toEqual({ error: "invalid lap_num" });
+  });
+});
+
+describe("ClipKeyCache", () => {
+  it("remembers a key until its time is up", () => {
+    const cache = new ClipKeyCache();
+    cache.set(7, "clips/1/7.mp4", 1000);
+    expect(cache.get(7, 1000)).toBe("clips/1/7.mp4");
+    expect(cache.get(7, 1000 + CLIP_KEY_TTL_MS - 1)).toBe("clips/1/7.mp4");
+    expect(cache.get(7, 1000 + CLIP_KEY_TTL_MS)).toBeNull();
+    // An expired entry is dropped, not kept for the next read.
+    expect(cache.size).toBe(0);
+  });
+
+  it("knows nothing it wasn't told, and forgets on delete", () => {
+    const cache = new ClipKeyCache();
+    expect(cache.get(1, 0)).toBeNull();
+    cache.set(1, "a", 0);
+    cache.delete(1);
+    expect(cache.get(1, 1)).toBeNull();
+  });
+
+  it("drops the oldest entry when full", () => {
+    const cache = new ClipKeyCache(1000, 2);
+    cache.set(1, "a", 0);
+    cache.set(2, "b", 0);
+    cache.set(3, "c", 0);
+    expect(cache.size).toBe(2);
+    expect(cache.get(1, 1)).toBeNull();
+    expect(cache.get(2, 1)).toBe("b");
+    expect(cache.get(3, 1)).toBe("c");
+  });
+
+  it("a re-set entry is the newest, with a fresh life", () => {
+    const cache = new ClipKeyCache(1000, 2);
+    cache.set(1, "a", 0);
+    cache.set(2, "b", 0);
+    cache.set(1, "a", 500);
+    cache.set(3, "c", 500);
+    expect(cache.get(2, 600)).toBeNull();
+    expect(cache.get(1, 1400)).toBe("a");
   });
 });
