@@ -149,7 +149,8 @@ class GoldenContractTest {
             "measurement-delete", "part-delete", "vehicle-delete", "event-delete", "share-clear",
             "checklist-template-set", "leaderboard-opt-in", "units-set", "part-unequip",
             "coaching-invite-delete", "coaching-coach-delete", "coaching-student-delete",
-            "item-share-event-delete", "comment-delete",
+            "item-share-event-delete", "item-share-session-delete", "item-share-lap-delete",
+            "item-share-compare-delete", "comment-delete",
             -> roundTrip(entry.name, OkResponse.serializer())
 
             else -> throw AssertionError(
