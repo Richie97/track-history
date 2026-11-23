@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -216,6 +219,7 @@ internal object LapVideoText {
     const val WAITING_FOR_CONNECTION = "Video waiting for a connection"
     const val WAITING_FOR_WIFI = "Video waiting for Wi-Fi"
     const val UPLOADING = "Video uploading"
+    const val LOADING = "Loading video"
     const val RETRY_NOW = "Retry now"
     const val CUT_FAILED = "Couldn't save this lap's video."
     const val LOCKED_BLURB = "Your lap video is kept. Pro plays it, downloads it and saves new ones from a video import."
@@ -458,7 +462,18 @@ private fun Playable(
                 Text("▶ Play lap video", style = TrackTheme.typography.sm, color = colors.accentInk)
             }
             playing != null -> ClipPlayer(holder, playing, state.clip.lapOffsetMs) { message = it }
-            message == null -> Text("Loading…", style = TrackTheme.typography.sm, color = colors.textMuted)
+            // The frame the player will fill, so the card doesn't jump when the
+            // signed URL arrives.
+            message == null -> Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp)
+                    .aspectRatio(16f / 9f)
+                    .background(Color.Black, RoundedCornerShape(TrackTheme.radii.sm))
+                    .semantics { contentDescription = LapVideoText.LOADING }
+                    .testTag("lapVideoLoading"),
+                contentAlignment = Alignment.Center,
+            ) { CircularProgressIndicator(color = Color.White) }
         }
         (busy ?: message)?.let {
             Text(it, style = TrackTheme.typography.sm, color = colors.textMuted, modifier = Modifier.padding(top = 6.dp))
@@ -590,7 +605,7 @@ internal class ClipPlayerHolder(private val context: Context) : ViewModel() {
  *
  * Scrolling the card off the lap page pauses the video; a rotation does not.
  */
-@OptIn(UnstableApi::class) // PlayerView.setFullscreenButtonState
+@OptIn(UnstableApi::class) // PlayerView.setFullscreenButtonState, setShowBuffering
 @Composable
 private fun ClipPlayer(holder: ClipPlayerHolder, url: String, offsetMs: Int, onError: (String) -> Unit) {
     val context = LocalContext.current
@@ -613,6 +628,9 @@ private fun ClipPlayer(holder: ClipPlayerHolder, url: String, offsetMs: Int, onE
     AndroidView(
         factory = {
             PlayerView(it).apply {
+                // The first frame, a seek and a slow connection each leave a
+                // black or frozen picture; say so rather than look broken.
+                setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                 // Only the way in: `setFullscreenButtonState` below calls this
                 // listener too, and must not reopen what Back just closed.
                 setFullscreenButtonClickListener { entering -> if (entering) holder.fullscreen = true }
@@ -645,6 +663,7 @@ private fun ClipPlayer(holder: ClipPlayerHolder, url: String, offsetMs: Int, onE
             AndroidView(
                 factory = {
                     PlayerView(it).apply {
+                        setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                         setFullscreenButtonState(true)
                         setFullscreenButtonClickListener { entering -> if (!entering) holder.fullscreen = false }
                     }

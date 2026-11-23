@@ -400,7 +400,8 @@ private struct RestoringScroll<Content: View>: View {
 
 // MARK: - Slots
 
-/// A side's video: the picture, its chip, and a spinner until it can play.
+/// A side's video: the picture, its chip, and a spinner until it can play —
+/// and again whenever it is told to play and has to wait on the network.
 private struct VideoSlot: View {
     let model: LapStageModel
     let key: VideoSync.SideKey
@@ -411,7 +412,7 @@ private struct VideoSlot: View {
         let video = model.videos[key]
         ZStack(alignment: .topLeading) {
             StageVideoView(player: video?.player)
-            if video?.isReady != true {
+            if video?.isReady != true || video?.isBuffering == true {
                 ProgressView()
                     .tint(.white)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -425,7 +426,7 @@ private struct VideoSlot: View {
         .clipShape(RoundedRectangle(cornerRadius: rounded ? TERadius.md : 0))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(model.input(key)?.chip ?? "Lap") video")
-        .accessibilityValue(video?.isReady == true ? "ready" : "loading")
+        .accessibilityValue(video?.isReady != true ? "loading" : video?.isBuffering == true ? "buffering" : "ready")
         .accessibilityIdentifier("stageVideo\(key.rawValue)")
     }
 }
