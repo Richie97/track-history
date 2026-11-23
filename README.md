@@ -54,7 +54,8 @@ and schema.org structured data on every page (the landing page's includes the
 app, its prices, the promo video and a visible FAQ), plus `site/sitemap.xml`,
 `site/robots.txt` and `site/llms.txt` — a plain-language index an assistant
 can read in one request. The app host has its own `public/robots.txt` and
-`public/llms.txt`; unlisted share links (`/share/e/…`, `/share/s/…`) answer
+`public/llms.txt`; unlisted share links (`/share/e/…`, `/share/s/…`,
+`/share/l/…`, `/share/c/…`) answer
 `X-Robots-Tag: noindex`. `test/unit/site-seo.test.js` keeps the pages, the
 sitemap, `llms.txt` and the FAQ markup in step; after the first deploy, submit
 `https://trackevolution.app/sitemap.xml` and
@@ -2082,6 +2083,26 @@ Wrapped, which is free.
   the web the page is `viewEvent` itself, read-only, through the `sharedView`
   seam in `app.js`. Sharing is free; `no-store` everywhere so *Stop sharing*
   takes effect on the next load.
+- **Share one lap, or two laps compared** (NS-56,
+  `docs/specs/native/NS-56-share-lap-compare.md`): two more kinds of the same
+  link — `/share/l/<token>` and `/share/c/<token>` — on the same `item_shares`
+  table (migration 0039 adds `lap_id` / `lap_b_id` and re-cuts the
+  one-link-per-item indexes by kind). The owner routes are
+  `/api/laps/:id/share` and `/api/laps/:id/compare/:otherId/share` (two of the
+  caller's laps at one track, ordered A then B). A lap link's payload is the
+  session share's cut down again by `sharedLap`: the one lap row, its own
+  channel entry (paired over the whole session first, so a lap that shares its
+  time with another gets its own), and the session's trace only when the lap
+  is the one it was drawn from. A comparison answers `{ a, b }`, each side a
+  lap link's payload, so the laps can come from different days. On the web a
+  session's *Share* panel has a chooser — the session, one of its laps, or
+  that lap *compared with* another — and the track's *Compare two laps* page
+  has *Share* for the picked pair; a lap or pair with no link yet shows
+  *Create link* instead of minting one per selection. The shared comparison
+  is the compare page's own rendering (`renderLapPair`) without the pickers,
+  and follows the owner's tier: a free owner's link shows the two lap times
+  and says why. On the phones *Share…* is on the lap page, the session
+  compare (the first two lit laps) and the track's two-lap compare.
 - **Per-track leaderboards** are strictly **opt-in** (Settings → Leaderboards,
   or the join button on the leaderboard itself; `users.leaderboard_opt_in`).
   The board is **its own page behind a *Leaderboard* button on the track page**

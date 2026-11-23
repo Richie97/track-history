@@ -1507,7 +1507,8 @@ button.footer-link { background: none; border: 0; padding: 0; font-family: inher
 .invite-link input { flex: 1 1 260px; min-width: 0; font-family: var(--font-mono, monospace); font-size: var(--fs-sm); }
 
 /* ---------- Share ---------- */
-/* One event's or session's link (NS-48), in a panel under its Share button. */
+/* One event's, session's, lap's or lap pair's link (NS-48, NS-56), in a panel
+   under its Share button. */
 .share-item { margin: 10px 0 14px; }
 .session .share-item { margin: 8px 0 12px; }
 .share-item .btn-row { align-items: center; }
@@ -1517,6 +1518,9 @@ button.footer-link { background: none; border: 0; padding: 0; font-family: inher
   background: var(--surface-input); color: var(--text-strong);
   font-family: var(--font-mono, monospace); font-size: var(--fs-sm);
 }
+/* A session's panel: what the link is to — the session, a lap, a lap pair. */
+.share-what { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 10px; font-size: var(--fs-sm); color: var(--text-muted); }
+.share-what select { margin-left: 6px; }
 .share-item .goal-msg { color: var(--text-muted); font-size: var(--fs-xs); }
 .shared-by { margin: -6px 0 12px; }
 .share-badge {

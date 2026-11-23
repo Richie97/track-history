@@ -272,6 +272,60 @@
       "source": "src/routes/itemSharePublic.ts"
     },
     {
+      "name": "item-share-lap-create",
+      "file": "item-share-lap-create.json",
+      "method": "POST",
+      "path": "/laps/:id/share",
+      "status": 201,
+      "description": "Share one lap: the same shape with kind \"lap\" and a /share/l/ link.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-lap",
+      "file": "item-share-lap.json",
+      "method": "GET",
+      "path": "/laps/:id/share",
+      "status": 200,
+      "description": "The lap's share link if there is one; 404 when it isn't shared.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-compare-create",
+      "file": "item-share-compare-create.json",
+      "method": "POST",
+      "path": "/laps/:id/compare/:otherId/share",
+      "status": 201,
+      "description": "Share two laps compared (lap :id is side A, :otherId side B, both the caller's and at one track): kind \"compare\" and a /share/c/ link.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-compare",
+      "file": "item-share-compare.json",
+      "method": "GET",
+      "path": "/laps/:id/compare/:otherId/share",
+      "status": 200,
+      "description": "The comparison's share link if there is one; 404 when it isn't shared.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "shared-lap",
+      "file": "shared-lap.json",
+      "method": "GET",
+      "path": "/share/l/:token",
+      "status": 200,
+      "description": "A shared lap (unauthenticated): the shared-session shape cut down to the one lap — its row, its own channel entry, the header's figures its own — with `lap_id` naming it. The trace is kept only when the lap is the session's best, the lap it was drawn from.",
+      "source": "src/routes/itemSharePublic.ts"
+    },
+    {
+      "name": "shared-compare",
+      "file": "shared-compare.json",
+      "method": "GET",
+      "path": "/share/c/:token",
+      "status": 200,
+      "description": "Two shared laps compared (unauthenticated): { kind, name, pro, a, b }, each side { session_id, lap_id, event } with `event` as in a shared lap.",
+      "source": "src/routes/itemSharePublic.ts"
+    },
+    {
       "name": "event-create",
       "file": "event-create.json",
       "method": "POST",
@@ -530,6 +584,24 @@
       "path": "/sessions/:id/share",
       "status": 404,
       "description": "Stop sharing a session.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-lap-delete",
+      "file": "item-share-lap-delete.json",
+      "method": "DELETE",
+      "path": "/laps/:id/share",
+      "status": 404,
+      "description": "Stop sharing the lap.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-compare-delete",
+      "file": "item-share-compare-delete.json",
+      "method": "DELETE",
+      "path": "/laps/:id/compare/:otherId/share",
+      "status": 404,
+      "description": "Stop sharing the comparison.",
       "source": "src/routes/itemShare.ts"
     },
     {

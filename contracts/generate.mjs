@@ -81,8 +81,8 @@ function normalize(value, key) {
   // A one-item share link (NS-48) carries a fresh random token and the
   // harness's port.
   if (key === "token" && typeof value === "string" && /^[A-Za-z0-9_-]{22}$/.test(value)) return "AAAAAAAAAAAAAAAAAAAAAA";
-  if (key === "url" && typeof value === "string" && /\/share\/[es]\//.test(value)) {
-    return value.replace(/^https?:\/\/[^/]+(\/share\/[es]\/).*$/, "https://trackevolution.app$1AAAAAAAAAAAAAAAAAAAAAA");
+  if (key === "url" && typeof value === "string" && /\/share\/[eslc]\//.test(value)) {
+    return value.replace(/^https?:\/\/[^/]+(\/share\/[eslc]\/).*$/, "https://trackevolution.app$1AAAAAAAAAAAAAAAAAAAAAA");
   }
   // A coach invite link carries a fresh random token and the harness's port.
   if (key === "url" && typeof value === "string" && value.includes("/coach/")) {
@@ -706,6 +706,33 @@ async function captureAll(api, anon, f) {
     "header's best, lap count, consistency and weather worked out from it alone.",
     "src/routes/itemSharePublic.ts", await anon("GET", `/share/s/${sessShare.body.token}`));
 
+  // --- share one lap, or two laps compared (NS-56) --------------------------
+  // The rich event's first channel-carrying session: its first two laps.
+  const shareSession = (await api("GET", `/events/${ev}`)).body.sessions.find((s) => s.id === sess);
+  const [shareLapA, shareLapB] = shareSession.laps;
+  const lapShare = record("item-share-lap-create", "POST", "/laps/:id/share",
+    "Share one lap: the same shape with kind \"lap\" and a /share/l/ link.",
+    "src/routes/itemShare.ts", await api("POST", `/laps/${shareLapA.id}/share`));
+  record("item-share-lap", "GET", "/laps/:id/share",
+    "The lap's share link if there is one; 404 when it isn't shared.",
+    "src/routes/itemShare.ts", await api("GET", `/laps/${shareLapA.id}/share`));
+  const cmpShare = record("item-share-compare-create", "POST", "/laps/:id/compare/:otherId/share",
+    "Share two laps compared (lap :id is side A, :otherId side B, both the caller's and at " +
+    "one track): kind \"compare\" and a /share/c/ link.",
+    "src/routes/itemShare.ts", await api("POST", `/laps/${shareLapA.id}/compare/${shareLapB.id}/share`));
+  record("item-share-compare", "GET", "/laps/:id/compare/:otherId/share",
+    "The comparison's share link if there is one; 404 when it isn't shared.",
+    "src/routes/itemShare.ts", await api("GET", `/laps/${shareLapA.id}/compare/${shareLapB.id}/share`));
+  record("shared-lap", "GET", "/share/l/:token",
+    "A shared lap (unauthenticated): the shared-session shape cut down to the one lap — its " +
+    "row, its own channel entry, the header's figures its own — with `lap_id` naming it. The " +
+    "trace is kept only when the lap is the session's best, the lap it was drawn from.",
+    "src/routes/itemSharePublic.ts", await anon("GET", `/share/l/${lapShare.body.token}`));
+  record("shared-compare", "GET", "/share/c/:token",
+    "Two shared laps compared (unauthenticated): { kind, name, pro, a, b }, each side " +
+    "{ session_id, lap_id, event } with `event` as in a shared lap.",
+    "src/routes/itemSharePublic.ts", await anon("GET", `/share/c/${cmpShare.body.token}`));
+
   // --- writes -------------------------------------------------------------
   record("event-create", "POST", "/events", "Create an event.", "src/routes/events.ts",
     await api("POST", "/events", { track_name: "Watkins Glen", start_date: "2026-07-04" }));
@@ -808,6 +835,12 @@ async function captureAll(api, anon, f) {
   record("item-share-session-delete", "DELETE", "/sessions/:id/share",
     "Stop sharing a session.",
     "src/routes/itemShare.ts", await api("DELETE", `/sessions/${sess}/share`));
+  record("item-share-lap-delete", "DELETE", "/laps/:id/share",
+    "Stop sharing the lap.",
+    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/share`));
+  record("item-share-compare-delete", "DELETE", "/laps/:id/compare/:otherId/share",
+    "Stop sharing the comparison.",
+    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/compare/${shareLapB.id}/share`));
 
   // --- errors -------------------------------------------------------------
   // Every client surfaces err.message from these, so the { error: string }
@@ -1037,6 +1070,11 @@ const EXPECTED_ROUTES = [
   "POST /events/:id/share", "GET /events/:id/share", "DELETE /events/:id/share",
   "POST /sessions/:id/share", "GET /sessions/:id/share", "DELETE /sessions/:id/share",
   "GET /share/e/:token", "GET /share/s/:token",
+  // Share one lap, or two laps compared (NS-56).
+  "POST /laps/:id/share", "GET /laps/:id/share", "DELETE /laps/:id/share",
+  "POST /laps/:id/compare/:otherId/share", "GET /laps/:id/compare/:otherId/share",
+  "DELETE /laps/:id/compare/:otherId/share",
+  "GET /share/l/:token", "GET /share/c/:token",
   // Share with a coach (NS-38).
   "GET /me/profile", "PUT /me/profile",
   "GET /coaching", "POST /coaching/invites", "DELETE /coaching/invites/:id",

@@ -91,6 +91,7 @@
       "vehicle_id": null
     },
     "kind": "session",
+    "lap_id": null,
     "name": "Dev User",
     "pro": true,
     "session_id": 1
