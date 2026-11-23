@@ -14,6 +14,7 @@ A personal HPDE/track-day logbook on Cloudflare Workers + D1 (SQLite): tracks �
 npm install
 npm run seed:generate       # writes seed/seed.sql from seed data (see below)
 npm run landing:generate    # regenerates the app host's landing page from site/ (see the site/index.html bullet)
+npm run site:howto          # rewrites the docs pages' HowTo structured data from their marked step lists (see the SEO bullet)
 node seed/cars/generate.mjs # regenerates migrations/0024_car_catalog.sql from seed/cars/ (see Seed)
 npm run db:migrate:local    # applies migrations/ to the local D1 SQLite
 npm run db:seed:local       # loads seed/seed.sql locally
@@ -257,7 +258,9 @@ not a follow-up:**
      collection, storage, or sharing behavior changes, and bump the effective
      date on any substantive edit.
    - `site/docs/account-deletion.html` — how to request account deletion
-     (a `mailto:eric@speedshift.io` request from the sign-in email). Exists as
+     (a `mailto:eric@speedshift.io` request from the sign-in email; *The
+     steps* at its top is the short numbered form of the sections under it,
+     so an edit to either owes the other). Exists as
      a stable https URL for app-store listings that require one; keep it in
      step with the privacy policy's retention/deletion section.
    - **The site is written for users, not developers** — keep implementation
@@ -285,7 +288,21 @@ not a follow-up:**
      `llms.txt` and the landing page's FAQ and offers. The FAQ is visible
      content (`#faq`) and its markup must say the same words — never mark
      up a question the page doesn't show, and never add a rating or review
-     to the structured data without a real source. A re-cut promo owes the
+     to the structured data without a real source. **A numbered procedure
+     is also marked up as a schema.org `HowTo`** (#458): a list written
+     `<ol id="howto-…">` gets one HowTo node at the end of its page's
+     `@graph`, a `HowToStep` per `<li>` whose text is the item's visible
+     text, named `<h1>: <the heading the list sits under>`. The markup is
+     **generated** by `tools/site-howto.mjs` (`npm run site:howto`) and
+     never hand-edited, so **an edit to a marked list's steps, its heading
+     or its page's `<h1>` owes a regenerate**, and the test fails until it
+     is done. Marked today: the six per-source import pages (their browser
+     and phone lists), `lap-recording.html` (*How it works*), `ai.html`
+     (*Connecting Claude*), `index.html` (*Share with a coach*) and
+     `account-deletion.html` (*The steps*). Mark a list only when it is a
+     procedure the reader follows in order — not a schedule or a checklist
+     — and keep its `<li>`s plain (no nested list). Google no longer shows
+     HowTo rich results; this is for answer engines. A re-cut promo owes the
      VideoObject its id and upload date. `test/unit/site-seo.test.js` pins
      the lot. On the app host, `public/robots.txt` keeps crawlers off the
      API and auth paths but **leaves `/share/` crawlable** (a Disallow would

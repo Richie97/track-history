@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && tsc -p test --noEmit",
     "landing:generate": "node tools/landing.mjs",
+    "site:howto": "node tools/site-howto.mjs",
     "seed:generate": "node seed/generate.mjs",
     "contracts:generate": "node contracts/generate.mjs",
     "contracts:logic": "node contracts/logic.mjs",
