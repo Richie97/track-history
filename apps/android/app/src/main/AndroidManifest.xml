@@ -12,12 +12,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Lap recording. Background location is what lets fixes keep flowing with
-         the phone locked in the driver's pocket; the foreground service is how
-         Android 14+ allows it at all. -->
+    <!-- Lap recording. A recording is always started from the visible app, and
+         a location-typed foreground service started that way keeps receiving
+         fixes with the phone locked on "while using the app" alone. The
+         "allow all the time" permission is therefore NOT declared: nothing
+         here requests it, and Play rejects an app that declares it without a
+         prominent in-app disclosure (checkReleaseHasNoCarApp's sibling check
+         in app/build.gradle.kts keeps it out). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Best-lap video uploads (NS-45): a 150 MB clip outlasts the ordinary

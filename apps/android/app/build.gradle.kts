@@ -370,6 +370,17 @@ tasks.register("checkReleaseHasNoCarApp") {
                 "track blocks phone updates too. Move these to src/debug:\n  " +
                 declaring.joinToString("\n  ")
         }
+
+        // The other declaration a store review reads off the artifact. Nothing
+        // in src/main requests "allow all the time" location — a recording
+        // starts from the visible app and runs in a location foreground
+        // service — and Play rejected the app for declaring it without a
+        // prominent disclosure.
+        check(!mainManifest.readText().contains("ACCESS_BACKGROUND" + "_LOCATION")) {
+            "src/main/AndroidManifest.xml must not declare background location. " +
+                "Play's Prominent Disclosure policy rejects it; the recorder does " +
+                "not need it. Debug-only uses belong in src/debug."
+        }
     }
 }
 

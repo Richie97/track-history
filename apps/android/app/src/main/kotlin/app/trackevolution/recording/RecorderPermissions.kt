@@ -47,10 +47,10 @@ enum class RecorderBlocker(val message: String) {
  * (NS-18); this is the part worth keeping out of a composable and testable by
  * inspection.
  *
- * The staging matters and is not ours to choose: Android **rejects** a combined
- * fine + background request. Fine location comes first with a rationale, and
- * background ("allow all the time") is a separate, later ask — after which the
- * system may simply stop showing the dialog, and the only route left is Settings.
+ * Only "while using the app" location is ever requested. Background ("allow
+ * all the time") location is declared by debug builds alone, for the recorder
+ * harness: a recording is started from the visible app, and a location-typed
+ * foreground service started that way keeps its fixes with the phone locked.
  */
 object RecorderPermissions {
 
@@ -61,10 +61,10 @@ object RecorderPermissions {
         granted(context, Manifest.permission.ACCESS_COARSE_LOCATION)
 
     /**
-     * Not required to record while the app is foregrounded with a
-     * location-typed foreground service, but required for the service to keep
-     * receiving fixes once the app is no longer visible — which is the whole
-     * point on a track day.
+     * Debug harness only. Not required to record: the foreground service is
+     * started while the app is visible and keeps receiving fixes after it no
+     * longer is. Release builds do not declare the permission, so there this
+     * is always false on Android 10+.
      */
     fun hasBackgroundLocation(context: Context): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
