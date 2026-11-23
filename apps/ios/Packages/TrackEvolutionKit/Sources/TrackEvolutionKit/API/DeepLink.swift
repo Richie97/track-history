@@ -27,7 +27,9 @@ public enum DeepLink: Hashable, Sendable {
     /// Someone's public logbook — including your own, when you tap your own link.
     case shared(slug: String)
     /// One shared event or session (NS-48): `https://<host>/share/e/<token>` or
-    /// `/share/s/<token>`. Opens read-only, like a shared logbook.
+    /// `/share/s/<token>` — and one lap or two laps compared (NS-56):
+    /// `/share/l/<token>`, `/share/c/<token>`. Opens read-only, like a shared
+    /// logbook.
     case sharedItem(kind: ItemShareKind, token: String)
     /// A coaching invite (NS-38): `https://<host>/coach/<token>`, the link a
     /// driver sends their coach. The accept screen previews it; nothing is
@@ -60,7 +62,8 @@ public enum DeepLink: Hashable, Sendable {
         guard url.scheme == "https" || url.scheme == "http" else { return nil }
         let segments = pathSegments(components.path)
         // /share/e/<token> and /share/s/<token> (NS-48): one event or one
-        // session. Ahead of the slug rule, which would otherwise read the
+        // session — and /share/l/<token>, /share/c/<token> (NS-56): one lap, or
+        // two compared. Ahead of the slug rule, which would otherwise read the
         // letter as a slug — and a slug is three characters at least, so a
         // one-letter segment is never a logbook. A malformed token is nobody's
         // link: the dashboard, rather than a request bound to 404.

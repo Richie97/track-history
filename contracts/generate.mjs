@@ -732,6 +732,14 @@ async function captureAll(api, anon, f) {
     "Two shared laps compared (unauthenticated): { kind, name, pro, a, b }, each side " +
     "{ session_id, lap_id, event } with `event` as in a shared lap.",
     "src/routes/itemSharePublic.ts", await anon("GET", `/share/c/${cmpShare.body.token}`));
+  // Stopped here rather than with the other deletes below: the write captures
+  // in between replace this session's laps, and the links go with them.
+  record("item-share-lap-delete", "DELETE", "/laps/:id/share",
+    "Stop sharing the lap.",
+    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/share`));
+  record("item-share-compare-delete", "DELETE", "/laps/:id/compare/:otherId/share",
+    "Stop sharing the comparison.",
+    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/compare/${shareLapB.id}/share`));
 
   // --- writes -------------------------------------------------------------
   record("event-create", "POST", "/events", "Create an event.", "src/routes/events.ts",
@@ -835,12 +843,6 @@ async function captureAll(api, anon, f) {
   record("item-share-session-delete", "DELETE", "/sessions/:id/share",
     "Stop sharing a session.",
     "src/routes/itemShare.ts", await api("DELETE", `/sessions/${sess}/share`));
-  record("item-share-lap-delete", "DELETE", "/laps/:id/share",
-    "Stop sharing the lap.",
-    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/share`));
-  record("item-share-compare-delete", "DELETE", "/laps/:id/compare/:otherId/share",
-    "Stop sharing the comparison.",
-    "src/routes/itemShare.ts", await api("DELETE", `/laps/${shareLapA.id}/compare/${shareLapB.id}/share`));
 
   // --- errors -------------------------------------------------------------
   // Every client surfaces err.message from these, so the { error: string }

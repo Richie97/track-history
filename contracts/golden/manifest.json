@@ -326,6 +326,24 @@
       "source": "src/routes/itemSharePublic.ts"
     },
     {
+      "name": "item-share-lap-delete",
+      "file": "item-share-lap-delete.json",
+      "method": "DELETE",
+      "path": "/laps/:id/share",
+      "status": 200,
+      "description": "Stop sharing the lap.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
+      "name": "item-share-compare-delete",
+      "file": "item-share-compare-delete.json",
+      "method": "DELETE",
+      "path": "/laps/:id/compare/:otherId/share",
+      "status": 200,
+      "description": "Stop sharing the comparison.",
+      "source": "src/routes/itemShare.ts"
+    },
+    {
       "name": "event-create",
       "file": "event-create.json",
       "method": "POST",
@@ -584,24 +602,6 @@
       "path": "/sessions/:id/share",
       "status": 404,
       "description": "Stop sharing a session.",
-      "source": "src/routes/itemShare.ts"
-    },
-    {
-      "name": "item-share-lap-delete",
-      "file": "item-share-lap-delete.json",
-      "method": "DELETE",
-      "path": "/laps/:id/share",
-      "status": 404,
-      "description": "Stop sharing the lap.",
-      "source": "src/routes/itemShare.ts"
-    },
-    {
-      "name": "item-share-compare-delete",
-      "file": "item-share-compare-delete.json",
-      "method": "DELETE",
-      "path": "/laps/:id/compare/:otherId/share",
-      "status": 404,
-      "description": "Stop sharing the comparison.",
       "source": "src/routes/itemShare.ts"
     },
     {

@@ -7,7 +7,8 @@ import Foundation
 /// report counts a screen across the web, Android (`Route.analyticsPath`, under
 /// the same name) and here. Every id becomes `:id`, a share page is
 /// `/share/:slug`, a shared event or session `/share/e/:token` or
-/// `/share/s/:token`, and an invite is `/coach`, never its token; the one value kept
+/// `/share/s/:token` (a lap `/share/l/:token`, a comparison `/share/c/:token`),
+/// and an invite is `/coach`, never its token; the one value kept
 /// is Wrapped's year, as on the web. The screens the web doesn't have — the
 /// recorder, the importer, a lap — get paths in the same idiom.
 ///
@@ -29,6 +30,8 @@ extension Route {
         // permission and never leaves the device.
         case .sharedItem(.event, _): "/share/e/:token"
         case .sharedItem(.session, _): "/share/s/:token"
+        case .sharedItem(.lap, _): "/share/l/:token"
+        case .sharedItem(.compare, _): "/share/c/:token"
         case .lap: "/event/:id/lap/:id"
         // Android's shape for the same screen; the web's is the event page.
         case .sessionCompare: "/event/:id/session/:id/compare"
