@@ -15,7 +15,7 @@ describe("the catalog", () => {
     const user = await signedInUser();
     const rows = (await user.api("GET", "/catalog")).body as any[];
     const vir = rows.find((r) => r.name === "Virginia International Raceway (Full)");
-    expect(vir).toMatchObject({ lat: 36.5617, lon: -79.2047, length_m: 5262 });
+    expect(vir).toMatchObject({ lat: 36.5625, lon: -79.2053, length_m: 5262 });
     expect(rows.every((r) => typeof r.lat === "number" && typeof r.lon === "number")).toBe(true);
     expect(Object.keys(vir).sort()).toEqual(["id", "lat", "length_m", "lon", "name"]);
   });
@@ -70,6 +70,6 @@ describe("a track's own place", () => {
     expect((await student.api("PUT", "/share", { slug: "placed-laps" })).status).toBe(200);
     const shared = await SELF.fetch("https://example.com/api/share/placed-laps");
     expect(shared.status).toBe(200);
-    expect(JSON.stringify(await shared.json())).not.toMatch(/"geo"|36\.56/);
+    expect(JSON.stringify(await shared.json())).not.toMatch(/"geo"|36\.5[67]/);
   });
 });

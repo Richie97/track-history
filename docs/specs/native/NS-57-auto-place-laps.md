@@ -259,11 +259,12 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
   (`eventForDate`), so a file on Saturday never lands in Sunday's event.
 - **Attaching is per file.** Files that join an existing event form that
   event's card; the rest group by track and consecutive dates.
-- **The catalog's coordinates are venue-accurate, not surveyed.** Migration
-  `0040` holds each circuit's published point; thirteen rows are marked
-  `ESTIMATE` in the file and need checking against a map before the migration
-  is applied remotely. Layouts are told apart by length, so a point only has
-  to fall within `VENUE_RADIUS_M`.
+- **The catalog's coordinates are OpenStreetMap's.** Migration `0040` holds
+  the centre of the bounding box OSM has for each circuit or its venue. Seven
+  rows have no object of their own there (both NJMP circuits, Summit Point
+  Shenandoah, both Thunderhill courses, VIR North and South) and sit inside
+  the venue OSM does map; layouts are told apart by length, so a point only
+  has to fall within `VENUE_RADIUS_M`.
 - **The two radii and the tolerance are still first guesses** — the sandbox
   had no real footage. The committed fixtures are 1.9 km synthetic circles
   near VIR, which is why they match no catalog layout.

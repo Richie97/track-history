@@ -5,74 +5,74 @@
 -- `length_m` (0026) is what tells one layout of a venue from another, so a
 -- coordinate here only has to be right to about a kilometre.
 --
--- Unmarked rows are the circuit's published coordinate (its Wikipedia infobox
--- point, read from search summaries — the sandbox this was written in could
--- not open a map). Rows marked ESTIMATE had no source found and must be
--- checked against a map before this migration is applied remotely; a wrong
--- one only means that track is not recognised, and is corrected by a new
--- migration once this one has been applied.
+-- Each is the centre of the bounding box OpenStreetMap holds for the circuit
+-- or its venue (Nominatim search, 2026-11; data (c) OpenStreetMap contributors,
+-- ODbL), rounded to four decimals. The commented rows are the ones OSM has no
+-- object of their own for: they sit inside the venue OSM does map, which is all
+-- the venue radius needs. A wrong one only means that track is not recognised,
+-- and is corrected by a new migration once this one has been applied.
 --
 -- GET /api/catalog now selects lat, lon and length_m beside id and name.
 
 ALTER TABLE track_catalog ADD COLUMN lat REAL;
 ALTER TABLE track_catalog ADD COLUMN lon REAL;
 
-UPDATE track_catalog SET lat = 34.4347, lon = -84.1769 WHERE name = 'Atlanta Motorsports Park';
-UPDATE track_catalog SET lat = 41.4547, lon = -88.1272 WHERE name = 'Autobahn Country Club';
-UPDATE track_catalog SET lat = 33.5325, lon = -86.6189 WHERE name = 'Barber Motorsports Park';
-UPDATE track_catalog SET lat = 42.4881, lon = -89.1154 WHERE name = 'Blackhawk Farms Raceway';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 46.4171, lon = -94.2731 WHERE name = 'Brainerd International Raceway';
-UPDATE track_catalog SET lat = 35.4913, lon = -119.5449 WHERE name = 'Buttonwillow Raceway Park';
-UPDATE track_catalog SET lat = 34.4877, lon = -80.5970 WHERE name = 'Carolina Motorsports Park';
-UPDATE track_catalog SET lat = 35.3525, lon = -80.6825 WHERE name = 'Charlotte Motor Speedway (Roval)';
-UPDATE track_catalog SET lat = 33.7536, lon = -115.3197 WHERE name = 'Chuckwalla Valley Raceway';
-UPDATE track_catalog SET lat = 30.1328, lon = -97.6411 WHERE name = 'Circuit of the Americas';
-UPDATE track_catalog SET lat = 29.1856, lon = -81.0694 WHERE name = 'Daytona International Speedway (Road Course)';
-UPDATE track_catalog SET lat = 38.1388, lon = -77.5046 WHERE name = 'Dominion Raceway';
-UPDATE track_catalog SET lat = 33.3669, lon = -97.4272 WHERE name = 'Eagles Canyon Raceway';
-UPDATE track_catalog SET lat = 42.4086, lon = -86.1381 WHERE name = 'Gingerman Raceway';
-UPDATE track_catalog SET lat = 43.0957, lon = -85.3831 WHERE name = 'Grattan Raceway';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 36.2211, lon = -96.5931 WHERE name = 'Hallett Motor Racing Circuit';
-UPDATE track_catalog SET lat = 29.9189, lon = -97.8733 WHERE name = 'Harris Hill Raceway';
-UPDATE track_catalog SET lat = 39.7355, lon = -103.8945 WHERE name = 'High Plains Raceway';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 25.4519, lon = -80.4086 WHERE name = 'Homestead-Miami Speedway (Road Course)';
-UPDATE track_catalog SET lat = 39.7948, lon = -86.2350 WHERE name = 'Indianapolis Motor Speedway (Road Course)';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 32.2247, lon = -110.0078 WHERE name = 'Inde Motorsports Ranch';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 36.5842, lon = -121.7536 WHERE name = 'Laguna Seca (WeatherTech Raceway)';
-UPDATE track_catalog SET lat = 41.9277, lon = -73.3836 WHERE name = 'Lime Rock Park';
-UPDATE track_catalog SET lat = 42.6230, lon = -83.2945 WHERE name = 'M1 Concourse';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 40.6893, lon = -82.6364 WHERE name = 'Mid-Ohio Sports Car Course';
-UPDATE track_catalog SET lat = 32.5238, lon = -97.6166 WHERE name = 'MotorSport Ranch (Cresson)';
-UPDATE track_catalog SET lat = 29.2781, lon = -95.4224 WHERE name = 'MSR Houston';
-UPDATE track_catalog SET lat = 37.0020, lon = -86.3650 WHERE name = 'NCM Motorsports Park';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 41.3074, lon = -81.0152 WHERE name = 'Nelson Ledges Road Course';
-UPDATE track_catalog SET lat = 39.3555, lon = -75.0700 WHERE name = 'New Jersey Motorsports Park (Lightning)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 39.3610, lon = -75.0610 WHERE name = 'New Jersey Motorsports Park (Thunderbolt)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 29.8836, lon = -90.1978 WHERE name = 'NOLA Motorsports Park';
-UPDATE track_catalog SET lat = 45.3624, lon = -120.7469 WHERE name = 'Oregon Raceway Park';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 38.2712, lon = -92.8901 WHERE name = 'Ozarks International Raceway';
-UPDATE track_catalog SET lat = 47.3201, lon = -122.1452 WHERE name = 'Pacific Raceways';
-UPDATE track_catalog SET lat = 42.2361, lon = -72.2444 WHERE name = 'Palmer Motorsports Park';
-UPDATE track_catalog SET lat = 40.8490, lon = -80.3422 WHERE name = 'Pittsburgh International Race Complex';
-UPDATE track_catalog SET lat = 41.0554, lon = -75.5115 WHERE name = 'Pocono Raceway';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 45.5969, lon = -122.6958 WHERE name = 'Portland International Raceway';
-UPDATE track_catalog SET lat = 39.5828, lon = -86.7425 WHERE name = 'Putnam Park Road Course';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 43.7975, lon = -87.9939 WHERE name = 'Road America';
-UPDATE track_catalog SET lat = 34.1467, lon = -83.8178 WHERE name = 'Road Atlanta';
-UPDATE track_catalog SET lat = 32.1697, lon = -81.3233 WHERE name = 'Roebling Road Raceway';
-UPDATE track_catalog SET lat = 27.4547, lon = -81.3483 WHERE name = 'Sebring International Raceway';
-UPDATE track_catalog SET lat = 38.1608, lon = -122.4550 WHERE name = 'Sonoma Raceway';
-UPDATE track_catalog SET lat = 34.8777, lon = -118.2585 WHERE name = 'Streets of Willow';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 39.2365, lon = -77.9655 WHERE name = 'Summit Point (Jefferson Circuit)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 39.2344, lon = -77.9753 WHERE name = 'Summit Point (Main Circuit)';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 39.2410, lon = -77.9760 WHERE name = 'Summit Point (Shenandoah Circuit)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 47.2557, lon = -123.1903 WHERE name = 'The Ridge Motorsports Park';
-UPDATE track_catalog SET lat = 41.9818, lon = -71.8255 WHERE name = 'Thompson Speedway Motorsports Park';
-UPDATE track_catalog SET lat = 39.5405, lon = -122.3385 WHERE name = 'Thunderhill Raceway (2-Mile)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 39.5403, lon = -122.3307 WHERE name = 'Thunderhill Raceway (3-Mile)';  -- secondary source; confirm against a map
-UPDATE track_catalog SET lat = 40.5750, lon = -112.3747 WHERE name = 'Utah Motorsports Campus';
-UPDATE track_catalog SET lat = 36.5617, lon = -79.2047 WHERE name = 'Virginia International Raceway (Full)';
-UPDATE track_catalog SET lat = 36.5655, lon = -79.2055 WHERE name = 'Virginia International Raceway (North)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 36.5565, lon = -79.2050 WHERE name = 'Virginia International Raceway (South)';  -- ESTIMATE, unsourced; confirm against a map
-UPDATE track_catalog SET lat = 42.3369, lon = -76.9272 WHERE name = 'Watkins Glen International';
-UPDATE track_catalog SET lat = 34.8750, lon = -118.2644 WHERE name = 'Willow Springs (Big Willow)';  -- secondary source; confirm against a map
+UPDATE track_catalog SET lat = 34.4350, lon = -84.1765 WHERE name = 'Atlanta Motorsports Park';
+UPDATE track_catalog SET lat = 41.4539, lon = -88.1265 WHERE name = 'Autobahn Country Club';
+UPDATE track_catalog SET lat = 33.5333, lon = -86.6192 WHERE name = 'Barber Motorsports Park';
+UPDATE track_catalog SET lat = 42.4878, lon = -89.1104 WHERE name = 'Blackhawk Farms Raceway';
+UPDATE track_catalog SET lat = 46.4161, lon = -94.2751 WHERE name = 'Brainerd International Raceway';
+UPDATE track_catalog SET lat = 35.4924, lon = -119.5507 WHERE name = 'Buttonwillow Raceway Park';
+UPDATE track_catalog SET lat = 34.4883, lon = -80.5953 WHERE name = 'Carolina Motorsports Park';
+UPDATE track_catalog SET lat = 35.3519, lon = -80.6837 WHERE name = 'Charlotte Motor Speedway (Roval)';
+UPDATE track_catalog SET lat = 33.7512, lon = -115.3245 WHERE name = 'Chuckwalla Valley Raceway';
+UPDATE track_catalog SET lat = 30.1356, lon = -97.6334 WHERE name = 'Circuit of the Americas';
+UPDATE track_catalog SET lat = 29.1845, lon = -81.0702 WHERE name = 'Daytona International Speedway (Road Course)';
+UPDATE track_catalog SET lat = 38.1381, lon = -77.5038 WHERE name = 'Dominion Raceway';
+UPDATE track_catalog SET lat = 33.3667, lon = -97.4356 WHERE name = 'Eagles Canyon Raceway';
+UPDATE track_catalog SET lat = 42.4086, lon = -86.1381 WHERE name = 'Gingerman Raceway';  -- the circuit's published point; OSM returns only short segments, all within 300 m
+UPDATE track_catalog SET lat = 43.0954, lon = -85.3851 WHERE name = 'Grattan Raceway';
+UPDATE track_catalog SET lat = 36.2210, lon = -96.5936 WHERE name = 'Hallett Motor Racing Circuit';
+UPDATE track_catalog SET lat = 29.9181, lon = -97.8724 WHERE name = 'Harris Hill Raceway';
+UPDATE track_catalog SET lat = 39.7442, lon = -103.8981 WHERE name = 'High Plains Raceway';
+UPDATE track_catalog SET lat = 25.4519, lon = -80.4096 WHERE name = 'Homestead-Miami Speedway (Road Course)';
+UPDATE track_catalog SET lat = 39.7961, lon = -86.2347 WHERE name = 'Indianapolis Motor Speedway (Road Course)';
+UPDATE track_catalog SET lat = 32.2286, lon = -110.0069 WHERE name = 'Inde Motorsports Ranch';
+UPDATE track_catalog SET lat = 36.5843, lon = -121.7534 WHERE name = 'Laguna Seca (WeatherTech Raceway)';
+UPDATE track_catalog SET lat = 41.9279, lon = -73.3827 WHERE name = 'Lime Rock Park';
+UPDATE track_catalog SET lat = 42.6230, lon = -83.2842 WHERE name = 'M1 Concourse';
+UPDATE track_catalog SET lat = 40.6880, lon = -82.6364 WHERE name = 'Mid-Ohio Sports Car Course';
+UPDATE track_catalog SET lat = 32.5245, lon = -97.6165 WHERE name = 'MotorSport Ranch (Cresson)';
+UPDATE track_catalog SET lat = 29.2779, lon = -95.4218 WHERE name = 'MSR Houston';
+UPDATE track_catalog SET lat = 37.0023, lon = -86.3683 WHERE name = 'NCM Motorsports Park';
+UPDATE track_catalog SET lat = 41.3054, lon = -81.0181 WHERE name = 'Nelson Ledges Road Course';
+UPDATE track_catalog SET lat = 39.3601, lon = -75.0640 WHERE name = 'New Jersey Motorsports Park (Lightning)';  -- the whole park's centre; OSM maps no circuit of its own
+UPDATE track_catalog SET lat = 39.3601, lon = -75.0640 WHERE name = 'New Jersey Motorsports Park (Thunderbolt)';  -- the whole park's centre; OSM maps no circuit of its own
+UPDATE track_catalog SET lat = 29.8855, lon = -90.2006 WHERE name = 'NOLA Motorsports Park';
+UPDATE track_catalog SET lat = 45.3666, lon = -120.7384 WHERE name = 'Oregon Raceway Park';
+UPDATE track_catalog SET lat = 38.2745, lon = -92.8866 WHERE name = 'Ozarks International Raceway';
+UPDATE track_catalog SET lat = 47.3224, lon = -122.1446 WHERE name = 'Pacific Raceways';
+UPDATE track_catalog SET lat = 42.2361, lon = -72.2440 WHERE name = 'Palmer Motorsports Park';  -- OSM's Whiskey Hill Raceway, the circuit's own name
+UPDATE track_catalog SET lat = 40.8472, lon = -80.3475 WHERE name = 'Pittsburgh International Race Complex';
+UPDATE track_catalog SET lat = 41.0553, lon = -75.5090 WHERE name = 'Pocono Raceway';
+UPDATE track_catalog SET lat = 45.5966, lon = -122.6956 WHERE name = 'Portland International Raceway';
+UPDATE track_catalog SET lat = 39.5842, lon = -86.7446 WHERE name = 'Putnam Park Road Course';
+UPDATE track_catalog SET lat = 43.7993, lon = -87.9942 WHERE name = 'Road America';
+UPDATE track_catalog SET lat = 34.1461, lon = -83.8153 WHERE name = 'Road Atlanta';
+UPDATE track_catalog SET lat = 32.1681, lon = -81.3227 WHERE name = 'Roebling Road Raceway';
+UPDATE track_catalog SET lat = 27.4534, lon = -81.3548 WHERE name = 'Sebring International Raceway';
+UPDATE track_catalog SET lat = 38.1596, lon = -122.4577 WHERE name = 'Sonoma Raceway';
+UPDATE track_catalog SET lat = 34.8777, lon = -118.2597 WHERE name = 'Streets of Willow';  -- midway between OSM's two Streets of Willow Springs ways
+UPDATE track_catalog SET lat = 39.2328, lon = -77.9737 WHERE name = 'Summit Point (Jefferson Circuit)';
+UPDATE track_catalog SET lat = 39.2357, lon = -77.9717 WHERE name = 'Summit Point (Main Circuit)';  -- OSM's Summit Point Circuit
+UPDATE track_catalog SET lat = 39.2410, lon = -77.9760 WHERE name = 'Summit Point (Shenandoah Circuit)';  -- approximate: beside OSM's Shenandoah Circuit Road, no circuit object
+UPDATE track_catalog SET lat = 47.2555, lon = -123.1917 WHERE name = 'The Ridge Motorsports Park';
+UPDATE track_catalog SET lat = 41.9821, lon = -71.8283 WHERE name = 'Thompson Speedway Motorsports Park';
+UPDATE track_catalog SET lat = 39.5405, lon = -122.3385 WHERE name = 'Thunderhill Raceway (2-Mile)';  -- approximate: beside OSM's Thunderhill West Clubhouse, no circuit object
+UPDATE track_catalog SET lat = 39.5403, lon = -122.3307 WHERE name = 'Thunderhill Raceway (3-Mile)';  -- the circuit's published point, inside OSM's park outline
+UPDATE track_catalog SET lat = 40.5810, lon = -112.3785 WHERE name = 'Utah Motorsports Campus';
+UPDATE track_catalog SET lat = 36.5625, lon = -79.2053 WHERE name = 'Virginia International Raceway (Full)';
+UPDATE track_catalog SET lat = 36.5655, lon = -79.2055 WHERE name = 'Virginia International Raceway (North)';  -- approximate: the northern half, by OSM's north paddock
+UPDATE track_catalog SET lat = 36.5565, lon = -79.2050 WHERE name = 'Virginia International Raceway (South)';  -- approximate: the southern half, by OSM's south paddock
+UPDATE track_catalog SET lat = 42.3364, lon = -76.9238 WHERE name = 'Watkins Glen International';
+UPDATE track_catalog SET lat = 34.8726, lon = -118.2642 WHERE name = 'Willow Springs (Big Willow)';
