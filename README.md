@@ -2158,6 +2158,17 @@ Wrapped, which is free.
   reach a leaderboard, so the endpoint (`GET /api/tracks/:id/leaderboard`)
   deliberately does *not* use the `MIN(manual best, best logged lap)` rule the
   logbook's own stats keep.
+- **Every catalog track has a public page** (`docs/specs/public-track-pages.md`,
+  #457): `https://trackevolution.app/tracks/<slug>`, with an index at `/tracks`
+  and a sitemap at `/tracks/sitemap.xml` — server-rendered by the Worker
+  (`src/routes/trackPages.ts`, `src/lib/trackPages.ts`), no JavaScript and no
+  session, so a search for "<track> lap times" has a page to find. **It names
+  no driver**: it shows the catalog's lap length, the number of opted-in
+  drivers with a device-timed lap there, and the best lap of each of the
+  fastest ten as a bare time — no name, date, car or telemetry, which is why
+  the opt-in's wording did not have to change. Opting out removes a driver's
+  time on the next request. The slug is derived from the catalog name, so a
+  migration that renames a catalog row owes a redirect from the old address.
 - **A leaderboard row can be opened** — the ranked lap's racing line and
   telemetry traces, with your own best lap at that track laid over it, corner
   for corner (`docs/specs/native/NS-35-leaderboard-lap-detail.md`;

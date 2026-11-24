@@ -126,6 +126,9 @@ self.addEventListener("fetch", (e) => {
     // The store redirect answers per device; a cached copy (or the shell
     // fallback offline) would be the wrong answer.
     if (url.pathname === "/get") return;
+    // The public track pages (#457) are documents of their own: offline, the
+    // app shell would be the wrong answer at their address.
+    if (url.pathname === "/tracks" || url.pathname.startsWith("/tracks/")) return;
     // A coach invite link carries a single-use token in its path; keep it out
     // of both caches (NS-38).
     if (url.pathname.startsWith("/coach/") || url.pathname.startsWith("/api/coaching/invites/")) return;

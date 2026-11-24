@@ -7,4 +7,5 @@
 - [Overview, features and pricing](https://trackevolution.app/)
 - [Full index for AI assistants](https://docs.trackevolution.app/llms.txt)
 - [Getting started](https://docs.trackevolution.app/docs/)
+- [Lap times by track](https://trackevolution.app/tracks): one page per road course, with its length and the best measured laps on its leaderboard, no driver named
 - [Get the app for iPhone or Android](https://trackevolution.app/get)
