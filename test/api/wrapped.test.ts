@@ -137,11 +137,13 @@ describe("GET /api/wrapped/:year", () => {
 });
 
 describe("migration 0026 — track_catalog.length_m", () => {
-  it("leaves GET /api/catalog as { id, name }", async () => {
+  // 0026 left the response as { id, name }; NS-57 (migration 0040) is what
+  // added the length and the layout's place to it, for import matching.
+  it("GET /api/catalog carries the length since NS-57, and nothing else new", async () => {
     const { api } = await signedInUser();
     const rows = (await api("GET", "/catalog")).body as Record<string, unknown>[];
     expect(rows.length).toBeGreaterThan(50);
-    for (const r of rows) expect(Object.keys(r).sort()).toEqual(["id", "name"]);
+    for (const r of rows) expect(Object.keys(r).sort()).toEqual(["id", "lat", "length_m", "lon", "name"]);
   });
 
   it("leaves the ambiguous layouts NULL", async () => {

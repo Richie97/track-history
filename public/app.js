@@ -43,6 +43,7 @@ import { renderTrackMap, traceIndexAtFraction } from "./js/trackmap.js";
 import { bindMapViewer, destroyMapViewer, mapViewerHtml } from "./js/map-viewer.js";
 import { themeToggleHtml, wireThemeToggle } from "./js/theme.js";
 import { bindTelemetryImport } from "./js/import/ui.js";
+import { reviewAuto } from "./js/import/auto.js";
 import { sessionsToCreate, stagedSummary } from "./js/event-form.js";
 import {
   AXLE_KEYS, CORNER_KEYS, PART_KINDS, PART_REFS, SETUP_FIELDS,
@@ -1022,6 +1023,9 @@ async function viewDashboard() {
           action: { label: "Add your first event", href: "#/new" },
         })}
         <div class="welcome-guide">
+          <a href="#/import">Have files from a track day already? Import them — the track and the dates are found for you.</a>
+        </div>
+        <div class="welcome-guide">
           <a href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">New to track days? Start here ↗</a>
         </div>
       </div>
@@ -1036,6 +1040,7 @@ async function viewDashboard() {
   const view = shell(`
     <div class="btn-row" style="margin-top:20px">
       <a class="btn primary" href="#/new">+ Add event</a>
+      <a class="btn" href="#/import">Import laps</a>
       ${hasHistory ? `<a class="btn" href="#/year">Year in review</a>` : ""}
     </div>
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
@@ -3897,7 +3902,17 @@ async function viewEvent(eventId) {
   if (!ro) bindItemShare(view, e);
   // Coach comments (NS-52), once everything they hang off is on the page.
   loadComments(view, e);
-  if (!ro) bindTelemetryImport(view, e, route, { clips: clipImportContext() });
+  if (!ro) {
+    // A file that was certainly driven at another known track says so in the
+    // review (NS-57). Read in the background: the review works without it.
+    let places = null;
+    Promise.all([api("/tracks"), api("/catalog")])
+      .then(([tracks, catalog]) => {
+        places = { tracks, catalog, track: tracks.find((t) => t.id === e.track_id) ?? null };
+      })
+      .catch(() => {});
+    bindTelemetryImport(view, e, route, { clips: clipImportContext(), locate: () => (places?.track ? places : null) });
+  }
   paintClipUploads();
 }
 
@@ -4440,6 +4455,54 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
       if (createdId != null) view.querySelector("#event-submit").textContent = "Add the laps";
     }
   };
+}
+
+// --- import laps with no event picked (NS-57) ---
+
+// Files dropped here need no event and no track: each is placed by where it
+// was driven (js/import/locate.js) and the review groups them into events to
+// confirm (js/import/auto.js). The event page's and the New Event form's
+// imports are unchanged — there the event is the driver's own answer.
+async function viewImport() {
+  const [tracks, catalog, events, vehicles] = await Promise.all([
+    api("/tracks"),
+    api("/catalog"),
+    api("/events"),
+    api("/vehicles"),
+  ]);
+  const view = shell(`
+    <h1>Import laps</h1>
+    <div class="hint" style="margin:-4px 0 12px">Drop the files from one track day or several. Each is matched to its track by where it was driven and grouped into events by date — you check the result before anything is saved.</div>
+    <div class="pdr-dropzone" id="pdr-dropzone">
+      <input type="file" id="pdr-files" accept="video/mp4,video/quicktime,.mp4,.mov,.vbo,.csv" multiple hidden>
+      <div class="pdr-dropzone-inner">
+        <span class="pdr-dropzone-icon">📼</span>
+        <div>
+          <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
+          <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
+        </div>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer, and neither does where they were recorded until you save</span>
+      </div>
+    </div>
+    ${canViewChannels(state.entitlement) ? "" : proNoteHtml(IMPORT_FREE_NOTE)}
+    <div id="pdr-review"></div>
+  `);
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const ctx = {
+    tracks,
+    catalog,
+    events,
+    defaultCar: vehicles.find((v) => v.is_default)?.name ?? null,
+    today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    fmtDate,
+    onDone: (eventIds) => {
+      const ids = [...new Set(eventIds.map(String))];
+      location.hash = ids.length === 1 ? `#/event/${ids[0]}` : "#/";
+    },
+  };
+  const clips = clipImportContext();
+  bindTelemetryImport(view, null, () => {}, { clips, auto: (box, results) => reviewAuto(box, results, ctx, { clips }) });
 }
 
 // --- settings (garage + legal) ---
@@ -7022,6 +7085,7 @@ async function routeView() {
     if (parts[0] === "event" && parts[1]) return await viewEvent(parts[1]);
     if (parts[0] === "garage") return await viewGarage();
     if (parts[0] === "vehicle" && parts[1]) return await viewVehicle(parts[1]);
+    if (parts[0] === "import") return await viewImport();
     if (parts[0] === "new") return await viewEventForm(null, params.get("track"), params.get("car"));
     if (parts[0] === "year") return await viewYear(params);
     if (parts[0] === "wrapped") return await viewWrapped(parts[1]);

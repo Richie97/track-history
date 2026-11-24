@@ -7,6 +7,7 @@
       "best_ms": null,
       "catalog_id": null,
       "event_count": 1,
+      "geo": null,
       "goal_ms": null,
       "id": 1,
       "last_date": "2026-06-01",
@@ -20,6 +21,11 @@
       "best_ms": 121500,
       "catalog_id": 1,
       "event_count": 1,
+      "geo": {
+        "lat": 36.5607123,
+        "length_m": 2485,
+        "lon": -79.2064456
+      },
       "goal_ms": null,
       "id": 1,
       "last_date": "2026-04-10",
@@ -38,6 +44,7 @@
       "best_ms": 77400,
       "catalog_id": null,
       "event_count": 1,
+      "geo": null,
       "goal_ms": null,
       "id": 1,
       "last_date": "2026-05-01",
