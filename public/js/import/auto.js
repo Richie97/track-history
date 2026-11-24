@@ -124,9 +124,11 @@ function groupHtml(group, state, ctx, prev) {
     ? `Adds to your event on ${esc(ctx.fmtDate(group.start))}`
     : known
       ? `New event${group.track.source === "new" || group.track.source === "catalog" ? " at a new track" : ""}`
-      : group.candidates.length
-        ? "More than one track could be here — pick the one you drove."
-        : "No track we know is here. Name it once and it is recognised next time.";
+      : group.venueOnly
+        ? "This lap doesn't fit a layout we know here — pick the track if it is one of these, or name the layout you drove."
+        : group.candidates.length
+          ? "More than one track could be here — pick the one you drove."
+          : "No track we know is here. Name it once and it is recognised next time.";
   const err = state.errors[group.key];
   return `<div class="panel" style="margin-top:12px" data-group="${esc(group.key)}">
     <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">

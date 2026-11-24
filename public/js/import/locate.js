@@ -21,8 +21,16 @@ export const OWN_RADIUS_M = 400;
 export const VENUE_RADIUS_M = 2000;
 // How far a driven lap's length may sit from a track's and still be that
 // layout: a stored trace cuts corners (300 points) and a driven line is not
-// the surveyed centreline.
+// the surveyed centreline. This is the own-track tolerance, where both sides
+// are driven laps and may differ either way.
 export const LENGTH_TOLERANCE = 0.04;
+// Against the catalog's published length the error is one-sided: on real
+// footage a best lap's trace ran 0.7–4.0 % short of the published figure at
+// every venue tried and never long, so the short side is the wide one. The
+// two together must stay narrower than the gap between any two layouts at one
+// venue (test/unit/locate.test.js checks the catalog for that).
+export const CATALOG_SHORT_TOLERANCE = 0.06;
+export const CATALOG_LONG_TOLERANCE = 0.02;
 // A file's date is local on some sources and UTC on others, so an event's day
 // range is widened by this much on each side before a file is matched to it.
 export const DATE_SLACK_DAYS = 1;
@@ -81,16 +89,28 @@ function boxCentre(points) {
 const lengthOff = (lengthM, trackM) =>
   lengthM != null && trackM != null && trackM > 0 ? Math.abs(lengthM - trackM) / trackM : null;
 
+// Whether a driven lap could be a catalog layout of published length `trackM`.
+export function fitsCatalogLength(lengthM, trackM) {
+  if (lengthM == null || trackM == null || !(trackM > 0)) return true; // nothing to rule it out by
+  const signed = (lengthM - trackM) / trackM;
+  return signed >= -CATALOG_SHORT_TOLERANCE && signed <= CATALOG_LONG_TOLERANCE;
+}
+
 // The tracks a place could be, best first, and how sure that is:
 //   exact  — one candidate and its length agrees: pre-fill it
 //   choose — several, or one whose length could not be checked: ask
 //   none   — nothing known is here
+// `venueOnly` is true for the one `choose` where the place is a venue we know
+// but the lap fits none of its layouts (a configuration the catalog lacks):
+// the venue's rows are offered so the driver is not asked to name a place the
+// app plainly recognises, and nothing is pre-filled.
 // `ownTracks` are GET /api/tracks rows (`geo` null without an anchored
 // session), `catalog` GET /api/catalog rows. A candidate is
 // `{ source: "own" | "catalog", id, name, distM, lengthOff }`; a catalog row the
 // driver already has a track for comes back as that own track.
 export function locateTrack(place, ownTracks, catalog) {
-  if (!place || !usable(place.lat, place.lon)) return { confidence: "none", candidates: [] };
+  const NONE = { confidence: "none", candidates: [], venueOnly: false };
+  if (!place || !usable(place.lat, place.lon)) return NONE;
   const measured = place.lengthM != null;
   const byOrder = (a, b) =>
     (a.lengthOff == null) - (b.lengthOff == null) || (a.lengthOff ?? 0) - (b.lengthOff ?? 0) || a.distM - b.distM || a.id - b.id;
@@ -106,30 +126,38 @@ export function locateTrack(place, ownTracks, catalog) {
     }
   }
   own.sort(byOrder);
-  if (measured && own.length) return { confidence: own.length === 1 ? "exact" : "choose", candidates: own };
+  if (measured && own.length) return { confidence: own.length === 1 ? "exact" : "choose", candidates: own, venueOnly: false };
 
   // Then the catalog: every layout at the venue the lap's length does not rule out.
   const ownByCatalog = new Map();
   for (const t of ownTracks ?? []) if (t?.catalog_id != null && !ownByCatalog.has(t.catalog_id)) ownByCatalog.set(t.catalog_id, t);
   const found = [...own];
+  const offLayout = []; // at the venue, but the lap's length rules the layout out
   const seen = new Set(own.map((c) => c.id));
+  const seenOff = new Set();
   for (const row of catalog ?? []) {
     if (!usable(row?.lat, row?.lon)) continue;
     const distM = distanceM(place, row);
     if (distM > VENUE_RADIUS_M) continue;
     const off = lengthOff(place.lengthM, row.length_m);
-    if (off != null && off > LENGTH_TOLERANCE) continue;
+    const fits = fitsCatalogLength(place.lengthM, row.length_m);
+    const into = fits ? found : offLayout;
+    const ids = fits ? seen : seenOff;
     const mine = ownByCatalog.get(row.id);
     if (mine) {
-      if (!seen.has(mine.id)) found.push({ source: "own", id: mine.id, name: mine.name, distM, lengthOff: off });
-      seen.add(mine.id);
+      if (!ids.has(mine.id)) into.push({ source: "own", id: mine.id, name: mine.name, distM, lengthOff: off });
+      ids.add(mine.id);
     } else {
-      found.push({ source: "catalog", id: row.id, name: row.name, distM, lengthOff: off });
+      into.push({ source: "catalog", id: row.id, name: row.name, distM, lengthOff: off });
     }
   }
   found.sort(byOrder);
-  if (!found.length) return { confidence: "none", candidates: [] };
-  return { confidence: found.length === 1 && found[0].lengthOff != null ? "exact" : "choose", candidates: found };
+  if (found.length) {
+    return { confidence: found.length === 1 && found[0].lengthOff != null ? "exact" : "choose", candidates: found, venueOnly: false };
+  }
+  if (!offLayout.length) return NONE;
+  offLayout.sort(byOrder);
+  return { confidence: "choose", candidates: offLayout, venueOnly: true };
 }
 
 // --- grouping a batch into events ---------------------------------------------
@@ -166,7 +194,7 @@ export function eventForDate(events, trackId, date) {
 // `choices` maps an item id to `{ name }`, the driver's own answer, which
 // outranks the match. Each group is
 //   { key, eventId, track: { source, id, name } | null, confidence,
-//     candidates, start, days, itemIds }
+//     candidates, venueOnly, start, days, itemIds }
 // with confidence "exact", "chosen", "choose" or "none"; `track` is null until
 // a choose / none group is answered. A group either joins an existing event
 // (`eventId`) or is one track over one run of consecutive dates.
@@ -174,7 +202,7 @@ export function groupImports(items, events, { choices = {}, ownTracks = [], toda
   const rows = (items ?? []).map((it) => {
     const date = it.date || today;
     const choice = choices[it.id];
-    const located = it.located ?? { confidence: "none", candidates: [] };
+    const located = it.located ?? { confidence: "none", candidates: [], venueOnly: false };
     let track = null;
     let confidence = located.confidence;
     let trackKey;
@@ -219,6 +247,8 @@ export function groupImports(items, events, { choices = {}, ownTracks = [], toda
           track: r.track,
           confidence: r.confidence,
           candidates: r.located.candidates,
+        venueOnly: r.located.venueOnly === true,
+          venueOnly: r.located.venueOnly === true,
           start: event.start_date,
           days: Math.max(1, Math.trunc(Number(event.days)) || 1),
           itemIds: [],
@@ -238,6 +268,7 @@ export function groupImports(items, events, { choices = {}, ownTracks = [], toda
         track: r.track,
         confidence: r.confidence,
         candidates: r.located.candidates,
+        venueOnly: r.located.venueOnly === true,
         start: r.date,
         days: 1,
         itemIds: [],

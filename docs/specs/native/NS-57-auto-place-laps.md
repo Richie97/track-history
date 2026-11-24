@@ -59,7 +59,7 @@ purpose, so they can be suggested but never placed unasked.
 | Where matching runs | **On the device**, in a pure module. No coordinate is sent anywhere to be matched; nothing leaves the phone beyond the `trace_geo` a save already carries. |
 | Two tiers | **Your own tracks first**, then the catalog. A track you have one anchored session at is a known place, catalog or not — which is how an uncatalogued track is named once and recognised ever after. |
 | Never silent | **The review always shows.** A confident match is pre-filled, not pre-saved. A wrong placement pollutes a track's best, its goal and (through `catalog_id`) a leaderboard. |
-| Confidence | `exact` — one candidate, length agrees: pre-filled. `choose` — several candidates, or one with no length to check: a picker with the nearest pre-selected, and the group is not saveable until it is confirmed. `none` — a name field. |
+| Confidence | `exact` — one candidate, length agrees: pre-filled. `choose` — several candidates, or one with no length to check: a picker with the nearest pre-selected, and the group is not saveable until it is confirmed. `none` — a name field. A `choose` may also be *venue only* (`venueOnly`): the place is a venue the catalog knows but the lap fits none of its layouts, so its rows are offered — nothing pre-selected — beside the name field. |
 | Never guess a layout | A catalog row with a NULL `length_m`, or two rows at one venue within the length tolerance of each other, is always `choose`. |
 | Grouping | By track, then by run of consecutive file dates. A two-day weekend is one event with `days: 2`. |
 | Attaching | A group joins an existing event **at the same track** whose day range, widened by one day each side (file clocks are local on some sources and UTC on others), covers the group's dates. Otherwise a new event. **Never** an event at another track, whatever the date. |
@@ -114,8 +114,8 @@ an anchored session answers `geo`, one without answers null; a coach's
 `/students/:id/tracks`, both share responses and the MCP `list_tracks` result
 carry no `geo`. `test/unit/track-catalog-geo.test.js`: every row has a
 coordinate inside the contiguous US, and every pair of rows within
-`VENUE_RADIUS_M` of each other either differs in length by more than twice
-`LENGTH_TOLERANCE` or is listed in an `AMBIGUOUS` table the test owns — so a
+`VENUE_RADIUS_M` of each other either has non-overlapping length windows
+(`CATALOG_SHORT_TOLERANCE` below, `CATALOG_LONG_TOLERANCE` above) or is listed in an `AMBIGUOUS` table the test owns — so a
 new catalog row that makes two layouts indistinguishable fails CI instead of
 mis-placing someone's laps.
 
@@ -124,7 +124,10 @@ mis-placing someone's laps.
 Ported as `TrackLocate` to the Kit and `:core` under the same names, pinned by
 `contracts/logic/track-locate.json`.
 
-- `OWN_RADIUS_M = 400`, `VENUE_RADIUS_M = 2000`, `LENGTH_TOLERANCE = 0.04`.
+- `OWN_RADIUS_M = 400`, `VENUE_RADIUS_M = 2000`, `LENGTH_TOLERANCE = 0.04`
+  (own tracks, either way), `CATALOG_SHORT_TOLERANCE = 0.06` and
+  `CATALOG_LONG_TOLERANCE = 0.02` (against a published length — a driven
+  best-lap trace runs short of it, never long; `fitsCatalogLength`).
   Own tracks get the tight radius because both sides are measured the same
   way (bounding-box centre of a driven lap); the catalog's is a curated point.
 - `recordingPlace(parsed)` → `{ lat, lon, lengthM } | null`. With laps: the
@@ -140,8 +143,11 @@ Ported as `TrackLocate` to the Kit and `:core` under the same names, pinned by
   (`exact`, even when the catalog also matches — the driver's own name for a
   place stands). Otherwise catalog rows within `VENUE_RADIUS_M`, kept when
   their length agrees or is NULL, ordered by length error then distance. One
-  survivor with a length is `exact`; anything else non-empty is `choose`;
-  empty is `none`. A catalog row the driver already has a track for is
+  survivor with a length is `exact`; anything else non-empty is `choose`.
+  When length rules out every row at the venue, those rows come back as a
+  `choose` with `venueOnly: true` (nearest length first) rather than `none`;
+  with no row in the radius at all it is `none`. `venueOnly` is on every
+  answer and on every group. A catalog row the driver already has a track for is
   returned as that own track.
 - `groupImports(items, events)` → the review's cards:
   `[{ track, confidence, candidates, dates: { start, days }, eventId | null, items }]`.
@@ -265,9 +271,23 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
   Shenandoah, both Thunderhill courses, VIR North and South) and sit inside
   the venue OSM does map; layouts are told apart by length, so a point only
   has to fall within `VENUE_RADIUS_M`.
-- **The two radii and the tolerance are still first guesses** — the sandbox
-  had no real footage. The committed fixtures are 1.9 km synthetic circles
-  near VIR, which is why they match no catalog layout.
+- **The radii and tolerances were tried on real footage** (the 239 files in
+  `telemetry-samples/`: SmartyCam, Corvette and Cadillac PDR, Track Precision
+  VBO and CSV, at nine venues). Every file with laps was placed at the right
+  venue and none at a wrong track. Two things changed because of it. A
+  best-lap trace measured 0.7–4.0 % *short* of the catalog's length at every
+  venue and never long — Sebring passed the symmetric 4 % by under a metre —
+  so the catalog tolerance became 6 % short / 2 % long; the closest pair of
+  layouts at one venue (Summit Point Main / Shenandoah, 9.1 % apart) still
+  separates. And Mid-Ohio's 2.258-mile course, 139 m from the catalog's
+  2.4-mile row, came back as `none`: a venue whose every layout the length
+  rules out is now a venue-only `choose`. Own-track matching had room to
+  spare (centres within 11 m of each other against 400 m, lengths within
+  2.6 % against 4 %). The committed fixtures are 1.9 km synthetic circles
+  near VIR, which fit no catalog layout.
+- **Not changed, seen in the same run:** a file dated the day after an
+  event's last day joins it through the one-day slack without extending the
+  event's `days`.
 - `GET /api/catalog`'s shape changed (it was pinned to `{ id, name }` by
   0026's test); both native models decode the new fields.
 - Not built: the *looks already imported* warning, and the landing page's
@@ -275,9 +295,9 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
 
 ## Open questions
 
-- **Radii and tolerance** are first guesses. Ticket 1 should run `locate.js`
-  over the footage in `telemetry-samples/` and the stored anchored sessions
-  before the constants are pinned in the fixture.
+- **A genuine extra day and the date slack.** The slack exists for file
+  clocks, but a file that really is from the next day joins a shorter event
+  without lengthening it. Extend `days`, or leave it to the driver?
 - **Re-importing the same file** creates a duplicate session today, on every
   door. An event-less import makes that easier to do by accident; a
   "looks already imported" warning (same lap list in that event) may belong

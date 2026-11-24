@@ -852,7 +852,10 @@ length), matches it against the driver's own tracks and then the seeded catalog
 (`groupImports`); `public/js/import/auto.js` is the review, one card per event,
 and nothing is saved before it is confirmed. A match is pre-filled only when
 one track fits by place *and* lap length; several candidates, or a catalog row
-with no length, ask. Saving is `POST /events` (which find-or-creates the track
+with no length, ask. Against the catalog a lap may run up to 6% short of the
+published length and 2% long (a driven line measures short, never long), and
+a lap at a known venue that fits none of its layouts is offered that venue's
+tracks rather than called unknown. Saving is `POST /events` (which find-or-creates the track
 by name) followed by each session, so it queues offline like the New Event
 form. The server's half is small: `track_catalog.lat` / `lon` (migration
 `0040`), which `GET /api/catalog` returns with `length_m`, and `geo`

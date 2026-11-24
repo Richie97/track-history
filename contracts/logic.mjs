@@ -34,6 +34,8 @@ import {
 import { parseTelemetryFile } from "../public/js/import/parse.js";
 import {
   DATE_SLACK_DAYS,
+  CATALOG_LONG_TOLERANCE,
+  CATALOG_SHORT_TOLERANCE,
   LENGTH_TOLERANCE,
   OWN_RADIUS_M,
   VENUE_RADIUS_M,
@@ -3059,9 +3061,12 @@ const locPlaces = [
   { name: "VIR North by length", place: { ...LOC_VIR, lengthM: 3600 }, own: [] },
   { name: "VIR, a length no layout has", place: { ...LOC_VIR, lengthM: 4400 }, own: [] },
   { name: "VIR before a line is picked", place: { ...LOC_VIR, lengthM: null }, own: locOwn },
-  { name: "length just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 + LENGTH_TOLERANCE) - 1 }, own: [] },
-  { name: "length just past tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 + LENGTH_TOLERANCE) + 1 }, own: [] },
-  { name: "length short, just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 - LENGTH_TOLERANCE) + 1 }, own: [] },
+  { name: "length long, just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 + CATALOG_LONG_TOLERANCE) - 1 }, own: [] },
+  { name: "length long, just past tolerance: venue only", place: { ...LOC_SP, lengthM: 3219 * (1 + CATALOG_LONG_TOLERANCE) + 1 }, own: [] },
+  { name: "length short, just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 - CATALOG_SHORT_TOLERANCE) + 1 }, own: [] },
+  { name: "length short, just past tolerance: venue only", place: { ...LOC_SP, lengthM: 3219 * (1 - CATALOG_SHORT_TOLERANCE) - 1 }, own: [] },
+  { name: "venue only, a row the driver has a track for", place: { ...LOC_SP, lengthM: 2800 }, own: locOwn },
+  { name: "own track, short of it by more than its tolerance", place: { ...locOwn[1].geo, lengthM: 1800 * (1 - LENGTH_TOLERANCE) - 1 }, own: locOwn },
   { name: "catalog row the driver has a track for", place: { ...LOC_SP, lengthM: 3200 }, own: locOwn },
   { name: "venue radius, just inside", place: { ...locNorth(LOC_SP, VENUE_RADIUS_M - 1), lengthM: 3200 }, own: [] },
   { name: "venue radius, just outside", place: { ...locNorth(LOC_SP, VENUE_RADIUS_M + 1), lengthM: 3200 }, own: [] },
@@ -3133,7 +3138,7 @@ const locateFixture = {
   description:
     "NS-57: which track a recording was driven at and which event it joins. Generated from " +
     "public/js/import/locate.js; ports assert equality (distances and length ratios to 1e-6).",
-  constants: { OWN_RADIUS_M, VENUE_RADIUS_M, LENGTH_TOLERANCE, DATE_SLACK_DAYS },
+  constants: { OWN_RADIUS_M, VENUE_RADIUS_M, LENGTH_TOLERANCE, CATALOG_SHORT_TOLERANCE, CATALOG_LONG_TOLERANCE, DATE_SLACK_DAYS },
   catalog: locCatalog,
   ownTracks: locOwn,
   distanceM: [

@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  LENGTH_TOLERANCE,
+  CATALOG_LONG_TOLERANCE,
+  CATALOG_SHORT_TOLERANCE,
   VENUE_RADIUS_M,
   distanceM,
   eventBodyFor,
@@ -33,7 +34,37 @@ describe("locateTrack", () => {
   it("asks when length cannot be checked, and never guesses a layout", () => {
     expect(locateTrack(at(VIR, null), [], catalog).confidence).toBe("choose");
     expect(locateTrack(at(catalog[2], 4000), [], catalog).confidence).toBe("choose");
-    expect(locateTrack(at(VIR, 4400), [], catalog)).toEqual({ confidence: "none", candidates: [] });
+  });
+
+  it("allows a driven lap to run short of the published length, but hardly long", () => {
+    // Real footage: 0.7–4.0 % short at every venue tried, never long.
+    expect(locateTrack(at(VIR, 5262 * (1 - CATALOG_SHORT_TOLERANCE) + 1), [], catalog).confidence).toBe("exact");
+    expect(locateTrack(at(VIR, 5262 * (1 - CATALOG_SHORT_TOLERANCE) - 1), [], catalog).venueOnly).toBe(true);
+    expect(locateTrack(at(VIR, 5262 * (1 + CATALOG_LONG_TOLERANCE) - 1), [], catalog).confidence).toBe("exact");
+    expect(locateTrack(at(VIR, 5262 * (1 + CATALOG_LONG_TOLERANCE) + 1), [], catalog).venueOnly).toBe(true);
+    // Sebring's 12-hour course, as a SmartyCam drove it: 4.0 % short.
+    const sebring = [{ id: 7, name: "Sebring International Raceway", lat: 27.4534, lon: -81.3548, length_m: 6019 }];
+    expect(locateTrack({ lat: 27.4528, lon: -81.3522, lengthM: 5778 }, [], sebring).confidence).toBe("exact");
+  });
+
+  it("offers the venue, and pre-fills nothing, when the lap fits none of its layouts", () => {
+    // Mid-Ohio's 2.258 mi course against a catalog that holds only the 2.4 mi one.
+    const midOhio = [{ id: 8, name: "Mid-Ohio Sports Car Course", lat: 40.688, lon: -82.6364, length_m: 3862 }];
+    const r = locateTrack({ lat: 40.6892, lon: -82.6362, lengthM: 3560 }, [], midOhio);
+    expect(r).toMatchObject({ confidence: "choose", venueOnly: true, candidates: [{ source: "catalog", id: 8 }] });
+    // Every layout there, the nearest in length first.
+    const vir = locateTrack(at(VIR, 4400), [], catalog);
+    expect(vir).toMatchObject({ confidence: "choose", venueOnly: true });
+    expect(vir.candidates.map((c) => c.id)).toEqual([1, 2]);
+    // A row the driver has a track for comes back as that track here too.
+    const own = [{ id: 4, name: "Mid-Ohio", catalog_id: 8, geo: null }];
+    expect(locateTrack({ lat: 40.6892, lon: -82.6362, lengthM: 3560 }, own, midOhio).candidates).toMatchObject([{ source: "own", id: 4 }]);
+    // An ordinary match, and nowhere, are not venue-only.
+    expect(locateTrack(at(VIR, 5200), [], catalog).venueOnly).toBe(false);
+    expect(locateTrack(at({ lat: 10, lon: 10 }, 4400), [], catalog)).toEqual({ confidence: "none", candidates: [], venueOnly: false });
+    // The card carries it, and stays unanswered until the driver picks or names.
+    const [g] = groupImports([{ id: 0, date: "2026-06-26", time: "09:00", place: r, located: r }], []);
+    expect(g).toMatchObject({ track: null, confidence: "choose", venueOnly: true });
   });
 
   it("knows a track the driver named once, catalog or not", () => {
@@ -165,7 +196,9 @@ describe("the catalog's coordinates", () => {
       for (let j = i + 1; j < list.length; j++) {
         const [a, b] = [list[i], list[j]];
         if (distanceM(a, b) > 2 * VENUE_RADIUS_M || a.length_m == null || b.length_m == null) continue;
-        if (Math.abs(a.length_m - b.length_m) / Math.min(a.length_m, b.length_m) <= 2 * LENGTH_TOLERANCE) clash.push(`${a.name} / ${b.name}`);
+        // Their windows — [−short, +long] around each published length — must not overlap.
+        const [lo, hi] = a.length_m < b.length_m ? [a, b] : [b, a];
+        if (lo.length_m * (1 + CATALOG_LONG_TOLERANCE) >= hi.length_m * (1 - CATALOG_SHORT_TOLERANCE)) clash.push(`${a.name} / ${b.name}`);
       }
     }
     expect(clash).toEqual([]);

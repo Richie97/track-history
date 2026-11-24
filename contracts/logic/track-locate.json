@@ -4,6 +4,8 @@
     "OWN_RADIUS_M": 400,
     "VENUE_RADIUS_M": 2000,
     "LENGTH_TOLERANCE": 0.04,
+    "CATALOG_SHORT_TOLERANCE": 0.06,
+    "CATALOG_LONG_TOLERANCE": 0.02,
     "DATE_SLACK_DAYS": 1
   },
   "catalog": [
@@ -2069,7 +2071,8 @@
             "distM": 0,
             "lengthOff": 0.01178259217027746
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2123,7 +2126,8 @@
             "distM": 14.21757453135534,
             "lengthOff": 0.0057361376673040155
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2144,7 +2148,8 @@
             "distM": 426.09874707858324,
             "lengthOff": 0.00579950289975145
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2156,8 +2161,31 @@
       },
       "own": [],
       "expected": {
-        "confidence": "none",
-        "candidates": []
+        "confidence": "choose",
+        "candidates": [
+          {
+            "source": "catalog",
+            "id": 1,
+            "name": "Virginia International Raceway (Full)",
+            "distM": 0,
+            "lengthOff": 0.1638160395286963
+          },
+          {
+            "source": "catalog",
+            "id": 2,
+            "name": "Virginia International Raceway (North)",
+            "distM": 426.09874707858324,
+            "lengthOff": 0.21513394090030377
+          },
+          {
+            "source": "catalog",
+            "id": 3,
+            "name": "Virginia International Raceway (South)",
+            "distM": 575.4335954840246,
+            "lengthOff": 0.6572504708097928
+          }
+        ],
+        "venueOnly": true
       }
     },
     {
@@ -2232,15 +2260,16 @@
             "distM": 575.4335954840246,
             "lengthOff": null
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
-      "name": "length just inside tolerance",
+      "name": "length long, just inside tolerance",
       "place": {
         "lat": 39.2344,
         "lon": -77.9753,
-        "lengthM": 3346.76
+        "lengthM": 3282.38
       },
       "own": [],
       "expected": {
@@ -2251,22 +2280,32 @@
             "id": 4,
             "name": "Summit Point (Main Circuit)",
             "distM": 0,
-            "lengthOff": 0.03968934451693079
+            "lengthOff": 0.019689344516930756
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
-      "name": "length just past tolerance",
+      "name": "length long, just past tolerance: venue only",
       "place": {
         "lat": 39.2344,
         "lon": -77.9753,
-        "lengthM": 3348.76
+        "lengthM": 3284.38
       },
       "own": [],
       "expected": {
-        "confidence": "none",
-        "candidates": []
+        "confidence": "choose",
+        "candidates": [
+          {
+            "source": "catalog",
+            "id": 4,
+            "name": "Summit Point (Main Circuit)",
+            "distM": 0,
+            "lengthOff": 0.02031065548306931
+          }
+        ],
+        "venueOnly": true
       }
     },
     {
@@ -2274,7 +2313,7 @@
       "place": {
         "lat": 39.2344,
         "lon": -77.9753,
-        "lengthM": 3091.24
+        "lengthM": 3026.8599999999997
       },
       "own": [],
       "expected": {
@@ -2285,9 +2324,135 @@
             "id": 4,
             "name": "Summit Point (Main Circuit)",
             "distM": 0,
-            "lengthOff": 0.03968934451693079
+            "lengthOff": 0.05968934451693082
           }
-        ]
+        ],
+        "venueOnly": false
+      }
+    },
+    {
+      "name": "length short, just past tolerance: venue only",
+      "place": {
+        "lat": 39.2344,
+        "lon": -77.9753,
+        "lengthM": 3024.8599999999997
+      },
+      "own": [],
+      "expected": {
+        "confidence": "choose",
+        "candidates": [
+          {
+            "source": "catalog",
+            "id": 4,
+            "name": "Summit Point (Main Circuit)",
+            "distM": 0,
+            "lengthOff": 0.06031065548306938
+          }
+        ],
+        "venueOnly": true
+      }
+    },
+    {
+      "name": "venue only, a row the driver has a track for",
+      "place": {
+        "lat": 39.2344,
+        "lon": -77.9753,
+        "lengthM": 2800
+      },
+      "own": [
+        {
+          "id": 11,
+          "name": "Summit Point (Main Circuit)",
+          "catalog_id": 4,
+          "geo": null
+        },
+        {
+          "id": 12,
+          "name": "The Farm",
+          "catalog_id": null,
+          "geo": {
+            "lat": 40.5,
+            "lon": -90.5,
+            "length_m": 1800
+          }
+        },
+        {
+          "id": 13,
+          "name": "VIR full course",
+          "catalog_id": null,
+          "geo": {
+            "lat": 36.5618,
+            "lon": -79.2046,
+            "length_m": 5230
+          }
+        },
+        {
+          "id": 14,
+          "name": "Unanchored",
+          "catalog_id": null,
+          "geo": null
+        }
+      ],
+      "expected": {
+        "confidence": "choose",
+        "candidates": [
+          {
+            "source": "own",
+            "id": 11,
+            "name": "Summit Point (Main Circuit)",
+            "distM": 0,
+            "lengthOff": 0.1301646474060267
+          }
+        ],
+        "venueOnly": true
+      }
+    },
+    {
+      "name": "own track, short of it by more than its tolerance",
+      "place": {
+        "lat": 40.5,
+        "lon": -90.5,
+        "length_m": 1800,
+        "lengthM": 1727
+      },
+      "own": [
+        {
+          "id": 11,
+          "name": "Summit Point (Main Circuit)",
+          "catalog_id": 4,
+          "geo": null
+        },
+        {
+          "id": 12,
+          "name": "The Farm",
+          "catalog_id": null,
+          "geo": {
+            "lat": 40.5,
+            "lon": -90.5,
+            "length_m": 1800
+          }
+        },
+        {
+          "id": 13,
+          "name": "VIR full course",
+          "catalog_id": null,
+          "geo": {
+            "lat": 36.5618,
+            "lon": -79.2046,
+            "length_m": 5230
+          }
+        },
+        {
+          "id": 14,
+          "name": "Unanchored",
+          "catalog_id": null,
+          "geo": null
+        }
+      ],
+      "expected": {
+        "confidence": "none",
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2341,7 +2506,8 @@
             "distM": 0,
             "lengthOff": 0.005902454178316247
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2362,7 +2528,8 @@
             "distM": 1999.000000000273,
             "lengthOff": 0.005902454178316247
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2375,7 +2542,8 @@
       "own": [],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2429,7 +2597,8 @@
             "distM": 398.99999999980736,
             "lengthOff": 0
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2475,7 +2644,8 @@
       ],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2522,7 +2692,8 @@
       ],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2543,7 +2714,8 @@
             "distM": 0,
             "lengthOff": null
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2571,7 +2743,8 @@
             "distM": 44.21599999989695,
             "lengthOff": 0.01
           }
-        ]
+        ],
+        "venueOnly": false
       }
     },
     {
@@ -2617,7 +2790,8 @@
       ],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2663,7 +2837,8 @@
       ],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     },
     {
@@ -2705,7 +2880,8 @@
       ],
       "expected": {
         "confidence": "none",
-        "candidates": []
+        "candidates": [],
+        "venueOnly": false
       }
     }
   ],
@@ -2797,7 +2973,8 @@
                 "distM": 0,
                 "lengthOff": 0.01178259217027746
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -2819,7 +2996,8 @@
                 "distM": 0,
                 "lengthOff": 0.009882174078297225
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -2841,7 +3019,8 @@
                 "distM": 0,
                 "lengthOff": 0.013683010262257697
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -2863,7 +3042,8 @@
                 "distM": 0,
                 "lengthOff": 0.005902454178316247
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -2877,7 +3057,8 @@
           },
           "located": {
             "confidence": "none",
-            "candidates": []
+            "candidates": [],
+            "venueOnly": false
           }
         },
         {
@@ -2891,7 +3072,8 @@
           },
           "located": {
             "confidence": "none",
-            "candidates": []
+            "candidates": [],
+            "venueOnly": false
           }
         },
         {
@@ -2913,7 +3095,8 @@
                 "distM": 0,
                 "lengthOff": 0.01178259217027746
               }
-            ]
+            ],
+            "venueOnly": false
           }
         }
       ],
@@ -2938,6 +3121,7 @@
               "lengthOff": 0.01178259217027746
             }
           ],
+          "venueOnly": false,
           "start": "2026-03-31",
           "days": 2,
           "itemIds": [
@@ -2964,6 +3148,7 @@
               "lengthOff": 0.01178259217027746
             }
           ],
+          "venueOnly": false,
           "start": "2026-04-03",
           "days": 1,
           "itemIds": [
@@ -2988,6 +3173,7 @@
               "lengthOff": 0.005902454178316247
             }
           ],
+          "venueOnly": false,
           "start": "2026-05-02",
           "days": 1,
           "itemIds": [
@@ -3000,6 +3186,7 @@
           "track": null,
           "confidence": "none",
           "candidates": [],
+          "venueOnly": false,
           "start": "2026-06-20",
           "days": 1,
           "itemIds": [
@@ -3112,7 +3299,8 @@
                 "distM": 0,
                 "lengthOff": 0.005902454178316247
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3134,7 +3322,8 @@
                 "distM": 0,
                 "lengthOff": 0.005902454178316247
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3156,7 +3345,8 @@
                 "distM": 14.21757453135534,
                 "lengthOff": 0.0057361376673040155
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3178,7 +3368,8 @@
                 "distM": 14.21757453135534,
                 "lengthOff": 0.0057361376673040155
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3200,7 +3391,8 @@
                 "distM": 14.21757453135534,
                 "lengthOff": 0.0057361376673040155
               }
-            ]
+            ],
+            "venueOnly": false
           }
         }
       ],
@@ -3225,6 +3417,7 @@
               "lengthOff": 0.0057361376673040155
             }
           ],
+          "venueOnly": false,
           "start": "2026-03-12",
           "days": 1,
           "itemIds": [
@@ -3249,6 +3442,7 @@
               "lengthOff": 0.0057361376673040155
             }
           ],
+          "venueOnly": false,
           "start": "2026-03-14",
           "days": 2,
           "itemIds": [
@@ -3273,6 +3467,7 @@
               "lengthOff": 0.0057361376673040155
             }
           ],
+          "venueOnly": false,
           "start": "2026-03-15",
           "days": 1,
           "itemIds": [
@@ -3297,6 +3492,7 @@
               "lengthOff": 0.005902454178316247
             }
           ],
+          "venueOnly": false,
           "start": "2026-05-02",
           "days": 1,
           "itemIds": [
@@ -3321,6 +3517,7 @@
               "lengthOff": 0.005902454178316247
             }
           ],
+          "venueOnly": false,
           "start": "2026-05-04",
           "days": 1,
           "itemIds": [
@@ -3420,7 +3617,8 @@
           },
           "located": {
             "confidence": "none",
-            "candidates": []
+            "candidates": [],
+            "venueOnly": false
           }
         },
         {
@@ -3442,7 +3640,8 @@
                 "distM": 426.09874707858324,
                 "lengthOff": 0.00579950289975145
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3464,7 +3663,8 @@
                 "distM": 0,
                 "lengthOff": null
               }
-            ]
+            ],
+            "venueOnly": false
           }
         },
         {
@@ -3474,7 +3674,8 @@
           "place": null,
           "located": {
             "confidence": "none",
-            "candidates": []
+            "candidates": [],
+            "venueOnly": false
           }
         }
       ],
@@ -3498,6 +3699,7 @@
           },
           "confidence": "chosen",
           "candidates": [],
+          "venueOnly": false,
           "start": "2026-05-02",
           "days": 1,
           "itemIds": [
@@ -3522,6 +3724,7 @@
               "lengthOff": 0.00579950289975145
             }
           ],
+          "venueOnly": false,
           "start": "2026-05-02",
           "days": 1,
           "itemIds": [
@@ -3534,6 +3737,7 @@
           "track": null,
           "confidence": "none",
           "candidates": [],
+          "venueOnly": false,
           "start": "2026-07-01",
           "days": 1,
           "itemIds": [
@@ -3554,6 +3758,7 @@
               "lengthOff": null
             }
           ],
+          "venueOnly": false,
           "start": "2026-08-09",
           "days": 1,
           "itemIds": [
