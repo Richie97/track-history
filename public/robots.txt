@@ -1,6 +1,7 @@
 # The home page says what the app is; the rest of the app is behind sign-in,
 # and the docs are at https://docs.trackevolution.app/ (see /llms.txt). /share/ stays crawlable so
-# link previews work; unlisted share links answer noindex themselves.
+# link previews work; unlisted share links answer noindex themselves. /tracks/
+# is a public page per track (lap times, no driver named), with its own sitemap.
 User-agent: *
 Disallow: /api/
 Disallow: /auth/
@@ -12,3 +13,4 @@ Disallow: /coach/
 Disallow: /mcp
 
 Sitemap: https://trackevolution.app/sitemap.xml
+Sitemap: https://trackevolution.app/tracks/sitemap.xml

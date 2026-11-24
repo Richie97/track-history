@@ -30,6 +30,8 @@
       "/share/*",
       "/billing/*",
       "/get",
+      "/tracks",
+      "/tracks/*",
       "/clips/*",
       "/youtube/*",
       "/.well-known/apple-app-site-association",

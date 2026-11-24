@@ -7,6 +7,7 @@ import { publicShare, sharePage } from "./routes/share";
 import { wellKnown } from "./routes/wellKnown";
 import { download } from "./routes/download";
 import { home } from "./routes/landing";
+import { trackPages } from "./routes/trackPages";
 import { billingWebhooks } from "./routes/billingWebhooks";
 import { oauth, oauthWellKnown, sweepOAuth } from "./routes/oauth";
 import { mcp } from "./routes/mcp";
@@ -37,6 +38,9 @@ app.route("/", billingWebhooks);
 app.route("/.well-known", wellKnown);
 // "Download the app": a phone goes to its store, anything else gets both links.
 app.route("/get", download);
+// The public track pages (#457): one indexable page per catalog track, naming
+// no driver — /tracks and /tracks/* are in run_worker_first.
+app.route("/tracks", trackPages);
 // The MCP server (routes/mcp.ts) and the OAuth authorization server its
 // clients sign in through (routes/oauth.ts, plus its discovery documents under
 // /.well-known). Outside /api on purpose: their tokens are not app sessions
