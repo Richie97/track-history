@@ -142,12 +142,17 @@ final class CoreScreensUITests: XCTestCase {
         // The laps, as rows — each a button since #267, labelled "Lap N · m:ss.fff"
         // as on the web. The separator keeps "LAP TIMES", a field label on this same
         // screen, from matching.
+        //
+        // The page is a lazy list that stays scrolled to the form it just saved, so
+        // the last lap is the one on screen and the first may be above the fold:
+        // wait for the last, then scroll up to the first.
         let lap1 = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lap 1 ·'")).firstMatch
-        XCTAssertTrue(lap1.waitForExistence(timeout: 20), "the saved session's laps should be listed")
-        XCTAssertTrue(
-            app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lap 5 ·'")).firstMatch.exists,
-            "all five of them"
-        )
+        let lap5 = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Lap 5 ·'")).firstMatch
+        XCTAssertTrue(lap5.waitForExistence(timeout: 20), "the saved session's laps should be listed")
+        for _ in 0..<4 where !lap1.exists {
+            app.collectionViews.firstMatch.swipeDown(velocity: .slow)
+        }
+        XCTAssertTrue(lap1.exists, "all five of them")
         // The ported `lap-stats.js` analysis, and the event's recomputed aggregates.
         // Both sit above the laps, and the page is a lazy list that has scrolled
         // down to the form it just saved: back up to them, or they aren't drawn.

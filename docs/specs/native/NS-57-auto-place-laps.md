@@ -327,18 +327,28 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
   request order, the retry onto an event already made, and the known line;
   `GroupedReviewScreenTest` the cards.
 - **iOS (ticket 2).** `TrackLocate` in the Kit, its inputs three small
-  structs built from the models, pinned by `TrackLocateTests` — which was run
-  on Linux against a Foundation-only subset of the Kit. The app half
+  structs built from the models, pinned by `TrackLocateTests`. The app half
   (`ReviewModel`'s `auto` mode, the cards in `ReviewScreen`, the dashboard's
-  *Import laps*) mirrors Android's and **has not been compiled or run**: there
-  is no Xcode here. The UI test the ticket asks for is not written.
+  *Import laps*) mirrors Android's.
+  `VideoImportUITests.testAClipWithNoEventIsPlacedAndTimedFromTheRememberedLine`
+  runs it end to end against `npm run dev`: the GoPro fixture imported onto
+  an event with a tapped line, then opened with no event (`-importFixture`
+  without `-importFixtureEvent`) — the line found, the track recognised, and
+  the event and its session read back from the server. One clip at one
+  venue, not the ticket's two clips at two: the committed fixtures are all
+  at one place.
 - **The phones' cards list the candidates and a name field**, not the web's
   select with the driver's other tracks under it; typing an own track's name
   still joins it (`groupImports` matches names).
 - **A grouped save lands on the event when there is one, the dashboard when
   there are several** (Android); iOS dismisses the importer.
-- The phones' `LinePicker` draws no marker for a line nobody tapped; the
-  sentence above it is what says where it came from.
+- **A found line is drawn like a tapped one** on both phones — the gate and
+  its centre dot — until a tap replaces it (iOS: `LinePickerView.knownGate`,
+  spoken as the map's value, *Line found*; Android's `LinePicker` already
+  took the gate and gained the dot).
+- **iOS's picker pans only once zoomed in**, as Android's does: at full view a
+  drag that starts on the map scrolls the page. The grouped review puts the
+  map mid-screen, where it used to swallow every swipe.
 
 ## Open questions
 

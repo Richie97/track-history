@@ -203,7 +203,8 @@ struct ReviewScreen: View {
                     pickedIndex: Binding(
                         get: { model.pickedIndex },
                         set: { model.pick($0) }
-                    )
+                    ),
+                    knownGate: model.knownGate
                 )
                 .frame(height: 280)
 
@@ -275,7 +276,8 @@ struct ReviewScreen: View {
                     pickedIndex: Binding(
                         get: { model.venuePickers.indices.contains(index) ? model.venuePickers[index].pickedIndex : nil },
                         set: { model.pickVenue(index, $0) }
-                    )
+                    ),
+                    knownGate: picker.lineFrom != nil ? picker.gate : nil
                 )
                 .frame(height: 280)
                 ForEach(model.pendingItems(picker)) { item in
@@ -806,6 +808,8 @@ final class ReviewModel {
     /// (phase 3), where `pickTrace` is the picker.
     private(set) var lineFrom: String?
     private var gate: Geo.Gate?
+    /// The found line, for the picker to draw — nil once the driver taps their own.
+    var knownGate: Geo.Gate? { lineFrom != nil ? gate : nil }
 
     init(
         api: APIClient,
