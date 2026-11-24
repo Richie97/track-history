@@ -36,6 +36,14 @@ describe("a track's own place", () => {
     expect(track.geo.length_m).toBeLessThanOrEqual(2980);
     expect(track.geo.lat).toBeCloseTo(VIR.lat + (r - 80) / 110540, 5);
     expect(track.geo.lon).toBeCloseTo(VIR.lon + 250 / (111320 * Math.cos((VIR.lat * Math.PI) / 180)), 5);
+    // The line that lap was timed from (phase 3): the trace's first point, and
+    // the way the car was heading across it.
+    const [x0, y0] = circleTrace()[0];
+    expect(Object.keys(track.geo).sort()).toEqual(["lat", "length_m", "lon", "sf"]);
+    expect(track.geo.sf.lat).toBeCloseTo(VIR.lat + y0 / 110540, 6);
+    expect(track.geo.sf.lon).toBeCloseTo(VIR.lon + x0 / (111320 * Math.cos((VIR.lat * Math.PI) / 180)), 6);
+    expect(track.geo.sf.heading).toBeGreaterThanOrEqual(0);
+    expect(track.geo.sf.heading).toBeLessThan(360);
   });
 
   it("comes from the newest anchored session and is kept per track", async () => {

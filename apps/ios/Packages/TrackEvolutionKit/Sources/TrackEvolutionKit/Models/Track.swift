@@ -82,10 +82,36 @@ public struct TrackPlace: Codable, Hashable, Sendable {
     public var lat: Double
     public var lon: Double
     public var lengthM: Int
+    /// The start/finish line that lap was timed from (NS-57 phase 3), nil when
+    /// the trace gave no direction to read — or in a response cached before the
+    /// field existed. `TrackLocate.gateFromSf` turns it into a gate for another
+    /// day's recording.
+    public var sf: StartFinish?
+
+    public init(lat: Double, lon: Double, lengthM: Int, sf: StartFinish? = nil) {
+        self.lat = lat
+        self.lon = lon
+        self.lengthM = lengthM
+        self.sf = sf
+    }
 
     public enum CodingKeys: String, CodingKey {
-        case lat, lon
+        case lat, lon, sf
         case lengthM = "length_m"
+    }
+}
+
+/// A timing line: a point on it and the heading across it, degrees clockwise
+/// from north.
+public struct StartFinish: Codable, Hashable, Sendable {
+    public var lat: Double
+    public var lon: Double
+    public var heading: Double
+
+    public init(lat: Double, lon: Double, heading: Double) {
+        self.lat = lat
+        self.lon = lon
+        self.heading = heading
     }
 }
 

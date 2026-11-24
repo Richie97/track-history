@@ -6,7 +6,8 @@
     "LENGTH_TOLERANCE": 0.04,
     "CATALOG_SHORT_TOLERANCE": 0.06,
     "CATALOG_LONG_TOLERANCE": 0.02,
-    "DATE_SLACK_DAYS": 1
+    "DATE_SLACK_DAYS": 1,
+    "GATE_HALF_WIDTH_M": 20
   },
   "catalog": [
     {
@@ -3925,6 +3926,441 @@
         "catalog_id": null
       },
       "expected": null
+    }
+  ],
+  "gateFromSf": [
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 137.5
+      },
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": {
+        "x": -134.12098245432267,
+        "y": -176.86400000037324,
+        "hx": 0.6755902076156604,
+        "hy": -0.737277336810124,
+        "x1": -148.86652919052514,
+        "y1": -190.37580415268644,
+        "x2": -119.37543571812019,
+        "y2": -163.35219584806003
+      }
+    },
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 137.5
+      },
+      "origin": {
+        "lat": 36.57,
+        "lon": -79.19
+      },
+      "expected": {
+        "x": -1448.350976326549,
+        "y": -1094.3460000001985,
+        "hx": 0.6755902076156604,
+        "hy": -0.737277336810124,
+        "x1": -1463.0965230627514,
+        "y1": -1107.8578041525118,
+        "x2": -1433.6054295903466,
+        "y2": -1080.8341958478852
+      }
+    },
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 0
+      },
+      "origin": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 137.5
+      },
+      "expected": {
+        "x": 0,
+        "y": 0,
+        "hx": 0,
+        "hy": 1,
+        "x1": 20,
+        "y1": 0,
+        "x2": -20,
+        "y2": 0
+      }
+    },
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 90
+      },
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": {
+        "x": -134.12098245432267,
+        "y": -176.86400000037324,
+        "hx": 1,
+        "hy": 6.123233995736766e-17,
+        "x1": -134.12098245432267,
+        "y1": -196.86400000037324,
+        "x2": -134.12098245432267,
+        "y2": -156.86400000037324
+      }
+    },
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 359.9
+      },
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": {
+        "x": -134.12098245432267,
+        "y": -176.86400000037324,
+        "hx": -0.0017453283658984452,
+        "hy": 0.9999984769132877,
+        "x1": -114.12101291605691,
+        "y1": -176.82909343305528,
+        "x2": -154.12095199258843,
+        "y2": -176.8989065676912
+      }
+    },
+    {
+      "sf": {
+        "lat": -33.8035,
+        "lon": 150.8707,
+        "heading": 221
+      },
+      "origin": {
+        "lat": -33.8,
+        "lon": 150.87
+      },
+      "expected": {
+        "x": 64.7536337832532,
+        "y": -386.8900000002765,
+        "hx": -0.6560590289905074,
+        "hy": -0.7547095802227719,
+        "x1": 49.65944217879777,
+        "y1": -373.76881942046634,
+        "x2": 79.84782538770864,
+        "y2": -400.0111805800866
+      }
+    },
+    {
+      "sf": null,
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": null
+    },
+    {
+      "sf": {
+        "lat": 36.5601,
+        "lon": -79.2062,
+        "heading": 137.5
+      },
+      "origin": null,
+      "expected": null
+    },
+    {
+      "sf": {
+        "lat": 0,
+        "lon": 0,
+        "heading": 10
+      },
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": null
+    },
+    {
+      "sf": {
+        "lat": 36.56,
+        "lon": -79.2,
+        "heading": null
+      },
+      "origin": {
+        "lat": 36.5617,
+        "lon": -79.2047
+      },
+      "expected": null
+    }
+  ],
+  "sfOwnTracks": [
+    {
+      "id": 21,
+      "name": "VIR full course",
+      "catalog_id": 1,
+      "geo": {
+        "lat": 36.5618,
+        "lon": -79.2046,
+        "length_m": 5230,
+        "sf": {
+          "lat": 36.5601,
+          "lon": -79.2062,
+          "heading": 137.5
+        }
+      }
+    },
+    {
+      "id": 22,
+      "name": "VIR North",
+      "catalog_id": 2,
+      "geo": {
+        "lat": 36.5655,
+        "lon": -79.2055,
+        "length_m": 3600,
+        "sf": {
+          "lat": 36.5661,
+          "lon": -79.2049,
+          "heading": 0
+        }
+      }
+    },
+    {
+      "id": 23,
+      "name": "VIR, no line read",
+      "catalog_id": null,
+      "geo": {
+        "lat": 36.5617,
+        "lon": -79.2047,
+        "length_m": 1500,
+        "sf": null
+      }
+    },
+    {
+      "id": 24,
+      "name": "The Farm",
+      "catalog_id": null,
+      "geo": {
+        "lat": 40.5,
+        "lon": -90.5,
+        "length_m": 1800,
+        "sf": {
+          "lat": 40.5003,
+          "lon": -90.5004,
+          "heading": 271.3
+        }
+      }
+    },
+    {
+      "id": 25,
+      "name": "Unanchored",
+      "catalog_id": null,
+      "geo": null
+    }
+  ],
+  "knownLines": [
+    {
+      "place": {
+        "lat": 36.5617,
+        "lon": -79.2047,
+        "lengthM": null
+      },
+      "expected": [
+        {
+          "id": 21,
+          "name": "VIR full course",
+          "sf": {
+            "lat": 36.5601,
+            "lon": -79.2062,
+            "heading": 137.5
+          },
+          "distM": 14.21757453135534
+        },
+        {
+          "id": 22,
+          "name": "VIR North",
+          "sf": {
+            "lat": 36.5661,
+            "lon": -79.2049,
+            "heading": 0
+          },
+          "distM": 426.09874707858324
+        }
+      ]
+    },
+    {
+      "place": {
+        "lat": 36.5655,
+        "lon": -79.2055,
+        "lengthM": null
+      },
+      "expected": [
+        {
+          "id": 22,
+          "name": "VIR North",
+          "sf": {
+            "lat": 36.5661,
+            "lon": -79.2049,
+            "heading": 0
+          },
+          "distM": 0
+        },
+        {
+          "id": 21,
+          "name": "VIR full course",
+          "sf": {
+            "lat": 36.5601,
+            "lon": -79.2062,
+            "heading": 137.5
+          },
+          "distM": 416.83914733389463
+        }
+      ]
+    },
+    {
+      "place": {
+        "lat": 40.5,
+        "lon": -90.5,
+        "lengthM": 1800
+      },
+      "expected": [
+        {
+          "id": 24,
+          "name": "The Farm",
+          "sf": {
+            "lat": 40.5003,
+            "lon": -90.5004,
+            "heading": 271.3
+          },
+          "distM": 0
+        }
+      ]
+    },
+    {
+      "place": {
+        "lat": 39.2344,
+        "lon": -77.9753,
+        "lengthM": null
+      },
+      "expected": []
+    },
+    {
+      "place": null,
+      "expected": []
+    },
+    {
+      "place": {
+        "lat": 0,
+        "lon": 0,
+        "lengthM": null
+      },
+      "expected": []
+    }
+  ],
+  "lineFits": [
+    {
+      "trackId": 21,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 5235
+        }
+      ],
+      "expected": true
+    },
+    {
+      "trackId": 21,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 5235
+        },
+        null,
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 5220
+        }
+      ],
+      "expected": true
+    },
+    {
+      "trackId": 22,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 5235
+        }
+      ],
+      "expected": false
+    },
+    {
+      "trackId": 21,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 3600
+        }
+      ],
+      "expected": false
+    },
+    {
+      "trackId": 21,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 5235
+        },
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": 3600
+        }
+      ],
+      "expected": false
+    },
+    {
+      "trackId": 21,
+      "places": [
+        null
+      ],
+      "expected": false
+    },
+    {
+      "trackId": 21,
+      "places": [],
+      "expected": false
+    },
+    {
+      "trackId": 21,
+      "places": [
+        {
+          "lat": 36.5617,
+          "lon": -79.2047,
+          "lengthM": null
+        }
+      ],
+      "expected": false
+    },
+    {
+      "trackId": 24,
+      "places": [
+        {
+          "lat": 40.5001,
+          "lon": -90.5,
+          "lengthM": 1790
+        }
+      ],
+      "expected": true
     }
   ]
 }
