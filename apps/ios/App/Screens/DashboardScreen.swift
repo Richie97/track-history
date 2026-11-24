@@ -190,6 +190,10 @@ struct DashboardScreen: View {
                 .accessibilityIdentifier("welcomeRecord")
                 .accessibilityLabel(Self.recordLabel(nil))
         }
+        // Start a logbook from files, no event typed first (NS-57).
+        Button("Import laps") { openFromList(.importVideo(eventId: nil, incoming: nil)) }
+            .buttonStyle(TEButtonStyle(kind: .quiet))
+            .accessibilityIdentifier("welcomeImport")
     }
 
     /// The Mac has no recorder (epic #230), so it points at the phone instead.
@@ -232,6 +236,13 @@ struct DashboardScreen: View {
                     .accessibilityLabel(Self.recordLabel(model.todaysEvent))
                 }
             }
+
+            // Import with no event picked (NS-57): the review places each file
+            // by where it was driven and groups them into events. A row of its
+            // own — three buttons don't fit one line on a phone.
+            Button("Import laps") { openFromList(.importVideo(eventId: nil, incoming: nil)) }
+                .buttonStyle(TEButtonStyle(kind: .quiet))
+                .accessibilityIdentifier("dashboardImport")
 
             if let year = model.wrappedYear, !Self.wrappedDismissed(year, tick: wrappedDismissals) {
                 wrappedBanner(year)

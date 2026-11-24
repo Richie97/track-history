@@ -47,6 +47,10 @@ struct ImportScreen: View {
                     source: .imported(clips),
                     preferredEventId: eventId,
                     forNewEvent: forNewEvent,
+                    // No event to save onto — the dashboard's *Import laps*, or a
+                    // file shared into the app: each file is placed by where it
+                    // was driven (NS-57).
+                    auto: eventId == nil && !forNewEvent,
                     onFinish: {
                         if forNewEvent {
                             // Back to the form underneath, which is watching for the
