@@ -115,3 +115,25 @@ export function resolveTraceGeo(trace: unknown, stored: unknown, donor: DonorRow
   if (!donor) return null;
   return borrowAnchor(trace, parseTrace(donor.trace), parseTraceGeo(donor.trace_geo));
 }
+
+// Where a track is and how long its lap is (NS-57), from one anchored best-lap
+// trace: the centre of its bounding box in degrees and its closed length. What
+// the owner's GET /tracks carries as `geo`, so an import can recognise the
+// place. Null for anything unreadable.
+export type TrackPlace = { lat: number; lon: number; length_m: number };
+export function trackPlace(traceRaw: unknown, geoRaw: unknown): TrackPlace | null {
+  const trace = parseTrace(traceRaw);
+  const geo = parseTraceGeo(geoRaw);
+  if (!trace || !geo) return null;
+  const c = traceCentre(trace);
+  if (!c) return null;
+  let length = 0;
+  for (let i = 0; i < trace.length; i++) {
+    const a = trace[i];
+    const b = trace[(i + 1) % trace.length];
+    length += Math.hypot(b[0] - a[0], b[1] - a[1]);
+  }
+  if (!Number.isFinite(length) || length <= 0) return null;
+  const centre = unproject(c[0], c[1], geo);
+  return { lat: round7(centre.lat), lon: round7(centre.lon), length_m: Math.round(length) };
+}

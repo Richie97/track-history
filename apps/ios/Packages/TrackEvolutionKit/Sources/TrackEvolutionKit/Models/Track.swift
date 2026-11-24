@@ -27,9 +27,14 @@ public struct Track: Codable, Hashable, Sendable, Identifiable {
     /// trend). The field stays because it is non-optional here and on Android,
     /// so the server cannot stop sending it while these builds are in the wild.
     public var series: [TrackSeriesPoint]
+    /// Where the track is (NS-57): the place of the newest session here that
+    /// kept its anchor, nil without one. The owner's `GET /api/tracks` only —
+    /// a coach's view and the share page never carry it. Decoded for
+    /// `TrackLocate` (ticket 2); nothing reads it yet.
+    public var geo: TrackPlace?
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, notes, series
+        case id, name, notes, series, geo
         case goalMs = "goal_ms"
         case catalogId = "catalog_id"
         case updatedAt = "updated_at"
@@ -57,6 +62,31 @@ public struct TrackSeriesPoint: Codable, Hashable, Sendable {
 public struct CatalogTrack: Codable, Hashable, Sendable, Identifiable {
     public var id: Int
     public var name: String
+    /// A point inside the layout's footprint and its published lap length
+    /// (NS-57) — what an import matches a recording's place against. Optional,
+    /// so a catalog cached before the fields existed still decodes; the three
+    /// rows that name no single layout have no length.
+    public var lat: Double?
+    public var lon: Double?
+    public var lengthM: Int?
+
+    public enum CodingKeys: String, CodingKey {
+        case id, name, lat, lon
+        case lengthM = "length_m"
+    }
+}
+
+/// A track's place: the centre of a driven best lap's bounding box and that
+/// lap's closed length. `trackPlace` in `src/lib/geo.ts` is the canonical shape.
+public struct TrackPlace: Codable, Hashable, Sendable {
+    public var lat: Double
+    public var lon: Double
+    public var lengthM: Int
+
+    public enum CodingKeys: String, CodingKey {
+        case lat, lon
+        case lengthM = "length_m"
+    }
 }
 
 /// The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):

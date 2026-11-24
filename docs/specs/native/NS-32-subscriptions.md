@@ -58,6 +58,7 @@ turns lap times into analysis.
 | **Cost roll-ups** across events — per track, per car, per season ([NS-37](NS-37-garage-tab.md)) | **Pro** | Client: `canViewSpend` (the line items are free data on `/events`); server: the per-car sums ride on `/garage` |
 | GPS lap recorder, live timing, predictive delta | **Pro** | Client, at *start* (rule 5) |
 | Telemetry import — video on the phones, video + `.vbo` on web | Free | — (revised after phase D; see the note below) |
+| Import with no event picked: the track and event found from GPS (NS-57) | Free | — (matching is on the device; the two reads it uses are ungated) |
 | Channel graphs — the **speed, throttle and brake** traces, on the event page, the lap detail and the leaderboard lap | Free | — (revised 2026-09, [#264](https://github.com/Richie97/track-history/issues/264); see rule 4) |
 | The rest of the channel panel: steering, RPM, lateral G, yaw, the gear ribbon + shift points, limit marks (ABS / slip on the track map), the friction circle and balance, the Car tab; the lap delta chart, sector splits, the two-lap compare | **Pro** | Server: every channel beyond `FREE_CHANNELS` and every per-lap scalar stripped from `channels` (rule 4); client: `canViewChannels` for the delta, the sectors and the compare, which derive from the free speed trace |
 | Two-event lap overlay (web) | **Pro** | Client |

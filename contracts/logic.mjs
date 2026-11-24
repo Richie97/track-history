@@ -32,6 +32,20 @@ import {
   unprojectTrace,
 } from "../public/js/import/geo.js";
 import { parseTelemetryFile } from "../public/js/import/parse.js";
+import {
+  DATE_SLACK_DAYS,
+  LENGTH_TOLERANCE,
+  OWN_RADIUS_M,
+  VENUE_RADIUS_M,
+  distanceM,
+  eventBodyFor,
+  eventForDate,
+  groupImports,
+  locateTrack,
+  otherTrackHere,
+  recordingPlace,
+  traceLengthM,
+} from "../public/js/import/locate.js";
 import { lapsFromLaptime } from "../public/js/import/csv.js";
 import { applyGate } from "../public/js/import/ui.js";
 import { anchorPdrBatch } from "../public/js/import/pdr-laps.js";
@@ -3008,8 +3022,153 @@ const geoAnchorFixture = {
   flatSpeedRuns: speedRuns(anchorTrace.map(([x, y]) => [x, y, 30]), 16),
 };
 
+// --- NS-57: which track, which event ------------------------------------------
+// Rows chosen for the ways a port goes wrong: a place exactly inside and just
+// outside each radius, a length either side of the tolerance, two layouts at one
+// venue, a catalog row with no length, an own track beating the catalog, a
+// weekend across a month end, and a file dated the day after its event.
+const locCircle = (lengthM, points = 120) => {
+  const r = lengthM / (2 * Math.PI);
+  return Array.from({ length: points }, (_, i) => {
+    const a = (2 * Math.PI * i) / points;
+    return [Math.round(r * Math.sin(a) * 10) / 10, Math.round(r * Math.cos(a) * 10) / 10, 40];
+  });
+};
+const locNorth = (p, m) => ({ lat: p.lat + m / geoKY, lon: p.lon });
+const LOC_VIR = { lat: 36.5617, lon: -79.2047 };
+const LOC_SP = { lat: 39.2344, lon: -77.9753 };
+const locCatalog = [
+  { id: 1, name: "Virginia International Raceway (Full)", lat: 36.5617, lon: -79.2047, length_m: 5262 },
+  { id: 2, name: "Virginia International Raceway (North)", lat: 36.5655, lon: -79.2055, length_m: 3621 },
+  { id: 3, name: "Virginia International Raceway (South)", lat: 36.5565, lon: -79.205, length_m: 2655 },
+  { id: 4, name: "Summit Point (Main Circuit)", lat: 39.2344, lon: -77.9753, length_m: 3219 },
+  { id: 5, name: "Pocono Raceway", lat: 41.0554, lon: -75.5115, length_m: null },
+  { id: 6, name: "Twin Layout A", lat: 45, lon: -100, length_m: 3000 },
+  { id: 7, name: "Twin Layout B", lat: 45.001, lon: -100, length_m: 3060 },
+  { id: 8, name: "Nowhere Yet", lat: null, lon: null, length_m: 4000 },
+];
+const locOwn = [
+  { id: 11, name: "Summit Point (Main Circuit)", catalog_id: 4, geo: null },
+  { id: 12, name: "The Farm", catalog_id: null, geo: { lat: 40.5, lon: -90.5, length_m: 1800 } },
+  { id: 13, name: "VIR full course", catalog_id: null, geo: { lat: 36.5618, lon: -79.2046, length_m: 5230 } },
+  { id: 14, name: "Unanchored", catalog_id: null, geo: null },
+];
+const locPlaces = [
+  { name: "VIR Full, catalog only", place: { ...LOC_VIR, lengthM: 5200 }, own: [] },
+  { name: "VIR Full, own track wins", place: { ...LOC_VIR, lengthM: 5200 }, own: locOwn },
+  { name: "VIR North by length", place: { ...LOC_VIR, lengthM: 3600 }, own: [] },
+  { name: "VIR, a length no layout has", place: { ...LOC_VIR, lengthM: 4400 }, own: [] },
+  { name: "VIR before a line is picked", place: { ...LOC_VIR, lengthM: null }, own: locOwn },
+  { name: "length just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 + LENGTH_TOLERANCE) - 1 }, own: [] },
+  { name: "length just past tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 + LENGTH_TOLERANCE) + 1 }, own: [] },
+  { name: "length short, just inside tolerance", place: { ...LOC_SP, lengthM: 3219 * (1 - LENGTH_TOLERANCE) + 1 }, own: [] },
+  { name: "catalog row the driver has a track for", place: { ...LOC_SP, lengthM: 3200 }, own: locOwn },
+  { name: "venue radius, just inside", place: { ...locNorth(LOC_SP, VENUE_RADIUS_M - 1), lengthM: 3200 }, own: [] },
+  { name: "venue radius, just outside", place: { ...locNorth(LOC_SP, VENUE_RADIUS_M + 1), lengthM: 3200 }, own: [] },
+  { name: "own radius, just inside", place: { ...locNorth(locOwn[1].geo, OWN_RADIUS_M - 1), lengthM: 1800 }, own: locOwn },
+  { name: "own radius, just outside", place: { ...locNorth(locOwn[1].geo, OWN_RADIUS_M + 1), lengthM: 1800 }, own: locOwn },
+  { name: "own track, another layout's length", place: { ...locOwn[1].geo, lengthM: 2400 }, own: locOwn },
+  { name: "no length on the catalog row", place: { lat: 41.0554, lon: -75.5115, lengthM: 4000 }, own: [] },
+  { name: "two layouts length cannot separate", place: { lat: 45.0004, lon: -100, lengthM: 3030 }, own: [] },
+  { name: "nothing known here", place: { lat: 10, lon: 10, lengthM: 3000 }, own: locOwn },
+  { name: "null island", place: { lat: 0, lon: 0, lengthM: 3000 }, own: locOwn },
+  { name: "no place", place: null, own: locOwn },
+];
+const locParsed = [
+  { name: "laps and an anchor", parsed: { bestLapTrace: locCircle(3219), traceGeo: LOC_SP, gps: [{ lat: 1, lon: 1 }] } },
+  { name: "no laps yet", parsed: { bestLapTrace: null, traceGeo: null, gps: [{ lat: 36.55, lon: -79.21 }, { lat: 36.57, lon: -79.2 }, { lat: 0, lon: 0 }, { lat: 36.56, lon: -79.19 }] } },
+  { name: "a trace with no anchor", parsed: { bestLapTrace: locCircle(3219), traceGeo: null, gps: [] } },
+  { name: "nothing", parsed: { laps: [] } },
+];
+const locEvents = [
+  { id: 101, track_id: 11, start_date: "2026-05-02", days: 1 },
+  { id: 102, track_id: 13, start_date: "2026-03-14", days: 2 },
+  { id: 103, track_id: 13, start_date: "2026-03-15", days: 1 },
+  { id: 104, track_id: 12, start_date: "2026-05-02", days: 1 },
+];
+const locItem = (id, date, time, place, own) => ({ id, date, time, place, located: locateTrack(place, own, locCatalog) });
+const locBatches = [
+  {
+    name: "two catalog tracks, an unknown place, a weekend across a month end",
+    own: [],
+    events: [],
+    items: [
+      locItem(0, "2026-03-31", "10:00", { ...LOC_VIR, lengthM: 5200 }, []),
+      locItem(1, "2026-04-01", "09:00", { ...LOC_VIR, lengthM: 5210 }, []),
+      locItem(2, "2026-03-31", "14:00", { ...LOC_VIR, lengthM: 5190 }, []),
+      locItem(3, "2026-05-02", "11:00", { ...LOC_SP, lengthM: 3200 }, []),
+      locItem(4, "2026-06-20", "11:00", { lat: 10, lon: 10, lengthM: 2500 }, []),
+      locItem(5, "2026-06-20", "13:00", { lat: 10.001, lon: 10, lengthM: 2500 }, []),
+      locItem(6, "2026-04-03", "09:00", { ...LOC_VIR, lengthM: 5200 }, []),
+    ],
+    choices: {},
+  },
+  {
+    name: "joining existing events: slack a day either side, never another track's event, the newer of two",
+    own: locOwn,
+    events: locEvents,
+    items: [
+      locItem(0, "2026-05-03", "08:00", { ...LOC_SP, lengthM: 3200 }, locOwn),
+      locItem(1, "2026-05-04", "08:00", { ...LOC_SP, lengthM: 3200 }, locOwn),
+      locItem(2, "2026-03-15", "08:00", { ...LOC_VIR, lengthM: 5200 }, locOwn),
+      locItem(3, "2026-03-13", "08:00", { ...LOC_VIR, lengthM: 5200 }, locOwn),
+      locItem(4, "2026-03-12", "08:00", { ...LOC_VIR, lengthM: 5200 }, locOwn),
+    ],
+    choices: {},
+  },
+  {
+    name: "the driver's answer outranks the match, and names an own track or a new one",
+    own: locOwn,
+    events: locEvents,
+    items: [
+      locItem(0, "2026-05-02", "08:00", { lat: 10, lon: 10, lengthM: 2500 }, locOwn),
+      locItem(1, "2026-05-02", "09:00", { ...LOC_VIR, lengthM: 3600 }, locOwn),
+      locItem(2, null, null, { lat: 41.0554, lon: -75.5115, lengthM: 4000 }, locOwn),
+      locItem(3, "2026-07-01", "09:00", null, locOwn),
+    ],
+    choices: { 0: { name: "the farm" }, 1: { name: " Patriot Course " } },
+  },
+];
+const locateFixture = {
+  description:
+    "NS-57: which track a recording was driven at and which event it joins. Generated from " +
+    "public/js/import/locate.js; ports assert equality (distances and length ratios to 1e-6).",
+  constants: { OWN_RADIUS_M, VENUE_RADIUS_M, LENGTH_TOLERANCE, DATE_SLACK_DAYS },
+  catalog: locCatalog,
+  ownTracks: locOwn,
+  distanceM: [
+    [LOC_VIR, LOC_SP],
+    [LOC_VIR, locCatalog[1]],
+    [{ lat: -33.8, lon: 150.87 }, { lat: -33.81, lon: 150.9 }],
+  ].map(([a, b]) => ({ a: { lat: a.lat, lon: a.lon }, b: { lat: b.lat, lon: b.lon }, expected: distanceM(a, b) })),
+  traceLengthM: [locCircle(3219), locCircle(500, 4), [[0, 0, 1]], []].map((trace) => ({ trace, expected: traceLengthM(trace) })),
+  recordingPlace: locParsed.map((c) => ({ ...c, expected: recordingPlace(c.parsed) })),
+  locateTrack: locPlaces.map((c) => ({ ...c, expected: locateTrack(c.place, c.own, locCatalog) })),
+  eventForDate: [
+    [13, "2026-03-14"], [13, "2026-03-16"], [13, "2026-03-17"], [13, "2026-03-13"], [13, "2026-03-12"], [11, "2026-05-01"], [14, "2026-05-02"],
+  ].map(([trackId, date]) => ({ trackId, date, expected: eventForDate(locEvents, trackId, date)?.id ?? null })),
+  events: locEvents,
+  groupImports: locBatches.map((b) => {
+    const groups = groupImports(b.items, b.events, { choices: b.choices, ownTracks: b.own, today: "2026-08-09" });
+    return {
+      ...b,
+      today: "2026-08-09",
+      expected: groups,
+      eventBodies: groups.map((g) => (g.track && g.eventId == null ? eventBodyFor(g, "Corvette") : null)),
+    };
+  }),
+  otherTrackHere: [
+    { place: { ...LOC_VIR, lengthM: 5200 }, own: locOwn, track: locOwn[2] },
+    { place: { ...LOC_VIR, lengthM: 5200 }, own: locOwn, track: locOwn[1] },
+    { place: { ...LOC_VIR, lengthM: 5200 }, own: [], track: { id: 50, name: "VIR", catalog_id: 1 } },
+    { place: { ...LOC_VIR, lengthM: 5200 }, own: [], track: { id: 50, name: "Somewhere", catalog_id: null } },
+    { place: { ...LOC_VIR, lengthM: null }, own: [], track: { id: 50, name: "Somewhere", catalog_id: null } },
+  ].map((c) => ({ ...c, expected: otherTrackHere(locateTrack(c.place, c.own, locCatalog), c.track) })),
+};
+
 mkdirSync(OUT_DIR, { recursive: true });
 writeFileSync(path.join(OUT_DIR, "geo-anchor.json"), JSON.stringify(geoAnchorFixture, null, 2) + "\n");
+writeFileSync(path.join(OUT_DIR, "track-locate.json"), JSON.stringify(locateFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "trackmap.json"), JSON.stringify(trackmapFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "entitlement.json"), JSON.stringify(entitlementFixture, null, 2) + "\n");
 writeFileSync(path.join(OUT_DIR, "checklist.json"), JSON.stringify(checklistFixture, null, 2) + "\n");

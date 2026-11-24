@@ -706,7 +706,7 @@ change* rule does not apply — see the spec for why.
 | NS-54 | [Push notifications for coach comments](NS-54-comment-push.md) — server (#463), iOS (#464) and Android (#465) built | Server + iOS + Android | NS-52, NS-38 |
 | NS-55 | [Import laps from an AiM SmartyCam video](NS-55-smartycam-import.md) — tickets 1–3 (the web parser and the iOS and Android ports) built; clips (ticket 4) are not | Web + iOS + Android (no server change) | the video importers (NS-30, NS-32), NS-45, NS-47, NS-50, NS-53 |
 | NS-56 | [Share one lap, or two laps compared](NS-56-share-lap-compare.md) | Server + web + iOS + Android | NS-48, #165, #267 / #268 |
-| NS-57 | [Import laps anywhere: the track and the event found from GPS](NS-57-auto-place-laps.md) — specced, not built | Shared (server, web, iOS, Android) | the importers and recorders, NS-53, NS-36 |
+| NS-57 | [Import laps anywhere: the track and the event found from GPS](NS-57-auto-place-laps.md) — ticket 1 (server, shared logic, web) built; the phones (#485, #486) and start/finish lines (#487) are not | Shared (server, web, iOS, Android) | the importers and recorders, NS-53, NS-36 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into

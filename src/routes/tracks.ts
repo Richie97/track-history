@@ -1,7 +1,16 @@
 import { Hono } from "hono";
 import type { AppContext } from "../types";
-import { catalogIdForName, eventListStmt, traceDonorForTrackStmt, tracksSummary } from "../db";
-import { type DonorRow, parseTrace, parseTraceGeo, resolveTraceGeo } from "../lib/geo";
+import {
+  type TrackRow,
+  catalogIdForName,
+  eventListStmt,
+  pastEventsAscStmt,
+  summarizeTracks,
+  traceDonorForTrackStmt,
+  trackPlacesStmt,
+  trackRowsStmt,
+} from "../db";
+import { type DonorRow, parseTrace, parseTraceGeo, resolveTraceGeo, trackPlace } from "../lib/geo";
 import { type EventRow, withComputed } from "../lib/stats";
 import { isValidGoal } from "../lib/validate";
 import { isEntitled, stripProFields } from "../lib/entitlement";
@@ -51,7 +60,21 @@ tracks.get("/tracks/:id/setups", requireEntitlement, async (c) => {
 });
 
 tracks.get("/tracks", async (c) => {
-  return c.json(await tracksSummary(c.env.DB, c.get("userId")));
+  // `geo` (NS-57) is where the track is — the newest anchored session's lap —
+  // so an import can recognise the place. It is added here and not in
+  // summarizeTracks, which the public share page also builds from: a track's
+  // place is the owner's, like trace_geo.
+  const db = c.env.DB;
+  const userId = c.get("userId");
+  const [tracksRes, eventsRes, placesRes] = await db.batch([
+    trackRowsStmt(db, userId),
+    pastEventsAscStmt(db, userId),
+    trackPlacesStmt(db, userId),
+  ]);
+  const summary = summarizeTracks(tracksRes.results as TrackRow[], (eventsRes.results as EventRow[]).map(withComputed));
+  type PlaceRow = { track_id: number; trace: string | null; trace_geo: string | null };
+  const geo = new Map((placesRes.results as PlaceRow[]).map((r) => [r.track_id, trackPlace(r.trace, r.trace_geo)]));
+  return c.json(summary.map((t) => ({ ...t, geo: geo.get(t.id) ?? null })));
 });
 
 // The per-track community leaderboard: every opted-in user's best
@@ -262,9 +285,14 @@ tracks.get("/tracks/:id/leaderboard/laps/:lapId", async (c) => {
 
 // The seeded track catalog — backs the track-name suggestions in the event form.
 tracks.get("/catalog", async (c) => {
-  const rows = await c.env.DB.prepare("SELECT id, name FROM track_catalog ORDER BY name").all<{
+  // lat / lon (the layout's centre) and length_m are what an import matches a
+  // recording's place against (NS-57).
+  const rows = await c.env.DB.prepare("SELECT id, name, lat, lon, length_m FROM track_catalog ORDER BY name").all<{
     id: number;
     name: string;
+    lat: number | null;
+    lon: number | null;
+    length_m: number | null;
   }>();
   return c.json(rows.results);
 });

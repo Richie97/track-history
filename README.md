@@ -843,6 +843,26 @@ committed as `release/notes/<version>.txt` beforehand); after approval,
 
 ## Video / telemetry import
 
+**Import laps with no event picked (NS-57, web so far).** *Import laps* on the
+dashboard (`#/import`) takes a batch of files from any mix of tracks and days.
+`public/js/import/locate.js` — pure, run in the browser — works out where each
+file was driven (`recordingPlace`: the centre of its best lap and that lap's
+length), matches it against the driver's own tracks and then the seeded catalog
+(`locateTrack`), and groups the batch into events by track and run of dates
+(`groupImports`); `public/js/import/auto.js` is the review, one card per event,
+and nothing is saved before it is confirmed. A match is pre-filled only when
+one track fits by place *and* lap length; several candidates, or a catalog row
+with no length, ask. Saving is `POST /events` (which find-or-creates the track
+by name) followed by each session, so it queues offline like the New Event
+form. The server's half is small: `track_catalog.lat` / `lon` (migration
+`0040`), which `GET /api/catalog` returns with `length_m`, and `geo`
+(`{ lat, lon, length_m }` or null) on each of the caller's own
+`GET /api/tracks` rows, taken from the newest session there that kept its
+anchor — never on a coach's view, a share page or an MCP tool. Importing from
+an event page is unchanged, except that a file certainly driven at another
+known track says so. Spec: `docs/specs/native/NS-57-auto-place-laps.md`; the
+phone ports are tickets #485 and #486.
+
 On any event page — or on the **New event** form, where the same import review
 stages its sessions until *Create event* (see *Adding laps with the event* below)
 — **Import video / telemetry…** turns recordings into sessions

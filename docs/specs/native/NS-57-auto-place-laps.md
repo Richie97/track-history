@@ -1,6 +1,6 @@
 # NS-57 — Import laps anywhere: the track and the event found from GPS
 
-**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** the importers and recorders, NS-53 (`trace_geo`), the staged-session flow of the New Event form (`sessionsToCreate` / `EventFormSessions`), `track_catalog` and its `length_m` (NS-36) · **Estimate:** 3–4 weeks across four PRs — server + shared logic + web, then iOS, Android, then the catalog start/finish lines · **Issue:** not yet filed · **Status:** specced, not built
+**Phase:** post-rewrite · **Platform:** Shared (server, web, iOS, Android) · **Depends on:** the importers and recorders, NS-53 (`trace_geo`), the staged-session flow of the New Event form (`sessionsToCreate` / `EventFormSessions`), `track_catalog` and its `length_m` (NS-36) · **Estimate:** 3–4 weeks across four PRs — server + shared logic + web, then iOS, Android, then the catalog start/finish lines · **Issue:** [#483](https://github.com/Richie97/track-history/issues/483) (tickets #484–#487) · **Status:** ticket 1 built
 
 ## Goal
 
@@ -242,6 +242,35 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
   correctly, and the saves queue and replay in order.
 - No request carries a coordinate other than the `trace_geo` on a session
   save, and no coach, share or MCP response carries a track's `geo`.
+
+## As built (ticket 1)
+
+- **`choose` lists, it does not pre-select.** The card's picker opens on
+  *Pick the track…* with the candidates first; a pre-selected layout the
+  driver has to notice is the silent guess this spec exists to avoid.
+- **A file waiting for its line is not in a group yet.** The review draws one
+  line picker per venue (files within `VENUE_RADIUS_M` of each other share
+  one), and a file joins the cards once its line gives it laps and so a
+  length.
+- **An unknown place is named once per review**: the name goes to every date
+  at that place, not only the card it was typed on.
+- **Attaching prefers a real cover over slack.** An event whose days contain
+  the file's date wins; the one-day slack is consulted only when none does
+  (`eventForDate`), so a file on Saturday never lands in Sunday's event.
+- **Attaching is per file.** Files that join an existing event form that
+  event's card; the rest group by track and consecutive dates.
+- **The catalog's coordinates are venue-accurate, not surveyed.** Migration
+  `0040` holds each circuit's published point; thirteen rows are marked
+  `ESTIMATE` in the file and need checking against a map before the migration
+  is applied remotely. Layouts are told apart by length, so a point only has
+  to fall within `VENUE_RADIUS_M`.
+- **The two radii and the tolerance are still first guesses** — the sandbox
+  had no real footage. The committed fixtures are 1.9 km synthetic circles
+  near VIR, which is why they match no catalog layout.
+- `GET /api/catalog`'s shape changed (it was pinned to `{ id, name }` by
+  0026's test); both native models decode the new fields.
+- Not built: the *looks already imported* warning, and the landing page's
+  features grid, which waits for the phones.
 
 ## Open questions
 

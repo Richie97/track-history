@@ -30,6 +30,7 @@ import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
 import { bestLapTrace, buildGate, deriveLaps, projectTrace, traceOrigin } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
+import { locateTrack, otherTrackHere, recordingPlace } from "./locate.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
 import {
@@ -77,7 +78,10 @@ export function bindTelemetryImport(view, event, onDone, options = {}) {
       if (r.parsed?.kind === "pdr" && r.parsed.lapRecovery) attachLapChannels(r.parsed);
     }
 
-    reviewResults(box, event, results, onDone, options);
+    // With no event picked (NS-57) the review is the caller's: it finds each
+    // file's track and event from where it was driven (auto.js).
+    if (options.auto) options.auto(box, results);
+    else reviewResults(box, event, results, onDone, options);
   }
 
   fileInput.onchange = () => importFiles(fileInput.files);
@@ -127,12 +131,12 @@ export function reviewResults(box, event, results, onDone, options = {}) {
 
 // --- line picker ---------------------------------------------------------------
 
-const MAP_W = 380;
-const MAP_H = 260;
+export const MAP_W = 380;
+export const MAP_H = 260;
 
 // Fit the pick trace into the map viewport; returns the transform used for
 // click mapping.
-function mapTransform(trace) {
+export function mapTransform(trace) {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const p of trace) {
     if (p.x < x0) x0 = p.x;
@@ -150,7 +154,7 @@ function mapTransform(trace) {
   };
 }
 
-function lineMapHtml(trace, gate) {
+export function lineMapHtml(trace, gate, id = "line-map") {
   const tr = mapTransform(trace);
   const pts = trace.map((p) => `${tr.sx(p).toFixed(1)},${tr.sy(p).toFixed(1)}`).join(" ");
   const gateLine = gate
@@ -158,7 +162,7 @@ function lineMapHtml(trace, gate) {
              x2="${tr.sx({ x: gate.x2 }).toFixed(1)}" y2="${tr.sy({ y: gate.y2 }).toFixed(1)}"
              stroke="var(--danger)" stroke-width="3" stroke-linecap="round"/>`
     : "";
-  return `<svg id="line-map" viewBox="0 0 ${MAP_W} ${MAP_H}" style="max-width:${MAP_W}px;width:100%;cursor:crosshair;display:block">
+  return `<svg id="${id}" viewBox="0 0 ${MAP_W} ${MAP_H}" style="max-width:${MAP_W}px;width:100%;cursor:crosshair;display:block">
     <polyline points="${pts}" fill="none" stroke="var(--chart-line)" stroke-width="2" stroke-linejoin="round" opacity="0.9"/>
     ${gateLine}
   </svg>`;
@@ -215,7 +219,7 @@ export function applyGate(state) {
   }
 }
 
-function defaultLabel(r) {
+export function defaultLabel(r) {
   const p = r.parsed;
   const prefix = KIND_LABELS[p.kind] ?? "Import";
   return `${prefix} ${p.time ?? r.file.replace(SUPPORTED_EXT, "")}`;
@@ -236,7 +240,7 @@ export function metricsSummary(p, units = currentUnits()) {
   return parts.join(" · ");
 }
 
-function estimatedNote(p, estCount) {
+export function estimatedNote(p, estCount) {
   if (!estCount) return "";
   if (p.kind === "pdr" && p.lapRecovery) {
     // No beacons in this recording: laps recovered from latitude + odometer.
@@ -289,7 +293,7 @@ export function clipHandles(r, scope = "best") {
 // The clip row under the items, or "". `offer` is clipOffer's state for the
 // best lap, `everyOffer` for every lap (null when the review offers no choice),
 // `scope` the choice and `wasChecked` the box's state before a re-render.
-function clipRowHtml(offer, everyOffer, scope, items, ctx, wasChecked) {
+export function clipRowHtml(offer, everyOffer, scope, items, ctx, wasChecked) {
   if (offer === "none") return "";
   const estimate = Math.max(
     0,
@@ -358,6 +362,13 @@ function renderReview(box, event, state, onDone, options) {
         Math.abs(new Date(p.date) - new Date(event.start_date)) > (event.days || 1) * 86400000
           ? `<div class="error-banner">File is dated ${esc(p.date)} but this event is ${esc(event.start_date)}</div>`
           : "";
+      // The event is the driver's answer; a file that was certainly driven at
+      // another known track gets one line saying so (NS-57).
+      const loc = options.locate?.();
+      const elsewhere = loc ? otherTrackHere(locateTrack(recordingPlace(p), loc.tracks, loc.catalog), loc.track) : null;
+      const trackWarn = elsewhere
+        ? `<div class="error-banner">This looks like it was driven at ${esc(elsewhere)}, not this event's track.</div>`
+        : "";
       const lapChips = p.laps
         .map((l) => `<span class="lap">${l.estimated ? "~" : ""}${fmtMs(l.timeMs)}</span>`)
         .join("");
@@ -380,7 +391,7 @@ function renderReview(box, event, state, onDone, options) {
           <strong>${esc(r.file)}</strong>
           <span style="color:var(--text-muted);font-size:13px">${esc(p.date ?? "")} ${esc(p.time ?? "")} · ${(p.durationS / 60).toFixed(0)} min · ${p.laps.length} lap${p.laps.length === 1 ? "" : "s"}</span>
         </label>
-        ${dateWarn}
+        ${dateWarn}${trackWarn}
         <div class="laps" style="margin-top:8px">${lapChips || noLapsHint}</div>
         ${metrics ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(metrics)}</div>` : ""}
         ${note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">~ = ${esc(note)}</div>` : ""}

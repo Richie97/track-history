@@ -35,6 +35,24 @@ public data class Track(
      * cannot stop sending it while these builds are in the wild.
      */
     val series: List<TrackSeriesPoint>,
+    /**
+     * Where the track is (NS-57): the place of the newest session here that
+     * kept its anchor, null without one. The owner's `GET /api/tracks` only —
+     * a coach's view and the share page never carry it. Decoded for
+     * `TrackLocate` (ticket 3); nothing reads it yet.
+     */
+    val geo: TrackPlace? = null,
+)
+
+/**
+ * A track's place: the centre of a driven best lap's bounding box and that
+ * lap's closed length. `trackPlace` in `src/lib/geo.ts` is the canonical shape.
+ */
+@Serializable
+public data class TrackPlace(
+    val lat: Double,
+    val lon: Double,
+    @SerialName("length_m") val lengthM: Int,
 )
 
 /**
@@ -55,6 +73,15 @@ public data class TrackSeriesPoint(
 public data class CatalogTrack(
     val id: Int,
     val name: String,
+    /**
+     * A point inside the layout's footprint and its published lap length
+     * (NS-57) — what an import matches a recording's place against. Defaulted,
+     * so a catalog cached before the fields existed still decodes; the three
+     * rows that name no single layout have no length.
+     */
+    val lat: Double? = null,
+    val lon: Double? = null,
+    @SerialName("length_m") val lengthM: Int? = null,
 )
 
 /**

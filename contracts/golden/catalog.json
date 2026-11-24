@@ -5,238 +5,415 @@
   "body": [
     {
       "id": 1,
+      "lat": 34.4347,
+      "length_m": 3219,
+      "lon": -84.1769,
       "name": "Atlanta Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 41.4547,
+      "length_m": 5729,
+      "lon": -88.1272,
       "name": "Autobahn Country Club"
     },
     {
       "id": 1,
+      "lat": 33.5325,
+      "length_m": 3830,
+      "lon": -86.6189,
       "name": "Barber Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 42.4881,
+      "length_m": 3138,
+      "lon": -89.1154,
       "name": "Blackhawk Farms Raceway"
     },
     {
       "id": 1,
+      "lat": 46.4171,
+      "length_m": 4023,
+      "lon": -94.2731,
       "name": "Brainerd International Raceway"
     },
     {
       "id": 1,
+      "lat": 35.4913,
+      "length_m": 4313,
+      "lon": -119.5449,
       "name": "Buttonwillow Raceway Park"
     },
     {
       "id": 1,
+      "lat": 34.4877,
+      "length_m": 3668,
+      "lon": -80.597,
       "name": "Carolina Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 35.3525,
+      "length_m": 3734,
+      "lon": -80.6825,
       "name": "Charlotte Motor Speedway (Roval)"
     },
     {
       "id": 1,
+      "lat": 33.7536,
+      "length_m": 4313,
+      "lon": -115.3197,
       "name": "Chuckwalla Valley Raceway"
     },
     {
       "id": 1,
+      "lat": 30.1328,
+      "length_m": 5514,
+      "lon": -97.6411,
       "name": "Circuit of the Americas"
     },
     {
       "id": 1,
+      "lat": 29.1856,
+      "length_m": 5729,
+      "lon": -81.0694,
       "name": "Daytona International Speedway (Road Course)"
     },
     {
       "id": 1,
+      "lat": 38.1388,
+      "length_m": 3219,
+      "lon": -77.5046,
       "name": "Dominion Raceway"
     },
     {
       "id": 1,
+      "lat": 33.3669,
+      "length_m": 4426,
+      "lon": -97.4272,
       "name": "Eagles Canyon Raceway"
     },
     {
       "id": 1,
+      "lat": 42.4086,
+      "length_m": 3444,
+      "lon": -86.1381,
       "name": "Gingerman Raceway"
     },
     {
       "id": 1,
+      "lat": 43.0957,
+      "length_m": 3219,
+      "lon": -85.3831,
       "name": "Grattan Raceway"
     },
     {
       "id": 1,
+      "lat": 36.2211,
+      "length_m": 2897,
+      "lon": -96.5931,
       "name": "Hallett Motor Racing Circuit"
     },
     {
       "id": 1,
+      "lat": 29.9189,
+      "length_m": 2929,
+      "lon": -97.8733,
       "name": "Harris Hill Raceway"
     },
     {
       "id": 1,
+      "lat": 39.7355,
+      "length_m": 4104,
+      "lon": -103.8945,
       "name": "High Plains Raceway"
     },
     {
       "id": 1,
+      "lat": 25.4519,
+      "length_m": 3557,
+      "lon": -80.4086,
       "name": "Homestead-Miami Speedway (Road Course)"
     },
     {
       "id": 1,
+      "lat": 32.2247,
+      "length_m": 4426,
+      "lon": -110.0078,
       "name": "Inde Motorsports Ranch"
     },
     {
       "id": 1,
+      "lat": 39.7948,
+      "length_m": 3925,
+      "lon": -86.235,
       "name": "Indianapolis Motor Speedway (Road Course)"
     },
     {
       "id": 1,
+      "lat": 36.5842,
+      "length_m": 3602,
+      "lon": -121.7536,
       "name": "Laguna Seca (WeatherTech Raceway)"
     },
     {
       "id": 1,
+      "lat": 41.9277,
+      "length_m": 2414,
+      "lon": -73.3836,
       "name": "Lime Rock Park"
     },
     {
       "id": 1,
+      "lat": 42.623,
+      "length_m": 2414,
+      "lon": -83.2945,
       "name": "M1 Concourse"
     },
     {
       "id": 1,
+      "lat": 40.6893,
+      "length_m": 3862,
+      "lon": -82.6364,
       "name": "Mid-Ohio Sports Car Course"
     },
     {
       "id": 1,
+      "lat": 32.5238,
+      "length_m": null,
+      "lon": -97.6166,
       "name": "MotorSport Ranch (Cresson)"
     },
     {
       "id": 1,
+      "lat": 29.2781,
+      "length_m": 3830,
+      "lon": -95.4224,
       "name": "MSR Houston"
     },
     {
       "id": 1,
+      "lat": 37.002,
+      "length_m": 5069,
+      "lon": -86.365,
       "name": "NCM Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 41.3074,
+      "length_m": 3219,
+      "lon": -81.0152,
       "name": "Nelson Ledges Road Course"
     },
     {
       "id": 1,
+      "lat": 39.3555,
+      "length_m": 3058,
+      "lon": -75.07,
       "name": "New Jersey Motorsports Park (Lightning)"
     },
     {
       "id": 1,
+      "lat": 39.361,
+      "length_m": 3621,
+      "lon": -75.061,
       "name": "New Jersey Motorsports Park (Thunderbolt)"
     },
     {
       "id": 1,
+      "lat": 29.8836,
+      "length_m": 4426,
+      "lon": -90.1978,
       "name": "NOLA Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 45.3624,
+      "length_m": 3701,
+      "lon": -120.7469,
       "name": "Oregon Raceway Park"
     },
     {
       "id": 1,
+      "lat": 38.2712,
+      "length_m": 6389,
+      "lon": -92.8901,
       "name": "Ozarks International Raceway"
     },
     {
       "id": 1,
+      "lat": 47.3201,
+      "length_m": 3621,
+      "lon": -122.1452,
       "name": "Pacific Raceways"
     },
     {
       "id": 1,
+      "lat": 42.2361,
+      "length_m": 3701,
+      "lon": -72.2444,
       "name": "Palmer Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 40.849,
+      "length_m": 4474,
+      "lon": -80.3422,
       "name": "Pittsburgh International Race Complex"
     },
     {
       "id": 1,
+      "lat": 41.0554,
+      "length_m": null,
+      "lon": -75.5115,
       "name": "Pocono Raceway"
     },
     {
       "id": 1,
+      "lat": 45.5969,
+      "length_m": 3166,
+      "lon": -122.6958,
       "name": "Portland International Raceway"
     },
     {
       "id": 1,
+      "lat": 39.5828,
+      "length_m": 2865,
+      "lon": -86.7425,
       "name": "Putnam Park Road Course"
     },
     {
       "id": 1,
+      "lat": 43.7975,
+      "length_m": 6515,
+      "lon": -87.9939,
       "name": "Road America"
     },
     {
       "id": 1,
+      "lat": 34.1467,
+      "length_m": 4088,
+      "lon": -83.8178,
       "name": "Road Atlanta"
     },
     {
       "id": 1,
+      "lat": 32.1697,
+      "length_m": 3251,
+      "lon": -81.3233,
       "name": "Roebling Road Raceway"
     },
     {
       "id": 1,
+      "lat": 27.4547,
+      "length_m": 6019,
+      "lon": -81.3483,
       "name": "Sebring International Raceway"
     },
     {
       "id": 1,
+      "lat": 38.1608,
+      "length_m": 4056,
+      "lon": -122.455,
       "name": "Sonoma Raceway"
     },
     {
       "id": 1,
+      "lat": 34.8777,
+      "length_m": 2897,
+      "lon": -118.2585,
       "name": "Streets of Willow"
     },
     {
       "id": 1,
+      "lat": 39.2365,
+      "length_m": 2736,
+      "lon": -77.9655,
       "name": "Summit Point (Jefferson Circuit)"
     },
     {
       "id": 1,
+      "lat": 39.2344,
+      "length_m": 3219,
+      "lon": -77.9753,
       "name": "Summit Point (Main Circuit)"
     },
     {
       "id": 1,
+      "lat": 39.241,
+      "length_m": 3541,
+      "lon": -77.976,
       "name": "Summit Point (Shenandoah Circuit)"
     },
     {
       "id": 1,
+      "lat": 47.2557,
+      "length_m": 3975,
+      "lon": -123.1903,
       "name": "The Ridge Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 41.9818,
+      "length_m": 2736,
+      "lon": -71.8255,
       "name": "Thompson Speedway Motorsports Park"
     },
     {
       "id": 1,
+      "lat": 39.5405,
+      "length_m": 3219,
+      "lon": -122.3385,
       "name": "Thunderhill Raceway (2-Mile)"
     },
     {
       "id": 1,
+      "lat": 39.5403,
+      "length_m": 4612,
+      "lon": -122.3307,
       "name": "Thunderhill Raceway (3-Mile)"
     },
     {
       "id": 1,
+      "lat": 40.575,
+      "length_m": null,
+      "lon": -112.3747,
       "name": "Utah Motorsports Campus"
     },
     {
       "id": 1,
+      "lat": 36.5617,
+      "length_m": 5262,
+      "lon": -79.2047,
       "name": "Virginia International Raceway (Full)"
     },
     {
       "id": 1,
+      "lat": 36.5655,
+      "length_m": 3621,
+      "lon": -79.2055,
       "name": "Virginia International Raceway (North)"
     },
     {
       "id": 1,
+      "lat": 36.5565,
+      "length_m": 2655,
+      "lon": -79.205,
       "name": "Virginia International Raceway (South)"
     },
     {
       "id": 1,
+      "lat": 42.3369,
+      "length_m": 5472,
+      "lon": -76.9272,
       "name": "Watkins Glen International"
     },
     {
       "id": 1,
+      "lat": 34.875,
+      "length_m": 4023,
+      "lon": -118.2644,
       "name": "Willow Springs (Big Willow)"
     }
   ]

@@ -341,5 +341,18 @@ export const traceDonorForEventStmt = (db: D1Database, userId: number, eventId: 
   db
     .prepare(`${TRACE_DONOR}(SELECT track_id FROM events WHERE id = ?2 AND user_id = ?1)${TRACE_DONOR_ORDER}`)
     .bind(userId, eventId);
+// Every track's newest anchored session (NS-57): where the track is, for the
+// owner's own GET /tracks. One row per track that has one.
+export const trackPlacesStmt = (db: D1Database, userId: number) =>
+  db
+    .prepare(
+      `SELECT track_id, trace, trace_geo FROM (
+         SELECT e.track_id, s.trace, s.trace_geo,
+                ROW_NUMBER() OVER (PARTITION BY e.track_id ORDER BY e.start_date DESC, s.id DESC) AS rn
+         FROM sessions s JOIN events e ON e.id = s.event_id
+         WHERE e.user_id = ? AND s.trace_geo IS NOT NULL AND s.trace IS NOT NULL
+       ) WHERE rn = 1`
+    )
+    .bind(userId);
 export const traceDonorForTrackStmt = (db: D1Database, userId: number, trackId: number | string) =>
   db.prepare(`${TRACE_DONOR}?2${TRACE_DONOR_ORDER}`).bind(userId, trackId);
