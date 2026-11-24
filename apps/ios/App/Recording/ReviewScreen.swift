@@ -27,6 +27,10 @@ struct ReviewScreen: View {
     /// so the picker stands down and "save" hands the drafts to the form through
     /// `AppRouter.stagedSessions` — the form posts them after `POST /events`.
     var forNewEvent = false
+    /// An import with no event picked (NS-57): each file is placed by where it
+    /// was driven and the batch is grouped into events, one card each. The
+    /// event picker stands down. Never with `forNewEvent`.
+    var auto = false
     /// Where to go once the recording is discarded — see `RecordingScreen.onFinish`
     /// — and, for a new-event import, once its sessions are staged.
     var onFinish: (() -> Void)?
@@ -70,7 +74,8 @@ struct ReviewScreen: View {
                     recorder: isRecording ? recorder : nil,
                     source: source,
                     preferredEventId: preferredEventId,
-                    forNewEvent: forNewEvent
+                    forNewEvent: forNewEvent,
+                    auto: auto && !forNewEvent
                 )
                 model.units = auth.units
                 model.entitlement = auth.entitlement
@@ -151,6 +156,16 @@ struct ReviewScreen: View {
                         .foregroundStyle(Color(.textMuted))
                     }
                 }
+            } else if model.auto {
+                groupedSummary(model)
+                ForEach(Array(model.venuePickers.enumerated()), id: \.offset) { index, picker in
+                    venuePickerCard(model, index: index, picker: picker)
+                }
+                ForEach(model.groups) { group in
+                    groupCard(model, group)
+                }
+                clipRow(model)
+                groupedSaveCard(model)
             } else {
                 if model.needsLinePick {
                     pickerCard(model)
@@ -178,16 +193,18 @@ struct ReviewScreen: View {
                 Text("Start/finish line")
                     .teStyle(.eyebrow)
                     .foregroundStyle(Color(.textMuted))
-                Text(model.pickerHint)
+                Text(model.lineFrom.map { ReviewModel.knownLineHint($0) } ?? model.pickerHint)
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
+                    .accessibilityIdentifier("reviewPickerHint")
 
                 LinePickerView(
                     trace: model.pickTrace,
                     pickedIndex: Binding(
                         get: { model.pickedIndex },
                         set: { model.pick($0) }
-                    )
+                    ),
+                    knownGate: model.knownGate
                 )
                 .frame(height: 280)
 
@@ -196,6 +213,191 @@ struct ReviewScreen: View {
                         .teStyle(.sm)
                         .foregroundStyle(Color(.dangerInk))
                 }
+            }
+        }
+    }
+
+    // MARK: - A grouped review (NS-57)
+
+    /// The batch in one line, what has been saved so far, and the files that
+    /// came to nothing — `auto.js`'s first panel.
+    private func groupedSummary(_ model: ReviewModel) -> some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(model.groupedHeadline)
+                    .teStyle(.h3)
+                    .foregroundStyle(Color(.textStrong))
+                    .accessibilityIdentifier("groupedSummary")
+                Text("Each file is placed by where it was driven. Check the track and the dates, then save.")
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                ForEach(Array(model.savedGroups.enumerated()), id: \.offset) { _, saved in
+                    Text("Saved: \(saved.name) · \(saved.dates)")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textBody))
+                }
+                ForEach(model.items.filter { $0.error != nil }) { item in
+                    Text(item.file)
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    TEErrorBanner(message: item.error ?? "")
+                }
+                ForEach(model.emptyItems) { item in
+                    Text("\(item.file) · no complete laps found")
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                }
+                if let failure = model.placesFailure, !model.placesLoaded {
+                    Text(failure)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.textMuted))
+                    TERetryButton(retry: { await model.loadPlaces() })
+                } else if !model.placesLoaded {
+                    ProgressView()
+                }
+            }
+        }
+    }
+
+    /// One venue's start/finish picker: a line picked at one place means
+    /// nothing at another.
+    private func venuePickerCard(_ model: ReviewModel, index: Int, picker: ReviewModel.VenuePicker) -> some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Start/finish line")
+                    .teStyle(.eyebrow)
+                    .foregroundStyle(Color(.textMuted))
+                Text(model.venuePickerHint(index))
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                    .accessibilityIdentifier("venuePickerHint\(index)")
+                LinePickerView(
+                    trace: picker.pickTrace,
+                    pickedIndex: Binding(
+                        get: { model.venuePickers.indices.contains(index) ? model.venuePickers[index].pickedIndex : nil },
+                        set: { model.pickVenue(index, $0) }
+                    ),
+                    knownGate: picker.lineFrom != nil ? picker.gate : nil
+                )
+                .frame(height: 280)
+                ForEach(model.pendingItems(picker)) { item in
+                    Text("\(item.file) · \(item.parsed?.gps?.count ?? 0) GPS points, no laps yet")
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textMuted))
+                }
+            }
+        }
+    }
+
+    /// One event the import will make or join.
+    private func groupCard(_ model: ReviewModel, _ group: TrackLocate.Group) -> some View {
+        let editing = group.track == nil || model.editing.contains(group.key)
+        return TECard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(group.track?.name ?? "Which track is this?")
+                            .teStyle(.h3)
+                            .foregroundStyle(Color(.textStrong))
+                        Text(TrackLocate.groupDatesText(group) { EventDates.fmtDate($0) })
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textMuted))
+                    }
+                    Spacer()
+                    if group.track != nil, !editing {
+                        Button("Change") { model.editGroup(group.key) }
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.accentInk))
+                            .accessibilityIdentifier("groupChange:\(group.key)")
+                    }
+                }
+                Text(model.groupLine(group))
+                    .teStyle(.sm)
+                    .foregroundStyle(Color(.textMuted))
+                if editing {
+                    GroupTrackPicker(group: group) { model.chooseTrack(group.key, $0) }
+                }
+                if let error = model.groupErrors[group.key] {
+                    TEErrorBanner(message: error)
+                }
+                ForEach(group.itemIds, id: \.self) { index in
+                    if model.items.indices.contains(index) {
+                        groupFile(model, index: index)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("group:\(group.key)")
+    }
+
+    /// One file on a card: its include switch, its laps, its label.
+    @ViewBuilder
+    private func groupFile(_ model: ReviewModel, index: Int) -> some View {
+        let item = model.items[index]
+        if let parsed = item.parsed {
+            Divider()
+            HStack(alignment: .firstTextBaseline) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { model.items[index].include },
+                        set: { model.setInclude(index, $0) }
+                    )
+                )
+                .labelsHidden()
+                .accessibilityLabel("Include \(item.file)")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(item.file)
+                        .teStyle(.h3)
+                        .foregroundStyle(Color(.textStrong))
+                    Text(model.fileLine(parsed))
+                        .teStyle(.xs)
+                        .foregroundStyle(Color(.textMuted))
+                }
+                Spacer()
+            }
+            Text(parsed.laps.map { "\($0.estimated ? "~" : "")\(LapTime.fmtMs($0.timeMs))" }.joined(separator: "  "))
+                .teStyle(.sm)
+                .foregroundStyle(Color(.textBody))
+            if let metrics = model.metrics(for: parsed) {
+                Text(metrics)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textMuted))
+            }
+            if let note = model.lapNote(for: parsed) {
+                Text(note)
+                    .teStyle(.xs)
+                    .foregroundStyle(Color(.textFaint))
+            }
+            TextField(
+                "Session label",
+                text: Binding(
+                    get: { model.items[index].label },
+                    set: { model.items[index].label = $0 }
+                )
+            )
+            .textFieldStyle(.roundedBorder)
+        }
+    }
+
+    private func groupedSaveCard(_ model: ReviewModel) -> some View {
+        TECard {
+            VStack(alignment: .leading, spacing: 12) {
+                if let error = model.saveError {
+                    Text(error)
+                        .teStyle(.sm)
+                        .foregroundStyle(Color(.dangerInk))
+                }
+                Button(model.isSaving ? "Saving…" : model.saveTitle) {
+                    Task {
+                        if await model.saveGroups() {
+                            if let onFinish { onFinish() } else { dismiss() }
+                        }
+                    }
+                }
+                .buttonStyle(TEButtonStyle(kind: .accent))
+                .disabled(!model.canSave)
+                .accessibilityIdentifier("reviewSave")
             }
         }
     }
@@ -452,6 +654,32 @@ struct ReviewScreen: View {
     }
 }
 
+/// A card's track question (NS-57): the candidates as choices, and a name to
+/// type — the web's select-plus-input, inline on the card.
+private struct GroupTrackPicker: View {
+    let group: TrackLocate.Group
+    let onChoose: (String) -> Void
+
+    @State private var name = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array(group.candidates.enumerated()), id: \.offset) { _, candidate in
+                Button(candidate.name) { onChoose(candidate.name) }
+                    .buttonStyle(TEButtonStyle(kind: .quiet))
+            }
+            HStack {
+                TextField(group.candidates.isEmpty ? "Name this track" : "Another track…", text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("groupName:\(group.key)")
+                Button("Use") { onChoose(name) }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityIdentifier("groupNameUse:\(group.key)")
+            }
+        }
+    }
+}
+
 /// One thing being reviewed: a recording, or one clip out of an import.
 struct ReviewItem: Identifiable {
     let id: UUID
@@ -471,6 +699,12 @@ struct ReviewItem: Identifiable {
     /// (NS-45). Nil for a recording and for a logger file.
     var source: ClipSource?
     var fileBytes: Int?
+    /// The event this item's session was saved onto, in a grouped review
+    /// (NS-57): a saved item leaves the cards, and a retry never posts it twice.
+    var savedTo: Int?
+    /// The event created for this item's group on an attempt whose session
+    /// then failed (NS-57), so a retry posts onto it rather than making a second.
+    var eventId: Int?
 }
 
 /// The review screen's state: the picked line, the laps it yields, and the save.
@@ -486,6 +720,8 @@ final class ReviewModel {
     /// See `ReviewScreen.forNewEvent`: no event picker, no event fetch, and the
     /// drafts go to the form instead of the server.
     let forNewEvent: Bool
+    /// An import with no event picked (NS-57): see `ReviewScreen.auto`.
+    let auto: Bool
     /// The unit system the import summary and the notes line are written in —
     /// the account's, set by the screen. A note is text, so the top speed in it is
     /// written once, in the system chosen at import time, like the web's.
@@ -524,18 +760,71 @@ final class ReviewModel {
     private(set) var isSaving = false
     private(set) var saveError: String?
 
+    // MARK: Grouped review state (NS-57)
+
+    /// One start/finish picker of a grouped review: the files waiting for a
+    /// line at one venue, in a projection frame of their own. `auto.js`'s `picker`.
+    struct VenuePicker {
+        var place: TrackLocate.Place?
+        /// Indexes into `items`.
+        var itemIndexes: [Int]
+        var origin: Geo.Point
+        var pickTrace: [Geo.Projected]
+        var pickedIndex: Int?
+        var gate: Geo.Gate?
+        var guidance: String?
+        /// The track whose known line timed these files (phase 3). Nil once the
+        /// driver picks their own.
+        var lineFrom: String?
+    }
+
+    struct SavedGroup {
+        var eventId: Int
+        var name: String
+        var dates: String
+    }
+
+    /// What the matching reads: the driver's own tracks, the seeded catalog and
+    /// the default car a new event starts on. Also read by an event's own
+    /// review, for the line its track already has (phase 3).
+    private var ownTracks: [TrackLocate.OwnTrack] = []
+    private var catalog: [TrackLocate.CatalogRow] = []
+    private var defaultCar: String?
+    /// Whether the driver has picked a line by hand: a known line never replaces one.
+    private var pickedByHand = false
+
+    /// `TrackLocate.groupImports` over the items that have laps and aren't saved.
+    private(set) var groups: [TrackLocate.Group] = []
+    /// The driver's own answer per item index — a track name.
+    private(set) var choices: [Int: String] = [:]
+    /// Group keys whose track picker is open (*Change*).
+    private(set) var editing: Set<String> = []
+    private(set) var placesLoaded = false
+    private(set) var placesFailure: String?
+    private(set) var venuePickers: [VenuePicker] = []
+    private(set) var groupErrors: [String: String] = [:]
+    private(set) var savedGroups: [SavedGroup] = []
+    /// The track whose known line timed an event's own review with no pick
+    /// (phase 3), where `pickTrace` is the picker.
+    private(set) var lineFrom: String?
+    private var gate: Geo.Gate?
+    /// The found line, for the picker to draw — nil once the driver taps their own.
+    var knownGate: Geo.Gate? { lineFrom != nil ? gate : nil }
+
     init(
         api: APIClient,
         recorder: RecordingController?,
         source: ReviewScreen.Source,
         preferredEventId: Int? = nil,
-        forNewEvent: Bool = false
+        forNewEvent: Bool = false,
+        auto: Bool = false
     ) {
         self.api = api
         self.recorder = recorder
         self.source = source
         self.preferredEventId = preferredEventId
         self.forNewEvent = forNewEvent
+        self.auto = auto
     }
 
     // MARK: - Derived state
@@ -553,12 +842,14 @@ final class ReviewModel {
     }
 
     var saveTitle: String {
+        if auto { return "Save \(saveableGroups.count) event\(saveableGroups.count == 1 ? "" : "s")" }
         if forNewEvent { return "Add to new event" }
         return selectedCount > 1 ? "Save \(selectedCount) sessions" : "Save session"
     }
 
     var canSave: Bool {
-        selectedCount > 0 && (forNewEvent || eventId != nil) && !isSaving
+        if auto { return !saveableGroups.isEmpty && !isSaving }
+        return selectedCount > 0 && (forNewEvent || eventId != nil) && !isSaving
     }
 
     /// Whether *Save to a new event* takes the save button's place (#344): the
@@ -566,7 +857,7 @@ final class ReviewModel {
     /// answer about the logbook — and not for an import begun from the form,
     /// whose event is the one being typed.
     var offersNewEvent: Bool {
-        !forNewEvent && eventsLoaded && events.isEmpty
+        !auto && !forNewEvent && eventsLoaded && events.isEmpty
     }
 
     var hasSomethingToSave: Bool {
@@ -574,13 +865,13 @@ final class ReviewModel {
     }
 
     private var selectedCount: Int {
-        items.filter { $0.include && !($0.parsed?.laps.isEmpty ?? true) }.count
+        items.filter { $0.include && $0.savedTo == nil && !($0.parsed?.laps.isEmpty ?? true) }.count
     }
 
     // MARK: - Best-lap video (NS-45)
 
     private var clipItems: [LapClips.Item] {
-        items.map { LapClips.Item(parsed: $0.parsed, include: $0.include, fileBytes: $0.fileBytes) }
+        items.map { LapClips.Item(parsed: $0.parsed, include: $0.include && $0.savedTo == nil, fileBytes: $0.fileBytes) }
     }
 
     /// Which state the video row is in: Best lap's, since that is NS-45's row —
@@ -739,6 +1030,11 @@ final class ReviewModel {
             }
             eventId = preferredEventId
         }
+        if auto {
+            buildVenuePickers()
+            await loadPlaces()
+            return
+        }
         rebuildPickTrace()
 
         // No event list for a new-event import: there is nothing to pick from,
@@ -759,6 +1055,14 @@ final class ReviewModel {
             if eventId == nil { eventId = events.first?.id }
             eventsLoaded = true
             loadFailure = nil
+            // Something here is waiting for a line, and the event's track may
+            // already have one. Best effort: without the tracks, the picker asks.
+            if needsLinePick, gate == nil, !pickedByHand,
+               let tracks = try? await api.tracks(), let rows = try? await api.catalog() {
+                ownTracks = tracks.map(TrackLocate.OwnTrack.init)
+                catalog = rows.map(TrackLocate.CatalogRow.init)
+                applyEventLine()
+            }
         } catch let error as APIError {
             loadFailure = "Couldn't load your events: \(error.message)"
         } catch {
@@ -791,6 +1095,8 @@ final class ReviewModel {
 
     /// Recompute every waiting clip's laps for a picked point.
     func pick(_ index: Int?) {
+        pickedByHand = true
+        lineFrom = nil
         pickedIndex = index
         guidance = nil
         guard let index, pickTrace.indices.contains(index) else {
@@ -812,6 +1118,7 @@ final class ReviewModel {
     }
 
     private func applyGate(_ gate: Geo.Gate?) {
+        self.gate = gate
         for i in items.indices {
             guard var parsed = items[i].parsed, parsed.needsLine else { continue }
             Telemetry.applyGate(&parsed, origin: origin, gate: gate)
@@ -821,6 +1128,330 @@ final class ReviewModel {
             // already made that choice themselves.
             if !items[i].includeTouched { items[i].include = !parsed.laps.isEmpty }
         }
+    }
+
+    // MARK: - A known line on an event's own review (NS-57 phase 3)
+
+    nonisolated static func knownLineHint(_ track: String) -> String {
+        "Start/finish from your last session at \(track). Tap the trace to use a different line."
+    }
+
+    /// On an event whose track the driver has timed before, the line is known:
+    /// the one their last session there used. Kept only when the laps it cuts
+    /// are that track's; a tap on the map replaces it as always.
+    private func applyEventLine() {
+        guard !auto, !pickedByHand, gate == nil, needsLinePick, let origin,
+              let event = events.first(where: { $0.id == eventId }),
+              let track = ownTracks.first(where: { $0.id == event.trackId }),
+              let known = TrackLocate.gateFromSf(track.geo?.sf, Geo.Origin(lat: origin.lat, lon: origin.lon))
+        else { return }
+        applyGate(known)
+        let places: [TrackLocate.Place?] = items.map { item in
+            guard let parsed = item.parsed, parsed.needsLine, !parsed.laps.isEmpty else { return nil }
+            return TrackLocate.recordingPlace(parsed)
+        }
+        if TrackLocate.lineFits(track.id, places, ownTracks, catalog) {
+            lineFrom = track.name
+            guidance = nil
+        } else {
+            applyGate(nil)
+        }
+    }
+
+    // MARK: - A grouped review: no event picked (NS-57)
+
+    /// The groups a save would post: a track, and at least one included file.
+    var saveableGroups: [TrackLocate.Group] {
+        groups.filter { g in
+            g.track != nil && g.itemIds.contains { items.indices.contains($0) && items[$0].include }
+        }
+    }
+
+    var groupedHeadline: String {
+        "\(items.count) file\(items.count == 1 ? "" : "s") · \(groups.count) event\(groups.count == 1 ? "" : "s") found"
+    }
+
+    /// Files that parsed but have no laps and no line to wait for.
+    var emptyItems: [ReviewItem] {
+        items.filter { item in
+            guard item.error == nil, let parsed = item.parsed else { return false }
+            return parsed.laps.isEmpty && !(parsed.needsLine && !(parsed.gps ?? []).isEmpty)
+        }
+    }
+
+    func pendingItems(_ picker: VenuePicker) -> [ReviewItem] {
+        picker.itemIndexes.compactMap { items.indices.contains($0) ? items[$0] : nil }
+            .filter { ($0.parsed?.laps.isEmpty ?? true) && $0.savedTo == nil }
+    }
+
+    func venuePickerHint(_ index: Int) -> String {
+        guard venuePickers.indices.contains(index) else { return "" }
+        let picker = venuePickers[index]
+        if let from = picker.lineFrom { return Self.knownLineHint(from) }
+        if let guidance = picker.guidance { return guidance }
+        if picker.gate != nil {
+            return pendingItems(picker).isEmpty
+                ? "Line set — tap the trace again to adjust it."
+                : "No laps cross the picked line in every file — tap a different spot to adjust it."
+        }
+        let n = picker.itemIndexes.count
+        return "\(n) file\(n == 1 ? " has" : "s have") GPS data but no lap markers. "
+            + "Tap the trace where the start/finish line is; laps are timed each pass across it."
+    }
+
+    /// "New event at a new track · 2 sessions · 9 laps · best 2:01.24"
+    func groupLine(_ group: TrackLocate.Group) -> String {
+        let files = group.itemIds.compactMap { items.indices.contains($0) ? items[$0] : nil }
+        let laps = files.flatMap { $0.parsed?.laps ?? [] }
+        let place: String
+        if group.eventId != nil {
+            place = "Adds to your event on \(EventDates.fmtDate(group.start))"
+        } else if let track = group.track {
+            place = "New event" + (track.source == .own ? "" : " at a new track")
+        } else if group.venueOnly {
+            place = "This lap doesn't fit a layout we know here — pick the track if it is one of these, or name the layout you drove."
+        } else if !group.candidates.isEmpty {
+            place = "More than one track could be here — pick the one you drove."
+        } else {
+            place = "No track we know is here. Name it once and it is recognised next time."
+        }
+        var parts = [
+            place,
+            "\(files.count) session\(files.count == 1 ? "" : "s")",
+            "\(laps.count) lap\(laps.count == 1 ? "" : "s")",
+        ]
+        if let best = laps.map(\.timeMs).min() { parts.append("best \(LapTime.fmtMs(best))") }
+        return parts.joined(separator: " · ")
+    }
+
+    /// "2026-06-20 · 09:15:00 · 5 laps" — a file's own line on its card.
+    func fileLine(_ parsed: ParsedTelemetry) -> String {
+        var parts: [String] = []
+        if let date = parsed.date { parts.append(date) }
+        if let time = parsed.time { parts.append(time) }
+        parts.append("\(parsed.laps.count) lap\(parsed.laps.count == 1 ? "" : "s")")
+        return parts.joined(separator: " · ")
+    }
+
+    func setInclude(_ index: Int, _ include: Bool) {
+        guard items.indices.contains(index) else { return }
+        items[index].include = include
+        items[index].includeTouched = true
+    }
+
+    /// One picker per venue with files waiting for a line.
+    private func buildVenuePickers() {
+        var pickers: [VenuePicker] = []
+        for i in items.indices {
+            guard let parsed = items[i].parsed, parsed.needsLine, let gps = parsed.gps, let first = gps.first else { continue }
+            let place = TrackLocate.recordingPlace(trace: nil, geo: nil, gps: gps)
+            var at: Int?
+            if let place {
+                at = pickers.firstIndex { p in
+                    guard let other = p.place else { return false }
+                    return TrackLocate.distanceM(other, place) <= TrackLocate.VENUE_RADIUS_M
+                }
+            }
+            if let at {
+                pickers[at].itemIndexes.append(i)
+            } else {
+                pickers.append(VenuePicker(place: place, itemIndexes: [i], origin: first, pickTrace: []))
+            }
+        }
+        for n in pickers.indices {
+            var longest: [Geo.Point] = []
+            for i in pickers[n].itemIndexes {
+                let gps = items[i].parsed?.gps ?? []
+                if gps.count > longest.count { longest = gps }
+            }
+            let origin = pickers[n].origin
+            pickers[n].pickTrace = Geo.projectTrace(longest, origin: Geo.Origin(lat: origin.lat, lon: origin.lon))
+        }
+        venuePickers = pickers
+    }
+
+    /// The tracks, the catalog, the events and the default car, then the cards.
+    func loadPlaces() async {
+        guard auto else { return }
+        do {
+            let tracks = try await api.tracks()
+            let rows = try await api.catalog()
+            events = try await api.events()
+            ownTracks = tracks.map(TrackLocate.OwnTrack.init)
+            catalog = rows.map(TrackLocate.CatalogRow.init)
+            // A default car is a convenience; not having one is not a failure.
+            defaultCar = (try? await api.vehicles())?.first(where: \.isDefault)?.name
+            eventsLoaded = true
+            placesLoaded = true
+            placesFailure = nil
+        } catch let error as APIError {
+            placesFailure = "Couldn't load your tracks: \(error.message)"
+            return
+        } catch {
+            placesFailure = "Couldn't load your tracks: \(error.localizedDescription)"
+            return
+        }
+        // A venue the driver has been to already has a line (phase 3).
+        for n in venuePickers.indices { applyKnownLine(n) }
+        regroup()
+    }
+
+    /// `TrackLocate.groupImports` over what is left to save.
+    private func regroup() {
+        guard auto, placesLoaded else { return }
+        var located: [TrackLocate.Item] = []
+        for i in items.indices {
+            guard let parsed = items[i].parsed, !parsed.laps.isEmpty, items[i].savedTo == nil else { continue }
+            let place = TrackLocate.recordingPlace(parsed)
+            located.append(TrackLocate.Item(
+                id: i, date: parsed.date, time: parsed.time, place: place,
+                located: TrackLocate.locateTrack(place, ownTracks, catalog)
+            ))
+        }
+        groups = TrackLocate.groupImports(
+            located,
+            events.map(TrackLocate.EventRow.init),
+            choices: choices,
+            ownTracks: ownTracks,
+            today: RemoteRecording.localTodayIso()
+        )
+    }
+
+    /// Recompute one venue's files for a gate; nil clears their laps.
+    private func applyVenueGate(_ pickerIndex: Int, _ gate: Geo.Gate?) {
+        let picker = venuePickers[pickerIndex]
+        for i in picker.itemIndexes {
+            guard items.indices.contains(i), var parsed = items[i].parsed, items[i].savedTo == nil else { continue }
+            Telemetry.applyGate(&parsed, origin: picker.origin, gate: gate)
+            items[i].parsed = parsed
+            if !items[i].includeTouched { items[i].include = !parsed.laps.isEmpty }
+        }
+        venuePickers[pickerIndex].gate = gate
+    }
+
+    /// Time a venue's files from a line the driver already has there, keeping
+    /// the first whose laps turn out to be that track's. Leaves the picker as
+    /// it was — no line, no laps — when none fits.
+    private func applyKnownLine(_ pickerIndex: Int) {
+        let picker = venuePickers[pickerIndex]
+        guard picker.pickedIndex == nil else { return }
+        let origin = Geo.Origin(lat: picker.origin.lat, lon: picker.origin.lon)
+        for line in TrackLocate.knownLines(picker.place, ownTracks) {
+            guard let known = TrackLocate.gateFromSf(line.sf, origin) else { continue }
+            applyVenueGate(pickerIndex, known)
+            let places: [TrackLocate.Place?] = picker.itemIndexes.map { i in
+                guard let parsed = items[i].parsed, !parsed.laps.isEmpty else { return nil }
+                return TrackLocate.recordingPlace(parsed)
+            }
+            if TrackLocate.lineFits(line.id, places, ownTracks, catalog) {
+                venuePickers[pickerIndex].lineFrom = line.name
+                return
+            }
+        }
+        applyVenueGate(pickerIndex, nil)
+    }
+
+    /// A tap on a venue's trace: its line, and its files' laps, at once.
+    func pickVenue(_ pickerIndex: Int, _ index: Int?) {
+        guard venuePickers.indices.contains(pickerIndex) else { return }
+        venuePickers[pickerIndex].pickedIndex = index
+        venuePickers[pickerIndex].lineFrom = nil
+        venuePickers[pickerIndex].guidance = nil
+        let picker = venuePickers[pickerIndex]
+        if let index, picker.pickTrace.indices.contains(index) {
+            if let picked = Geo.buildGate(picker.pickTrace, idx: index) {
+                applyVenueGate(pickerIndex, picked)
+            } else {
+                venuePickers[pickerIndex].guidance =
+                    "The car was stationary here, so there's no line to cross — pick a spot where you were moving."
+                Haptics.warn()
+                applyVenueGate(pickerIndex, nil)
+            }
+        } else {
+            applyVenueGate(pickerIndex, nil)
+        }
+        regroup()
+    }
+
+    /// The driver names a group's track. An unanswered place is answered once:
+    /// every other date at the same place takes the name too (a group's key is
+    /// "<track or place>@<date>").
+    func chooseTrack(_ groupKey: String, _ name: String) {
+        let chosen = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !chosen.isEmpty, let group = groups.first(where: { $0.key == groupKey }) else { return }
+        let place = Self.placeKey(groupKey)
+        let same = group.track != nil ? [group] : groups.filter { $0.track == nil && Self.placeKey($0.key) == place }
+        for g in same {
+            for i in g.itemIds { choices[i] = chosen }
+        }
+        editing.remove(groupKey)
+        groupErrors[groupKey] = nil
+        regroup()
+    }
+
+    /// A group key without its "@<date>".
+    private static func placeKey(_ key: String) -> String {
+        guard let at = key.lastIndex(of: "@") else { return key }
+        return String(key[..<at])
+    }
+
+    /// *Change* on a card: open its track picker.
+    func editGroup(_ groupKey: String) {
+        editing.insert(groupKey)
+    }
+
+    /// Saves a grouped review: per group, `POST /events` (unless it joins one)
+    /// and then each included session — the New Event form's order, so it
+    /// queues offline the same way. A group that fails keeps its card and the
+    /// server's message; the others still save. True once nothing with laps is
+    /// left unsaved.
+    func saveGroups() async -> Bool {
+        let saving = saveableGroups
+        guard !saving.isEmpty else { return false }
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+
+        for g in saving {
+            let indexes = g.itemIds.filter { items.indices.contains($0) && items[$0].include }
+            guard !indexes.isEmpty, let track = g.track else { continue }
+            do {
+                // A group whose event was created on an earlier, failed attempt
+                // posts its remaining sessions onto that event.
+                var target = g.eventId ?? indexes.compactMap { items[$0].eventId }.first
+                if target == nil, let body = TrackLocate.eventBodyFor(g, defaultCar) {
+                    let created = try await api.createEvent(body)
+                    target = created
+                    for i in g.itemIds where items.indices.contains(i) { items[i].eventId = created }
+                }
+                guard let eventId = target else { continue }
+                for i in indexes {
+                    let item = items[i]
+                    guard let parsed = item.parsed else { continue }
+                    let sessionId = try await api.createSession(eventId: eventId, sessionDraft(for: item, parsed))
+                    for request in clipRequests(for: item) {
+                        clipUploader?.cutAndQueue(request, sessionId: sessionId)
+                    }
+                    items[i].savedTo = eventId
+                }
+                groupErrors[g.key] = nil
+                savedGroups.append(SavedGroup(
+                    eventId: eventId, name: track.name, dates: TrackLocate.groupDatesText(g) { EventDates.fmtDate($0) }
+                ))
+            } catch let error as APIError {
+                groupErrors[g.key] = error.message
+            } catch {
+                groupErrors[g.key] = error.localizedDescription
+            }
+        }
+        regroup()
+        let left = items.contains { $0.include && $0.savedTo == nil && !($0.parsed?.laps.isEmpty ?? true) }
+        if !left && groups.isEmpty {
+            Haptics.confirm()
+            return true
+        }
+        if !groupErrors.isEmpty { Haptics.warn() }
+        return false
     }
 
     // MARK: - Saving

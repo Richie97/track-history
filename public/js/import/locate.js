@@ -247,7 +247,6 @@ export function groupImports(items, events, { choices = {}, ownTracks = [], toda
           track: r.track,
           confidence: r.confidence,
           candidates: r.located.candidates,
-        venueOnly: r.located.venueOnly === true,
           venueOnly: r.located.venueOnly === true,
           start: event.start_date,
           days: Math.max(1, Math.trunc(Number(event.days)) || 1),
@@ -286,6 +285,64 @@ export function groupImports(items, events, { choices = {}, ownTracks = [], toda
 // The `POST /events` body for a new-event group whose track is known.
 export function eventBodyFor(group, defaultCar = null) {
   return { track_name: group.track.name, start_date: group.start, days: group.days, car: defaultCar || null };
+}
+
+// --- a start/finish line we already know (phase 3) ------------------------------
+
+// Half the width of a gate rebuilt from a known line: buildGate's default.
+export const GATE_HALF_WIDTH_M = 20;
+
+// The gate for a known start/finish line, in the projected frame of the trace
+// it will time: `sf` is `{ lat, lon, heading }` (degrees clockwise from north,
+// a track's `geo.sf`), `origin` the `{ lat, lon }` that trace was projected
+// from. The same shape buildGate returns, direction filter included, so a
+// reverse-direction day finds no laps and falls back to the picker.
+export function gateFromSf(sf, origin) {
+  if (!sf || !usable(sf.lat, sf.lon) || !Number.isFinite(sf.heading) || !origin) return null;
+  const x = (sf.lon - origin.lon) * KX(origin.lat);
+  const y = (sf.lat - origin.lat) * KY;
+  const h = (sf.heading * Math.PI) / 180;
+  const ux = Math.sin(h);
+  const uy = Math.cos(h);
+  return {
+    x,
+    y,
+    hx: ux,
+    hy: uy,
+    x1: x + uy * GATE_HALF_WIDTH_M,
+    y1: y - ux * GATE_HALF_WIDTH_M,
+    x2: x - uy * GATE_HALF_WIDTH_M,
+    y2: y + ux * GATE_HALF_WIDTH_M,
+  };
+}
+
+// The driver's own tracks at a place that have a line to offer, nearest first:
+// `[{ id, name, sf, distM }]`. A file with no laps yet has only a venue, so
+// this is every own track in the venue's radius; which one's line is right is
+// settled by trying it (`lineFits`).
+export function knownLines(place, ownTracks) {
+  if (!place || !usable(place.lat, place.lon)) return [];
+  const out = [];
+  for (const t of ownTracks ?? []) {
+    if (!t?.geo?.sf || !usable(t.geo.lat, t.geo.lon)) continue;
+    const distM = distanceM(place, t.geo);
+    if (distM <= VENUE_RADIUS_M) out.push({ id: t.id, name: t.name, sf: t.geo.sf, distM });
+  }
+  return out.sort((a, b) => a.distM - b.distM || a.id - b.id);
+}
+
+// Whether a known line was the right one for the files it was applied to:
+// `places` are recordingPlace of each file *after* the gate timed it. It fits
+// when at least one file got laps and every file that did is, by place and lap
+// length, exactly the track the line came from — so a line from another layout
+// at the venue, which would cut laps of the wrong length, is never kept.
+export function lineFits(trackId, places, ownTracks, catalog) {
+  const timed = (places ?? []).filter((p) => p && p.lengthM != null);
+  if (!timed.length) return false;
+  return timed.every((p) => {
+    const found = locateTrack(p, ownTracks, catalog);
+    return found.confidence === "exact" && found.candidates[0].source === "own" && found.candidates[0].id === trackId;
+  });
 }
 
 // For a file imported onto an event the driver picked: the name of another

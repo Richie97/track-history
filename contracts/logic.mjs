@@ -34,6 +34,10 @@ import {
 import { parseTelemetryFile } from "../public/js/import/parse.js";
 import {
   DATE_SLACK_DAYS,
+  GATE_HALF_WIDTH_M,
+  gateFromSf,
+  knownLines,
+  lineFits,
   CATALOG_LONG_TOLERANCE,
   CATALOG_SHORT_TOLERANCE,
   LENGTH_TOLERANCE,
@@ -3134,11 +3138,28 @@ const locBatches = [
     choices: { 0: { name: "the farm" }, 1: { name: " Patriot Course " } },
   },
 ];
+// Phase 3: tracks that carry the line their last session was timed from.
+const locSf = { lat: 36.5601, lon: -79.2062, heading: 137.5 };
+const locSfOwn = [
+  { id: 21, name: "VIR full course", catalog_id: 1, geo: { lat: 36.5618, lon: -79.2046, length_m: 5230, sf: locSf } },
+  { id: 22, name: "VIR North", catalog_id: 2, geo: { lat: 36.5655, lon: -79.2055, length_m: 3600, sf: { lat: 36.5661, lon: -79.2049, heading: 0 } } },
+  { id: 23, name: "VIR, no line read", catalog_id: null, geo: { lat: 36.5617, lon: -79.2047, length_m: 1500, sf: null } },
+  { id: 24, name: "The Farm", catalog_id: null, geo: { lat: 40.5, lon: -90.5, length_m: 1800, sf: { lat: 40.5003, lon: -90.5004, heading: 271.3 } } },
+  { id: 25, name: "Unanchored", catalog_id: null, geo: null },
+];
 const locateFixture = {
   description:
     "NS-57: which track a recording was driven at and which event it joins. Generated from " +
     "public/js/import/locate.js; ports assert equality (distances and length ratios to 1e-6).",
-  constants: { OWN_RADIUS_M, VENUE_RADIUS_M, LENGTH_TOLERANCE, CATALOG_SHORT_TOLERANCE, CATALOG_LONG_TOLERANCE, DATE_SLACK_DAYS },
+  constants: {
+    OWN_RADIUS_M,
+    VENUE_RADIUS_M,
+    LENGTH_TOLERANCE,
+    CATALOG_SHORT_TOLERANCE,
+    CATALOG_LONG_TOLERANCE,
+    DATE_SLACK_DAYS,
+    GATE_HALF_WIDTH_M,
+  },
   catalog: locCatalog,
   ownTracks: locOwn,
   distanceM: [
@@ -3169,6 +3190,42 @@ const locateFixture = {
     { place: { ...LOC_VIR, lengthM: 5200 }, own: [], track: { id: 50, name: "Somewhere", catalog_id: null } },
     { place: { ...LOC_VIR, lengthM: null }, own: [], track: { id: 50, name: "Somewhere", catalog_id: null } },
   ].map((c) => ({ ...c, expected: otherTrackHere(locateTrack(c.place, c.own, locCatalog), c.track) })),
+  // Phase 3. gateFromSf: a known line in another trace's projected frame
+  // (coordinates to 1e-6); null for a line or an origin that isn't there.
+  gateFromSf: [
+    { sf: locSf, origin: LOC_VIR },
+    { sf: locSf, origin: { lat: 36.57, lon: -79.19 } },
+    { sf: { lat: 36.5601, lon: -79.2062, heading: 0 }, origin: locSf },
+    { sf: { lat: 36.5601, lon: -79.2062, heading: 90 }, origin: LOC_VIR },
+    { sf: { lat: 36.5601, lon: -79.2062, heading: 359.9 }, origin: LOC_VIR },
+    { sf: { lat: -33.8035, lon: 150.8707, heading: 221 }, origin: { lat: -33.8, lon: 150.87 } },
+    { sf: null, origin: LOC_VIR },
+    { sf: locSf, origin: null },
+    { sf: { lat: 0, lon: 0, heading: 10 }, origin: LOC_VIR },
+    { sf: { lat: 36.56, lon: -79.2, heading: null }, origin: LOC_VIR },
+  ].map((c) => ({ ...c, expected: gateFromSf(c.sf, c.origin) })),
+  sfOwnTracks: locSfOwn,
+  knownLines: [
+    { place: { ...LOC_VIR, lengthM: null } },
+    { place: { lat: 36.5655, lon: -79.2055, lengthM: null } },
+    { place: { lat: 40.5, lon: -90.5, lengthM: 1800 } },
+    { place: { ...LOC_SP, lengthM: null } },
+    { place: null },
+    { place: { lat: 0, lon: 0, lengthM: null } },
+  ].map((c) => ({ ...c, expected: knownLines(c.place, locSfOwn) })),
+  // lineFits: places are each file's recordingPlace after the line timed it
+  // (null for a file it cut no laps from), against sfOwnTracks and catalog.
+  lineFits: [
+    { trackId: 21, places: [{ ...LOC_VIR, lengthM: 5235 }] },
+    { trackId: 21, places: [{ ...LOC_VIR, lengthM: 5235 }, null, { ...LOC_VIR, lengthM: 5220 }] },
+    { trackId: 22, places: [{ ...LOC_VIR, lengthM: 5235 }] },
+    { trackId: 21, places: [{ ...LOC_VIR, lengthM: 3600 }] },
+    { trackId: 21, places: [{ ...LOC_VIR, lengthM: 5235 }, { ...LOC_VIR, lengthM: 3600 }] },
+    { trackId: 21, places: [null] },
+    { trackId: 21, places: [] },
+    { trackId: 21, places: [{ ...LOC_VIR, lengthM: null }] },
+    { trackId: 24, places: [{ lat: 40.5001, lon: -90.5, lengthM: 1790 }] },
+  ].map((c) => ({ ...c, expected: lineFits(c.trackId, c.places, locSfOwn, locCatalog) })),
 };
 
 mkdirSync(OUT_DIR, { recursive: true });

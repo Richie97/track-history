@@ -14,6 +14,9 @@ struct LinePickerView: View {
     let trace: [Geo.Projected]
     /// The picked trace index, owned by the caller so the laps live alongside it.
     @Binding var pickedIndex: Int?
+    /// A line found without a tap (NS-57): the one the driver's last session at
+    /// this track was timed from. Drawn like a picked line until a tap replaces it.
+    var knownGate: Geo.Gate? = nil
 
     @State private var scale: Double = 1
     @State private var committedScale: Double = 1
@@ -38,7 +41,11 @@ struct LinePickerView: View {
                 }
                 .contentShape(.rect)
                 .gesture(pickGesture(map: map))
-                .simultaneousGesture(panGesture)
+                // Panning only once zoomed in, as on Android: at full view there
+                // is nothing to pan to, and a drag that starts on the map has to
+                // scroll the page — in the grouped review (NS-57) the map sits
+                // mid-screen, where every swipe starts.
+                .simultaneousGesture(panGesture, including: scale > 1.01 ? .all : .subviews)
                 .simultaneousGesture(zoomGesture)
 
                 if scale > 1.01 || pan != .zero {
@@ -51,6 +58,7 @@ struct LinePickerView: View {
             .accessibilityElement()
             .accessibilityIdentifier("linePickerMap")
             .accessibilityLabel("Driven trace")
+            .accessibilityValue(pickedIndex != nil ? "Line placed" : knownGate != nil ? "Line found" : "No line")
             .accessibilityHint("Tap to place the start/finish line")
             .accessibilityAddTraits(.isButton)
         }
@@ -74,9 +82,16 @@ struct LinePickerView: View {
         // not data, so it reads as surface rather than as a chart series.
         context.stroke(path, with: .color(Color(.mapTarmac)), lineWidth: 3)
 
-        guard let pickedIndex, trace.indices.contains(pickedIndex),
-              let gate = Geo.buildGate(trace, idx: pickedIndex)
-        else { return }
+        // The picked line, else the one found for the driver.
+        let gate: Geo.Gate
+        if let pickedIndex, trace.indices.contains(pickedIndex) {
+            guard let picked = Geo.buildGate(trace, idx: pickedIndex) else { return }
+            gate = picked
+        } else if let knownGate {
+            gate = knownGate
+        } else {
+            return
+        }
 
         let segment = map.viewSegment(for: gate)
         var gatePath = Path()
@@ -84,7 +99,7 @@ struct LinePickerView: View {
         gatePath.addLine(to: CGPoint(x: segment.to.x, y: segment.to.y))
         context.stroke(gatePath, with: .color(Color(.accent)), lineWidth: 3)
 
-        let centre = map.viewPoint(trace[pickedIndex])
+        let centre = map.viewPoint(x: gate.x, y: gate.y)
         let dot = CGRect(x: centre.x - 5, y: centre.y - 5, width: 10, height: 10)
         context.fill(Circle().path(in: dot), with: .color(Color(.accent)))
     }
@@ -145,6 +160,13 @@ struct LinePickerView: View {
             .onChanged { value in
                 scale = min(max(committedScale * value.magnification, 1), 12)
             }
-            .onEnded { _ in committedScale = scale }
+            .onEnded { _ in
+                committedScale = scale
+                // Zoomed all the way back out: nothing is left to pan, so re-centre.
+                if scale <= 1.01 {
+                    pan = .zero
+                    committedPan = .zero
+                }
+            }
     }
 }

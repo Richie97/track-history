@@ -30,7 +30,7 @@ import { esc, fmtMs } from "../format.js";
 import { KIND_LABELS, SUPPORTED_EXT, parseTelemetryFile } from "./parse.js";
 import { bestLapTrace, buildGate, deriveLaps, projectTrace, traceOrigin } from "./geo.js";
 import { anchorPdrBatch } from "./pdr-laps.js";
-import { locateTrack, otherTrackHere, recordingPlace } from "./locate.js";
+import { gateFromSf, lineFits, locateTrack, otherTrackHere, recordingPlace } from "./locate.js";
 import { attachLapChannels } from "./channels.js";
 import { currentUnits, fmtSpeedKph } from "../units.js";
 import {
@@ -126,6 +126,21 @@ export function reviewResults(box, event, results, onDone, options = {}) {
     origin: first ? first.parsed.gps[0] : null,
     gate: null,
   };
+  // On an event whose track the driver has timed before, the line is known:
+  // the one their last session there used (NS-57 phase 3). Kept only when the
+  // laps it cuts are that track's; a click on the map replaces it as always.
+  const loc = first ? options.locate?.() : null;
+  const sf = loc?.track?.geo?.sf;
+  if (sf) {
+    state.gate = gateFromSf(sf, state.origin);
+    applyGate(state);
+    const places = results.map((r) => (r.parsed?.needsLine && r.parsed.laps.length ? recordingPlace(r.parsed) : null));
+    if (lineFits(loc.track.id, places, loc.tracks, loc.catalog)) state.lineFrom = loc.track.name;
+    else {
+      state.gate = null;
+      applyGate(state);
+    }
+  }
   renderReview(box, event, state, onDone, options);
 }
 
@@ -410,7 +425,9 @@ function renderReview(box, event, state, onDone, options) {
     pickerHtml = `<div style="margin:4px 0 14px">
       <strong>Start/finish line</strong>
       <div class="hint" style="margin:4px 0 8px">${
-        state.gate
+        state.lineFrom
+          ? `Start/finish from your last session at ${esc(state.lineFrom)}. Click the map to use a different line.`
+          : state.gate
           ? "Line set — click the map again to adjust it."
           : `${
               needLine.every((r) => r.parsed.kind === "live")
@@ -459,6 +476,7 @@ function renderReview(box, event, state, onDone, options) {
       const gate = buildGate(state.pickTrace, best);
       if (!gate) return;
       state.gate = gate;
+      state.lineFrom = null;
       applyGate(state);
       renderReview(box, event, state, onDone, options);
     });

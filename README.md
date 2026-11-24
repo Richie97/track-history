@@ -843,7 +843,7 @@ committed as `release/notes/<version>.txt` beforehand); after approval,
 
 ## Video / telemetry import
 
-**Import laps with no event picked (NS-57, web so far).** *Import laps* on the
+**Import laps with no event picked (NS-57).** *Import laps* on the
 dashboard (`#/import`) takes a batch of files from any mix of tracks and days.
 `public/js/import/locate.js` — pure, run in the browser — works out where each
 file was driven (`recordingPlace`: the centre of its best lap and that lap's
@@ -863,8 +863,17 @@ form. The server's half is small: `track_catalog.lat` / `lon` (migration
 `GET /api/tracks` rows, taken from the newest session there that kept its
 anchor — never on a coach's view, a share page or an MCP tool. Importing from
 an event page is unchanged, except that a file certainly driven at another
-known track says so. Spec: `docs/specs/native/NS-57-auto-place-laps.md`; the
-phone ports are tickets #485 and #486.
+known track says so. The phones have the same review behind *Import laps* on
+their dashboards (and for a file shared into the app): `TrackLocate` in the
+Kit and `:core` is `locate.js` under the same names, pinned by
+`contracts/logic/track-locate.json`. **A start/finish line is found too**, for
+the sources that need one (GoPro, a plain `.vbo`, a phone recording): `geo`
+carries `sf` — the point and heading the track's last session was timed from,
+read off its stored best lap — and a file at a venue the driver has timed
+before is cut by that line with no click, kept only when the laps it gives are
+that track's by place and length (`knownLines` / `gateFromSf` / `lineFits`);
+the map stays, and a click replaces the line. Spec:
+`docs/specs/native/NS-57-auto-place-laps.md`.
 
 On any event page — or on the **New event** form, where the same import review
 stages its sessions until *Create event* (see *Adding laps with the event* below)

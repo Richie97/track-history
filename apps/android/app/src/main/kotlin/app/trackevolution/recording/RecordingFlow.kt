@@ -13,10 +13,14 @@ import app.trackevolution.core.NewEventDates
 import app.trackevolution.core.RecorderCore
 import app.trackevolution.core.Recording
 import app.trackevolution.core.TracePoint
+import app.trackevolution.core.TrackLocate
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.Event
+import app.trackevolution.core.model.CatalogTrack
 import app.trackevolution.core.model.SessionDraft
+import app.trackevolution.core.model.TraceGeo
+import app.trackevolution.core.model.Track
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.ClipStorage
 import app.trackevolution.core.model.Entitlement
@@ -59,13 +63,47 @@ data class ReviewItem(
     val uri: Uri? = null,
     /** The source file's size, for the clip's size estimate. */
     val fileBytes: Long? = null,
+    /**
+     * The event this item's session was saved onto, in a grouped review
+     * (NS-57): a saved item leaves the cards, and a retry never posts it twice.
+     */
+    val savedTo: Int? = null,
+    /**
+     * The event created for this item's group on an attempt whose session then
+     * failed (NS-57), so a retry posts onto it rather than making a second.
+     */
+    val eventId: Int? = null,
 ) {
     val laps get() = parsed?.laps.orEmpty()
     val hasLaps get() = laps.isNotEmpty()
 
     /** This item as `clipOffer` reads it: included only if it would be saved. */
-    val offerItem: LapClips.OfferItem get() = LapClips.OfferItem(parsed, include && hasLaps, fileBytes)
+    val offerItem: LapClips.OfferItem get() = LapClips.OfferItem(parsed, include && hasLaps && savedTo == null, fileBytes)
 }
+
+/**
+ * One start/finish picker of a grouped review (NS-57): the files waiting for a
+ * line at one venue, in a projection frame of their own. `auto.js`'s `picker`.
+ */
+data class VenuePicker(
+    val place: TrackLocate.Place?,
+    /** Indexes into [ReviewUiState.items]. */
+    val itemIndexes: List<Int>,
+    val origin: GpsPoint,
+    /** The longest of those traces, in this picker's frame. */
+    val pickTrace: List<TracePoint>,
+    val pickedIndex: Int? = null,
+    val gate: Gate? = null,
+    val problem: LineReview.Problem? = null,
+    /**
+     * The track whose known line timed these files (phase 3) — "Start/finish
+     * from your last session at …". Null once the driver picks their own.
+     */
+    val lineFrom: String? = null,
+)
+
+/** A group a grouped review has saved: where it went, for the "Saved:" line. */
+data class SavedGroup(val eventId: Int, val name: String, val start: String, val days: Int)
 
 /**
  * What the review screen is showing. Hoisted out of the composable so the whole
@@ -128,13 +166,50 @@ data class ReviewUiState(
      * falls back to Best lap whenever Every lap isn't on offer.
      */
     val clipScope: LapClips.ClipScope = LapClips.ClipScope.BEST,
+    /**
+     * An import with no event picked (NS-57): each file is placed by where it
+     * was driven and the batch is grouped into events by track and run of
+     * dates. The event picker stands down for [groups], one card each.
+     */
+    val auto: Boolean = false,
+    /** `TrackLocate.groupImports` over the items that have laps and aren't saved. */
+    val groups: List<TrackLocate.Group> = emptyList(),
+    /** The driver's own answer per item index — a track name — which outranks the match. */
+    val choices: Map<Int, String> = emptyMap(),
+    /** Group keys whose track picker is open (*Change*). */
+    val editing: Set<String> = emptySet(),
+    /** Whether the tracks, the catalog and the events the matching reads have arrived. */
+    val placesLoaded: Boolean = false,
+    /** Why they didn't — shown with a Try again in the cards' place. */
+    val placesError: String? = null,
+    /** One start/finish picker per venue with files waiting for a line. */
+    val venuePickers: List<VenuePicker> = emptyList(),
+    /** The server's message per group key, for a group whose save failed. */
+    val groupErrors: Map<String, String> = emptyMap(),
+    val savedGroups: List<SavedGroup> = emptyList(),
+    /** The driver's own tracks' names and the catalog's, offered when naming a track. */
+    val trackNames: List<String> = emptyList(),
+    /**
+     * The track whose known line timed this review's files with no pick
+     * (phase 3) — on an event's own review, where [pickTrace] is the picker.
+     */
+    val lineFrom: String? = null,
 ) {
     val needsLinePick: Boolean get() = pickTrace.isNotEmpty()
 
     /** Items that will actually be posted. */
-    val selectedCount: Int get() = items.count { it.include && it.hasLaps }
+    val selectedCount: Int get() = items.count { it.include && it.hasLaps && it.savedTo == null }
 
-    val canSave: Boolean get() = selectedCount > 0 && (forNewEvent || selectedEventId != null) && !saving
+    /** The groups a grouped save would post: a track, and at least one included file. */
+    val saveableGroups: List<TrackLocate.Group>
+        get() = groups.filter { g -> g.track != null && g.itemIds.any { items.getOrNull(it)?.include == true } }
+
+    val canSave: Boolean
+        get() = if (auto) {
+            saveableGroups.isNotEmpty() && !saving
+        } else {
+            selectedCount > 0 && (forNewEvent || selectedEventId != null) && !saving
+        }
 
     /**
      * Whether *Save to a new event* takes the save button's place (#344): the
@@ -142,7 +217,7 @@ data class ReviewUiState(
      * that is no answer about the logbook — and not for an import begun from
      * the form, whose event is the one being typed.
      */
-    val offersNewEvent: Boolean get() = !forNewEvent && eventsLoaded && events.isEmpty()
+    val offersNewEvent: Boolean get() = !auto && !forNewEvent && eventsLoaded && events.isEmpty()
 
     /** The recording's laps, for the single-item case the screen lays out simply. */
     val trace: List<TracePoint> get() = pickTrace
@@ -239,6 +314,18 @@ class RecordingFlow(
      */
     private var origin: GpsPoint? = null
 
+    /**
+     * What a grouped review matches against (NS-57): the driver's own tracks,
+     * the seeded catalog, and the default car a new event starts on. Also read
+     * by an event's own review, for the line its track already has (phase 3).
+     */
+    private var ownTracks: List<Track> = emptyList()
+    private var catalog: List<CatalogTrack> = emptyList()
+    private var defaultCar: String? = null
+
+    /** Whether the driver has picked a line by hand: a known line never replaces one. */
+    private var pickedByHand = false
+
     /** True once a save has landed, so the caller can leave the screen. */
     private val _saved = MutableStateFlow(false)
     val saved: StateFlow<Boolean> = _saved.asStateFlow()
@@ -296,6 +383,7 @@ class RecordingFlow(
      */
     fun begin(recording: Recording) {
         this.recording = recording
+        pickedByHand = false
         val parsed = RecorderCore.toParsed(recording)?.asTelemetry()
         val item = ReviewItem(
             file = "",
@@ -322,8 +410,18 @@ class RecordingFlow(
      * [forNewEvent] there is no event yet: the picker is not shown, no event
      * list is fetched, and saving stages the drafts for the form instead.
      */
-    fun beginImport(clips: List<ImportedClip>, preferredEventId: Int?, forNewEvent: Boolean = false) {
+    fun beginImport(
+        clips: List<ImportedClip>,
+        preferredEventId: Int?,
+        forNewEvent: Boolean = false,
+        /**
+         * No event was picked (NS-57): place each file by where it was driven
+         * and group the batch into events. Never with [forNewEvent].
+         */
+        auto: Boolean = false,
+    ) {
         recording = null
+        pickedByHand = false
         val items = clips.map { clip ->
             ReviewItem(
                 file = clip.file,
@@ -342,9 +440,260 @@ class RecordingFlow(
             isImport = true,
             selectedEventId = preferredEventId,
             forNewEvent = forNewEvent,
+            auto = auto && !forNewEvent,
         )
+        if (_state.value.auto) {
+            buildVenuePickers()
+            loadPlaces()
+            return
+        }
         rebuildPickTrace()
         if (!forNewEvent) loadEvents()
+    }
+
+    // ---- a grouped review: no event picked (NS-57) ---------------------------------
+
+    /**
+     * One picker per venue with files waiting for a line: a line picked at one
+     * place means nothing at another, so each venue's files share a frame of
+     * their own. `auto.js`'s `pickers`.
+     */
+    private fun buildVenuePickers() {
+        data class Building(val place: TrackLocate.Place?, val origin: GpsPoint, val indexes: MutableList<Int>)
+        val items = _state.value.items
+        val building = mutableListOf<Building>()
+        items.forEachIndexed { i, item ->
+            val parsed = item.parsed ?: return@forEachIndexed
+            val gps = parsed.gps
+            if (!parsed.needsLine || gps.isNullOrEmpty()) return@forEachIndexed
+            val place = TrackLocate.recordingPlace(gps)
+            val at = if (place != null) {
+                building.firstOrNull { it.place != null && TrackLocate.distanceM(it.place, place) <= TrackLocate.VENUE_RADIUS_M }
+            } else {
+                null
+            }
+            (at ?: Building(place, gps[0], mutableListOf()).also { building.add(it) }).indexes.add(i)
+        }
+        _state.value = _state.value.copy(
+            venuePickers = building.map { b ->
+                val longest = b.indexes.map { items[it].parsed!!.gps!! }.reduce { best, g -> if (g.size > best.size) g else best }
+                VenuePicker(b.place, b.indexes.toList(), b.origin, GeoTrace.projectTrace(longest, b.origin))
+            },
+        )
+    }
+
+    /** The tracks, the catalog, the events and the default car, then the cards. */
+    private fun loadPlaces() {
+        scope.launch {
+            try {
+                ownTracks = api.tracks()
+                catalog = api.catalog()
+                val events = api.events()
+                // A default car is a convenience; not having one is not a failure.
+                defaultCar = runCatching { api.vehicles().firstOrNull { it.isDefault }?.name }.getOrNull()
+                _state.value = _state.value.copy(
+                    events = events,
+                    eventsLoaded = true,
+                    placesLoaded = true,
+                    placesError = null,
+                    trackNames = (ownTracks.map { it.name } + catalog.map { it.name }).distinct(),
+                )
+            } catch (e: ApiException) {
+                _state.value = _state.value.copy(placesError = "Couldn't load your tracks: ${e.message}")
+                return@launch
+            }
+            // A venue the driver has been to already has a line (phase 3).
+            _state.value.venuePickers.indices.forEach { applyKnownLine(it) }
+            regroup()
+        }
+    }
+
+    /** The cards' Try again after the tracks failed to load. */
+    fun reloadPlaces() {
+        if (_state.value.auto) loadPlaces()
+    }
+
+    /** `TrackLocate.groupImports` over what is left to save. */
+    private fun regroup() {
+        val current = _state.value
+        if (!current.auto || !current.placesLoaded) return
+        val located = current.items.mapIndexedNotNull { i, item ->
+            val parsed = item.parsed
+            if (parsed == null || !item.hasLaps || item.savedTo != null) return@mapIndexedNotNull null
+            val place = TrackLocate.recordingPlace(parsed)
+            TrackLocate.Item(i, parsed.date, parsed.time, place, TrackLocate.locateTrack(place, ownTracks, catalog))
+        }
+        _state.value = current.copy(
+            groups = TrackLocate.groupImports(
+                located,
+                current.events,
+                choices = current.choices,
+                ownTracks = ownTracks,
+                today = java.time.LocalDate.now().toString(),
+            ),
+        )
+    }
+
+    /** Recompute one venue's files for its picker's gate. */
+    private fun applyVenueGate(state: ReviewUiState, picker: VenuePicker, gate: Gate?): ReviewUiState = state.copy(
+        items = state.items.mapIndexed { i, item ->
+            val parsed = item.parsed
+            if (i !in picker.itemIndexes || parsed == null || item.savedTo != null) return@mapIndexed item
+            val next = Telemetry.applyGate(parsed, picker.origin, gate)
+            item.copy(parsed = next, include = if (item.includeTouched) item.include else next.laps.isNotEmpty())
+        },
+    )
+
+    /**
+     * Time a venue's files from a line the driver already has there, keeping
+     * the first whose laps turn out to be that track's. Leaves the picker as it
+     * was — no line, no laps — when none fits.
+     */
+    private fun applyKnownLine(pickerIndex: Int) {
+        val picker = _state.value.venuePickers.getOrNull(pickerIndex) ?: return
+        if (picker.pickedIndex != null) return
+        for (line in TrackLocate.knownLines(picker.place, ownTracks)) {
+            val gate = TrackLocate.gateFromSf(line.sf, TraceGeo(picker.origin.lat, picker.origin.lon)) ?: continue
+            val tried = applyVenueGate(_state.value, picker, gate)
+            val places = picker.itemIndexes.map { i -> tried.items[i].takeIf { it.hasLaps }?.let { TrackLocate.recordingPlace(it.parsed) } }
+            if (TrackLocate.lineFits(line.id, places, ownTracks, catalog)) {
+                _state.value = tried.copy(
+                    venuePickers = tried.venuePickers.mapIndexed { n, p -> if (n == pickerIndex) p.copy(gate = gate, lineFrom = line.name) else p },
+                )
+                return
+            }
+        }
+    }
+
+    /** A tap on a venue's trace: its line, and its files' laps, at once. */
+    fun pickVenue(pickerIndex: Int, index: Int) {
+        val current = _state.value
+        val picker = current.venuePickers.getOrNull(pickerIndex) ?: return
+        val gate = GeoTrace.buildGate(picker.pickTrace, index)
+        val next = applyVenueGate(current, picker, gate)
+        val problem = when {
+            gate == null -> LineReview.Problem.STATIONARY_PICK
+            picker.itemIndexes.none { next.items[it].hasLaps } -> LineReview.Problem.NO_CROSSINGS
+            else -> null
+        }
+        _state.value = next.copy(
+            venuePickers = next.venuePickers.mapIndexed { n, p ->
+                if (n == pickerIndex) p.copy(pickedIndex = index, gate = gate, problem = problem, lineFrom = null) else p
+            },
+            error = null,
+        )
+        regroup()
+    }
+
+    /**
+     * The driver names a group's track. An unanswered place is answered once:
+     * every other date at the same place takes the name too (a group's key is
+     * "<track or place>@<date>").
+     */
+    fun chooseTrack(groupKey: String, name: String) {
+        val chosen = name.trim()
+        val current = _state.value
+        val group = current.groups.firstOrNull { it.key == groupKey } ?: return
+        if (chosen.isEmpty()) return
+        val place = groupKey.substringBeforeLast("@")
+        val same = if (group.track != null) {
+            listOf(group)
+        } else {
+            current.groups.filter { it.track == null && it.key.substringBeforeLast("@") == place }
+        }
+        _state.value = current.copy(
+            choices = current.choices + same.flatMap { g -> g.itemIds.map { it to chosen } },
+            editing = current.editing - groupKey,
+            groupErrors = current.groupErrors - groupKey,
+        )
+        regroup()
+    }
+
+    /** *Change* on a card: open its track picker. */
+    fun editGroup(groupKey: String) {
+        _state.value = _state.value.copy(editing = _state.value.editing + groupKey)
+    }
+
+    /**
+     * Saves a grouped review: per group, `POST /events` (unless it joins one)
+     * and then each included session — the New Event form's order, so it
+     * queues offline the same way. A group that fails keeps its card and the
+     * server's message; the others still save. Done when nothing with laps is
+     * left unsaved.
+     */
+    private fun saveGroups(context: Context, units: UnitSystem, withClips: Boolean, clipScope: LapClips.ClipScope) {
+        val start = _state.value
+        val groups = start.saveableGroups
+        _state.value = start.copy(saving = true, error = null)
+        scope.launch {
+            for (g in groups) {
+                val indexes = g.itemIds.filter { _state.value.items[it].include }
+                if (indexes.isEmpty()) continue
+                try {
+                    // A group whose event was created on an earlier, failed
+                    // attempt posts its remaining sessions onto that event.
+                    var eventId = g.eventId ?: indexes.firstNotNullOfOrNull { _state.value.items[it].eventId }
+                    if (eventId == null) {
+                        val created = api.createEvent(TrackLocate.eventBodyFor(g, defaultCar))
+                        eventId = created
+                        patchItems { i, item -> if (i in g.itemIds) item.copy(eventId = created) else item }
+                    }
+                    for (i in indexes) {
+                        val item = _state.value.items[i]
+                        val parsed = item.parsed ?: continue
+                        val sessionId = api.createSession(eventId = eventId, draft = draftFor(item, parsed, "", units))
+                        patchItems { n, it -> if (n == i) it.copy(savedTo = eventId) else it }
+                        if (withClips) clipsFor(item, clipScope).forEach { enqueueClip(it, sessionId = sessionId, eventId = eventId) }
+                    }
+                    _state.value = _state.value.copy(
+                        groupErrors = _state.value.groupErrors - g.key,
+                        savedGroups = _state.value.savedGroups + SavedGroup(eventId, g.track!!.name, g.start, g.days),
+                    )
+                } catch (e: ApiException) {
+                    _state.value = _state.value.copy(groupErrors = _state.value.groupErrors + (g.key to (e.message ?: "Couldn't save this event.")))
+                }
+            }
+            regroup()
+            val after = _state.value
+            val left = after.items.any { it.hasLaps && it.include && it.savedTo == null }
+            if (!left && after.groups.isEmpty()) {
+                // One event: land on it. Several: the dashboard lists them.
+                savedEventId = after.savedGroups.map { it.eventId }.distinct().singleOrNull()
+                Haptics.confirm(context)
+                _state.value = after.copy(saving = false)
+                _saved.value = true
+            } else {
+                if (after.groupErrors.isNotEmpty()) Haptics.warn(context)
+                _state.value = after.copy(saving = false)
+            }
+        }
+    }
+
+    private fun patchItems(change: (Int, ReviewItem) -> ReviewItem) {
+        _state.value = _state.value.copy(items = _state.value.items.mapIndexed(change))
+    }
+
+    // ---- an event's own review -----------------------------------------------------
+
+    /**
+     * On an event whose track the driver has timed before, the line is known:
+     * the one their last session there used (NS-57 phase 3). Kept only when the
+     * laps it cuts are that track's; a tap on the map replaces it as always.
+     */
+    private fun applyEventLine() {
+        val current = _state.value
+        if (current.auto || pickedByHand || current.gate != null || !current.needsLinePick) return
+        val event = current.events.firstOrNull { it.id == current.selectedEventId } ?: return
+        val track = ownTracks.firstOrNull { it.id == event.trackId } ?: return
+        val from = origin ?: return
+        val gate = TrackLocate.gateFromSf(track.geo?.sf, TraceGeo(from.lat, from.lon)) ?: return
+        val tried = applyGate(current, gate)
+        val places = tried.items.map { item ->
+            item.takeIf { it.parsed?.needsLine == true && it.hasLaps }?.let { TrackLocate.recordingPlace(it.parsed) }
+        }
+        if (TrackLocate.lineFits(track.id, places, ownTracks, catalog)) {
+            _state.value = tried.copy(gate = gate, lineFrom = track.name, problem = null)
+        }
     }
 
     /**
@@ -373,6 +722,14 @@ class RecordingFlow(
                 eventsError = null,
                 selectedEventId = _state.value.selectedEventId ?: likely?.id,
             )
+            // Something here is waiting for a line, and the event's track may
+            // already have one. Best effort: without the tracks, the picker asks.
+            if (_state.value.needsLinePick && _state.value.gate == null) {
+                runCatching {
+                    ownTracks = api.tracks()
+                    catalog = api.catalog()
+                }.onSuccess { applyEventLine() }
+            }
         }
     }
 
@@ -410,7 +767,8 @@ class RecordingFlow(
 
     /** A tap on the trace: build the gate, time every waiting clip's laps, show them at once. */
     fun pick(index: Int) {
-        val current = _state.value
+        pickedByHand = true
+        val current = _state.value.copy(lineFrom = null)
         val gate = GeoTrace.buildGate(current.pickTrace, index)
         if (gate == null) {
             // The car wasn't moving there, so there's no direction of travel to
@@ -505,6 +863,10 @@ class RecordingFlow(
         val current = _state.value
         if (!current.canSave) return
         val withClips = clipOffer == LapClips.ClipOffer.ON && current.saveClips
+        if (current.auto) {
+            saveGroups(context, units, withClips, clipScope)
+            return
+        }
         if (current.forNewEvent) {
             // Nothing to post onto yet. The same drafts the loop below would
             // send go to the form, which sends them once the event exists —

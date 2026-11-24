@@ -121,15 +121,16 @@ fun LinePicker(
 
             drawTrace(m, drawn, colors.mapTarmac, strokeWidth)
             gate?.let { drawGate(m, it, colors.accent, gateWidth) }
-            pickedIndex?.let { index ->
-                trace.getOrNull(index)?.let { point ->
-                    val p = m.viewPoint(point)
-                    drawCircle(
-                        color = colors.accent,
-                        radius = dotRadius,
-                        center = Offset(p.x.toFloat(), p.y.toFloat()),
-                    )
-                }
+            // The dot sits on the tapped point — or, for a line found without a tap
+            // (NS-57), on the line's own centre, so both read as the same mark.
+            val dot = pickedIndex?.let { trace.getOrNull(it) }?.let { m.viewPoint(it) }
+                ?: gate?.takeIf { pickedIndex == null }?.let { m.viewPoint(it.x, it.y) }
+            dot?.let { p ->
+                drawCircle(
+                    color = colors.accent,
+                    radius = dotRadius,
+                    center = Offset(p.x.toFloat(), p.y.toFloat()),
+                )
             }
         }
 

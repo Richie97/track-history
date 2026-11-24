@@ -67,6 +67,7 @@ import app.trackevolution.ui.theme.TrackTheme
  * A `LazyColumn` rather than a scrolling `Column` so its scroll position
  * survives navigating into an event and back, which the spec asks for by name.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
     model: DashboardModel,
@@ -81,6 +82,11 @@ fun DashboardScreen(
     onOpenWrapped: (Int) -> Unit = {},
     /** Open the newcomer's track-day guide — the welcome card's link. */
     onOpenTrackDaysGuide: () -> Unit = {},
+    /**
+     * Import laps with no event picked (NS-57): the files are placed by where
+     * they were driven and grouped into events in the review.
+     */
+    onImport: () -> Unit = {},
     /**
      * Whether to draw the recorder's second door at all.
      *
@@ -134,13 +140,19 @@ fun DashboardScreen(
                                 null
                             },
                             onOpenGuide = onOpenTrackDaysGuide,
+                            onImport = onImport,
                         )
                     }
                     return@LazyColumn
                 }
 
                 item("actions") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // A FlowRow: three buttons don't fit one line on a narrow
+                    // phone or in the list pane.
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         Button(
                             onClick = onNewEvent,
                             colors = ButtonDefaults.buttonColors(
@@ -170,6 +182,20 @@ fun DashboardScreen(
                             ) {
                                 Text("Record laps", style = TrackTheme.typography.bodyStrong)
                             }
+                        }
+
+                        // Import with no event picked (NS-57) — the web's
+                        // dashboard button, under the same name.
+                        OutlinedButton(
+                            onClick = onImport,
+                            border = BorderStroke(1.dp, colors.borderHairline),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = colors.surfaceCard,
+                                contentColor = colors.textStrong,
+                            ),
+                            modifier = Modifier.semantics { testTag = "dashboardImport" },
+                        ) {
+                            Text("Import laps", style = TrackTheme.typography.bodyStrong)
                         }
                     }
                 }
@@ -275,7 +301,13 @@ internal const val WELCOME_TEXT =
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?, onOpenGuide: () -> Unit = {}) {
+internal fun WelcomeCard(
+    onNewEvent: () -> Unit,
+    onRecord: (() -> Unit)?,
+    onOpenGuide: () -> Unit = {},
+    /** *Import laps* (NS-57): start a logbook from files, no event typed first. Null hides it. */
+    onImport: (() -> Unit)? = null,
+) {
     val colors = TrackTheme.colors
     TrackCard(modifier = Modifier.fillMaxWidth().semantics { testTag = "welcomeCard" }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -319,6 +351,19 @@ internal fun WelcomeCard(onNewEvent: () -> Unit, onRecord: (() -> Unit)?, onOpen
                         },
                     ) {
                         Text("Record laps", style = TrackTheme.typography.bodyStrong)
+                    }
+                }
+                if (onImport != null) {
+                    OutlinedButton(
+                        onClick = onImport,
+                        border = BorderStroke(1.dp, colors.borderHairline),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = colors.surfaceCard,
+                            contentColor = colors.textStrong,
+                        ),
+                        modifier = Modifier.semantics { testTag = "welcomeImport" },
+                    ) {
+                        Text("Import laps", style = TrackTheme.typography.bodyStrong)
                     }
                 }
             }

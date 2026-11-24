@@ -43,8 +43,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.LineReview
+import app.trackevolution.core.TrackLocate
 import app.trackevolution.core.model.ClipStorage
 import app.trackevolution.core.telemetry.LapClips
 import app.trackevolution.core.telemetry.ParsedTelemetry
@@ -108,6 +110,11 @@ fun ReviewScreen(
     onClipScopeChange: (LapClips.ClipScope) -> Unit = {},
     /** The locked row's offer: the paywall. */
     onRequirePro: () -> Unit = {},
+    /** A grouped review's (NS-57) own controls; unused by any other. */
+    onPickVenue: (Int, Int) -> Unit = { _, _ -> },
+    onChooseTrack: (String, String) -> Unit = { _, _ -> },
+    onEditGroup: (String) -> Unit = {},
+    onRetryPlaces: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -194,11 +201,25 @@ fun ReviewScreen(
                     color = colors.textStrong,
                 )
 
+                if (state.auto) {
+                    GroupedReview(
+                        state = state,
+                        pickerHeight = pickerHeight,
+                        onPickVenue = onPickVenue,
+                        onChooseTrack = onChooseTrack,
+                        onEditGroup = onEditGroup,
+                        onRetryPlaces = onRetryPlaces,
+                        onLabelChange = onLabelChange,
+                        onIncludeChange = onIncludeChange,
+                    )
+                }
+
                 if (state.needsLinePick) {
                     Text(
-                        pickerHint(state),
+                        state.lineFrom?.let { knownLineHint(it) } ?: pickerHint(state),
                         style = type.sm,
                         color = colors.textMuted,
+                        modifier = Modifier.testTag("reviewPickerHint"),
                     )
 
                     LinePicker(
@@ -219,7 +240,7 @@ fun ReviewScreen(
                         LineReview.Problem.NO_CROSSINGS -> Advice(
                             "No laps cross the picked line — try a different spot.",
                         )
-                        null -> if (state.pickedIndex == null) {
+                        null -> if (state.pickedIndex == null && state.lineFrom == null) {
                             Advice("Nothing picked yet.", warning = false)
                         }
                     }
@@ -241,7 +262,7 @@ fun ReviewScreen(
                     }
                 }
 
-                state.items.forEachIndexed { index, item ->
+                if (!state.auto) state.items.forEachIndexed { index, item ->
                     ItemCard(
                         item = item,
                         index = index,
@@ -265,7 +286,9 @@ fun ReviewScreen(
                     onScopeChange = onClipScopeChange,
                 )
 
-                if (anyLaps && state.forNewEvent) {
+                if (state.auto) {
+                    // The cards above are where each session goes.
+                } else if (anyLaps && state.forNewEvent) {
                     // Started from the New Event form: the event is the one being
                     // typed, so there is nothing to pick.
                     TrackCard {
@@ -378,6 +401,7 @@ fun ReviewScreen(
                         } else {
                             Text(
                                 when {
+                                    state.auto -> "Save ${fmtCount(state.saveableGroups.size, "event")}"
                                     state.forNewEvent -> "Add to new event"
                                     state.selectedCount > 1 -> "Save ${state.selectedCount} sessions"
                                     else -> "Save session"
@@ -566,6 +590,225 @@ private fun ScopeChip(label: String, selected: Boolean, enabled: Boolean, tag: S
                 selected -> colors.accentContrast
                 else -> colors.textMuted
             },
+        )
+    }
+}
+
+/** A line the app already had (NS-57 phase 3), and how to replace it. */
+private fun knownLineHint(track: String): String =
+    "Start/finish from your last session at $track. Tap the trace to use a different line."
+
+/**
+ * A grouped review (NS-57): the files of an import with no event picked, one
+ * card per event they will become or join. The port of `auto.js`'s render —
+ * its sentences word for word — over [ReviewUiState.groups].
+ */
+@Composable
+private fun GroupedReview(
+    state: ReviewUiState,
+    pickerHeight: androidx.compose.ui.unit.Dp,
+    onPickVenue: (Int, Int) -> Unit,
+    onChooseTrack: (String, String) -> Unit,
+    onEditGroup: (String) -> Unit,
+    onRetryPlaces: () -> Unit,
+    onLabelChange: (Int, String) -> Unit,
+    onIncludeChange: (Int, Boolean) -> Unit,
+) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    val fmtDate: (String) -> String = { EventDates.fmtDate(it) }
+
+    TrackCard(Modifier.fillMaxWidth().testTag("groupedSummary")) {
+        Text(
+            "${fmtCount(state.items.size, "file")} · ${fmtCount(state.groups.size, "event")} found",
+            style = type.bodyStrong,
+            color = colors.textStrong,
+        )
+        Text(
+            "Each file is placed by where it was driven. Check the track and the dates, then save.",
+            style = type.sm,
+            color = colors.textMuted,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        state.savedGroups.forEach { saved ->
+            val dates = if (saved.days > 1) {
+                "${fmtDate(saved.start)} – ${fmtDate(TrackLocate.addDays(saved.start, saved.days - 1))}"
+            } else {
+                fmtDate(saved.start)
+            }
+            Text("Saved: ${saved.name} · $dates", style = type.sm, color = colors.textBody, modifier = Modifier.padding(top = 8.dp))
+        }
+        state.items.filter { it.error != null }.forEach { item ->
+            Text(item.file, style = type.bodyStrong, color = colors.textStrong, modifier = Modifier.padding(top = 10.dp))
+            TEErrorBanner(item.error.orEmpty(), modifier = Modifier.padding(top = 4.dp))
+        }
+        state.items.filter { it.error == null && !it.hasLaps && !(it.parsed?.needsLine == true && !it.parsed.gps.isNullOrEmpty()) }.forEach { item ->
+            Text("${item.file} · no complete laps found", style = type.sm, color = colors.textMuted, modifier = Modifier.padding(top = 10.dp))
+        }
+    }
+
+    val placesError = state.placesError
+    if (placesError != null && !state.placesLoaded) {
+        TrackCard(Modifier.fillMaxWidth()) {
+            Text(placesError, style = type.sm, color = colors.textMuted)
+            TERetryButton(onClick = onRetryPlaces, modifier = Modifier.padding(top = 8.dp))
+        }
+    } else if (!state.placesLoaded) {
+        CircularProgressIndicator(color = colors.accent, modifier = Modifier.height(24.dp))
+    }
+
+    state.venuePickers.forEachIndexed { n, picker ->
+        val pending = picker.itemIndexes.map { state.items[it] }.filter { !it.hasLaps && it.savedTo == null }
+        TrackCard(Modifier.fillMaxWidth().testTag("venuePicker$n")) {
+            Text("Start/finish line", style = type.bodyStrong, color = colors.textStrong)
+            Text(
+                when {
+                    picker.lineFrom != null -> knownLineHint(picker.lineFrom)
+                    picker.problem == LineReview.Problem.STATIONARY_PICK ->
+                        "The car wasn't moving there, so there's no direction to place a line across. Try a point out on track."
+                    picker.gate != null && pending.isNotEmpty() ->
+                        "No laps cross the picked line in every file — tap a different spot to adjust it."
+                    picker.gate != null -> "Line set — tap the trace again to adjust it."
+                    else -> "${fmtCount(picker.itemIndexes.size, "file")} ${if (picker.itemIndexes.size == 1) "has" else "have"} " +
+                        "GPS data but no lap markers. Tap the trace where the start/finish line is; laps are timed each pass across it."
+                },
+                style = type.sm,
+                color = colors.textMuted,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp).testTag("venuePickerHint$n"),
+            )
+            LinePicker(
+                trace = picker.pickTrace,
+                gate = picker.gate,
+                pickedIndex = picker.pickedIndex,
+                onPick = { onPickVenue(n, it) },
+                modifier = Modifier.fillMaxWidth().height(pickerHeight),
+            )
+            pending.forEach { item ->
+                Text(
+                    "${item.file} · ${item.parsed?.gps?.size ?: 0} GPS points, no laps yet",
+                    style = type.xs,
+                    color = colors.textMuted,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+        }
+    }
+
+    state.groups.forEach { group ->
+        val items = group.itemIds.mapNotNull { i -> state.items.getOrNull(i)?.let { i to it } }
+        val laps = items.sumOf { it.second.laps.size }
+        val best = items.flatMap { it.second.laps }.minOfOrNull { it.timeMs }
+        val dates = TrackLocate.groupDatesText(group, fmtDate)
+        val track = group.track
+        val editing = track == null || group.key in state.editing
+        val where = when {
+            group.eventId != null -> "Adds to your event on ${fmtDate(group.start)}"
+            track != null -> "New event" + if (track.source != TrackLocate.Source.OWN) " at a new track" else ""
+            group.venueOnly -> "This lap doesn't fit a layout we know here — pick the track if it is one of these, or name the layout you drove."
+            group.candidates.isNotEmpty() -> "More than one track could be here — pick the one you drove."
+            else -> "No track we know is here. Name it once and it is recognised next time."
+        }
+        TrackCard(Modifier.fillMaxWidth().testTag("group:${group.key}")) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(track?.name ?: "Which track is this?", style = type.bodyStrong, color = colors.textStrong)
+                    Text(dates, style = type.sm, color = colors.textMuted)
+                }
+                if (track != null && !editing) {
+                    TextButton(onClick = { onEditGroup(group.key) }, modifier = Modifier.testTag("groupChange:${group.key}")) {
+                        Text("Change", style = type.sm, color = colors.accentInk)
+                    }
+                }
+            }
+            Text(
+                "$where · ${fmtCount(items.size, "session")} · ${fmtCount(laps, "lap")}" + (best?.let { " · best ${LapTime.fmtMs(it)}" } ?: ""),
+                style = type.sm,
+                color = colors.textMuted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            if (editing) {
+                GroupTrackPicker(group = group, onChoose = { onChooseTrack(group.key, it) })
+            }
+            state.groupErrors[group.key]?.let { TEErrorBanner(it, modifier = Modifier.padding(top = 8.dp)) }
+            items.forEach { (index, item) ->
+                GroupFile(
+                    item = item,
+                    onLabelChange = { onLabelChange(index, it) },
+                    onIncludeChange = { onIncludeChange(index, it) },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A card's track question: the candidates as choices, and a name to type — the
+ * web's select-plus-input. Inline on the card, never a dialog.
+ */
+@Composable
+private fun GroupTrackPicker(group: TrackLocate.Group, onChoose: (String) -> Unit) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    var name by rememberSaveable(group.key) { mutableStateOf("") }
+    Column(Modifier.padding(top = 8.dp)) {
+        group.candidates.forEach { candidate ->
+            TextButton(onClick = { onChoose(candidate.name) }, modifier = Modifier.fillMaxWidth()) {
+                Text("○ ${candidate.name}", style = type.sm, color = colors.textBody, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text(if (group.candidates.isEmpty()) "Name this track" else "Another track…", style = type.sm) },
+                singleLine = true,
+                modifier = Modifier.weight(1f).testTag("groupName:${group.key}"),
+            )
+            TextButton(onClick = { onChoose(name) }, enabled = name.isNotBlank(), modifier = Modifier.testTag("groupNameUse:${group.key}")) {
+                Text("Use", style = type.sm, color = if (name.isNotBlank()) colors.accentInk else colors.textFaint)
+            }
+        }
+    }
+}
+
+/** One file on a card: its include box, its laps, its label. */
+@Composable
+private fun GroupFile(item: ReviewItem, onLabelChange: (String) -> Unit, onIncludeChange: (Boolean) -> Unit) {
+    val colors = TrackTheme.colors
+    val type = TrackTheme.typography
+    val parsed = item.parsed ?: return
+    Column(Modifier.padding(top = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = item.include,
+                onCheckedChange = onIncludeChange,
+                colors = CheckboxDefaults.colors(checkedColor = colors.accent, checkmarkColor = colors.accentInk),
+            )
+            Column(Modifier.weight(1f)) {
+                Text(item.file, style = type.bodyStrong, color = colors.textStrong)
+                Text(
+                    listOfNotNull(parsed.date, parsed.time, fmtCount(item.laps.size, "lap")).joinToString(" · "),
+                    style = type.xs,
+                    color = colors.textMuted,
+                )
+            }
+        }
+        Text(
+            item.laps.joinToString("  ") { (if (it.estimated) "~" else "") + LapTime.fmtMs(it.timeMs) },
+            style = type.sm,
+            color = colors.textBody,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+        val metrics = Telemetry.metricsSummary(parsed, LocalUnitSystem.current)
+        if (metrics.isNotEmpty()) Text(metrics, style = type.xs, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+        val note = Telemetry.estimatedNote(parsed, parsed.laps.count { it.estimated })
+        if (note.isNotEmpty()) Text("~ = $note", style = type.xs, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
+        OutlinedTextField(
+            value = item.label,
+            onValueChange = onLabelChange,
+            label = { Text("Session label", style = type.sm) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
         )
     }
 }

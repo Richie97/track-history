@@ -7,10 +7,13 @@ import {
   parseTraceGeo,
   resolveTraceGeo,
   sanitizeTraceGeo,
+  startFinish,
   traceCentre,
+  trackPlace,
   unproject,
 } from "../../src/lib/geo";
 import * as web from "../../public/js/import/geo.js";
+import { gateFromSf, knownLines, lineFits, recordingPlace } from "../../public/js/import/locate.js";
 
 // NS-53: where a trace lies on Earth. The server's half (src/lib/geo.ts) and
 // the web's (public/js/import/geo.js) restate the same two constants, and the
@@ -196,5 +199,83 @@ describe("the web's map helpers", () => {
     // One speed throughout is the middle of the ramp, as the drawn map has it.
     expect(web.speedRuns([[0, 0, 7], [1, 0, 7], [2, 0, 7]], 16)).toEqual([{ from: 0, to: 2, bucket: 8 }]);
     expect(web.speedRuns([[0, 0, 7]])).toEqual([]);
+  });
+});
+
+// NS-57 phase 3: the line a lap was timed from, read back off its stored trace
+// and used to time another day's recording with no click.
+describe("a known start/finish line", () => {
+  const VIR = { lat: 36.5617, lon: -79.2047 };
+  // A 3 km oval driven clockwise at 10 Hz for `laps` laps and a bit, starting
+  // `leadM` before the top of the oval.
+  const drive = (laps: number, leadM: number, t0 = 0) => {
+    const length = 3000;
+    const r = length / (2 * Math.PI);
+    const v = 40;
+    const out: { lat: number; lon: number; t: number; speed: number }[] = [];
+    for (let i = 0; i * v * 0.1 <= laps * length + 400; i++) {
+      const a = ((i * v * 0.1 - leadM) / length) * 2 * Math.PI;
+      const x = r * Math.sin(a);
+      const y = 0.6 * r * Math.cos(a);
+      out.push({ lat: VIR.lat + y / KY, lon: VIR.lon + x / KX(VIR.lat), t: t0 + i * 0.1, speed: v });
+    }
+    return out;
+  };
+
+  it("has no direction to read from a lap that never leaves its first point", () => {
+    expect(startFinish([[0, 0, 1], [3, 4, 1], [5, 5, 1]], VIR)).toBeNull();
+    expect(startFinish([], VIR)).toBeNull();
+    expect(startFinish([[0, 0, 1], [0, 30, 1]], VIR)).toMatchObject({ lat: VIR.lat, lon: VIR.lon, heading: 0 });
+    expect(startFinish([[0, 0, 1], [30, 0, 1]], VIR)?.heading).toBe(90);
+    expect(startFinish([[0, 0, 1], [-30, 0, 1]], VIR)?.heading).toBe(270);
+  });
+
+  it("times a second day at the track the way the first day's picked line did", () => {
+    const day1 = drive(4, 700);
+    const trace1 = web.projectTrace(day1);
+    const gate1 = web.buildGate(trace1, 200);
+    const laps1 = web.deriveLaps(trace1, gate1);
+    expect(laps1.length).toBe(3);
+    const stored = web.bestLapTrace(trace1, gate1);
+    const place = trackPlace(JSON.stringify(stored), JSON.stringify(web.traceOrigin(day1)));
+    expect(place?.sf).not.toBeNull();
+
+    // Another day, another projection origin, the same circuit.
+    const day2 = drive(5, 1900, 1000);
+    const trace2 = web.projectTrace(day2);
+    const gate2 = gateFromSf(place!.sf, day2[0]);
+    const laps2 = web.deriveLaps(trace2, gate2);
+    expect(laps2.length).toBe(4);
+    for (const l of laps2) expect(Math.abs(l.timeMs - laps1[0].timeMs)).toBeLessThan(150);
+
+    const own = [{ id: 7, name: "The Oval", catalog_id: null, geo: place }];
+    const parsed = { gps: day2, bestLapTrace: web.bestLapTrace(trace2, gate2), traceGeo: web.traceOrigin(day2) };
+    const lines = knownLines(recordingPlace({ gps: day2 }), own);
+    expect(lines).toMatchObject([{ id: 7, name: "The Oval" }]);
+    expect(lineFits(7, [recordingPlace(parsed)], own, [])).toBe(true);
+    expect(lineFits(8, [recordingPlace(parsed)], own, [])).toBe(false);
+    expect(lineFits(7, [null], own, [])).toBe(false);
+  });
+
+  it("finds no laps for a day driven the other way round", () => {
+    const day1 = drive(3, 700);
+    const trace1 = web.projectTrace(day1);
+    const gate1 = web.buildGate(trace1, 200);
+    const place = trackPlace(JSON.stringify(web.bestLapTrace(trace1, gate1)), JSON.stringify(web.traceOrigin(day1)));
+    const reversed = drive(3, 700).map((p, i, all) => ({ ...all[all.length - 1 - i], t: p.t }));
+    expect(web.deriveLaps(web.projectTrace(reversed), gateFromSf(place!.sf, reversed[0]))).toEqual([]);
+  });
+
+  it("offers nothing away from the venue, or from a track with no line", () => {
+    const sf = { lat: VIR.lat, lon: VIR.lon, heading: 10 };
+    const own = [
+      { id: 1, name: "Far", geo: { lat: 40, lon: -80, length_m: 3000, sf } },
+      { id: 2, name: "No line", geo: { ...VIR, length_m: 3000, sf: null } },
+      { id: 3, name: "Unanchored", geo: null },
+    ];
+    expect(knownLines({ ...VIR, lengthM: null }, own)).toEqual([]);
+    expect(knownLines(null, own)).toEqual([]);
+    expect(gateFromSf(null, VIR)).toBeNull();
+    expect(gateFromSf(sf, null)).toBeNull();
   });
 });

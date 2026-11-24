@@ -63,6 +63,9 @@ fun DashboardPane(
         // In the app's own web view rather than a browser tab — a page to read,
         // not a site to leave for.
         onOpenTrackDaysGuide = { nav.open(Route.TrackDaysGuide, inListPane) },
+        // The chooser hands straight to the modal review, so it is pushed, never
+        // paned: with no event id the review groups the files itself (NS-57).
+        onImport = { nav.navigate(Route.Import()) },
         recorderIdle = recorderIdle,
         selection = if (inListPane) selection else null,
         onOpenCommentEvent = { nav.open(Route.Event(it.eventId, student = it.studentId), inListPane) },

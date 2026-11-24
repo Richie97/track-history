@@ -120,7 +120,29 @@ export function resolveTraceGeo(trace: unknown, stored: unknown, donor: DonorRow
 // trace: the centre of its bounding box in degrees and its closed length. What
 // the owner's GET /tracks carries as `geo`, so an import can recognise the
 // place. Null for anything unreadable.
-export type TrackPlace = { lat: number; lon: number; length_m: number };
+// `sf` is the start/finish line the lap was timed from (NS-57 phase 3): a
+// stored best-lap trace is sliced from one line crossing to the next, so its
+// first point sits on the line and its first metres give the direction of
+// travel. `heading` is degrees clockwise from north. Null when the lap's
+// opening points never get SF_MIN_RUN_M apart (no direction to read).
+export type StartFinish = { lat: number; lon: number; heading: number };
+export type TrackPlace = { lat: number; lon: number; length_m: number; sf: StartFinish | null };
+export const SF_MIN_RUN_M = 15;
+
+export function startFinish(trace: Trace, geo: TraceGeo): StartFinish | null {
+  const p0 = trace[0];
+  if (!Array.isArray(p0)) return null;
+  for (let i = 1; i < trace.length; i++) {
+    const dx = trace[i][0] - p0[0];
+    const dy = trace[i][1] - p0[1];
+    if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
+    if (Math.hypot(dx, dy) < SF_MIN_RUN_M) continue;
+    const at = unproject(p0[0], p0[1], geo);
+    const heading = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+    return { lat: round7(at.lat), lon: round7(at.lon), heading: Math.round(heading * 10) / 10 };
+  }
+  return null;
+}
 export function trackPlace(traceRaw: unknown, geoRaw: unknown): TrackPlace | null {
   const trace = parseTrace(traceRaw);
   const geo = parseTraceGeo(geoRaw);
@@ -135,5 +157,5 @@ export function trackPlace(traceRaw: unknown, geoRaw: unknown): TrackPlace | nul
   }
   if (!Number.isFinite(length) || length <= 0) return null;
   const centre = unproject(c[0], c[1], geo);
-  return { lat: round7(centre.lat), lon: round7(centre.lon), length_m: Math.round(length) };
+  return { lat: round7(centre.lat), lon: round7(centre.lon), length_m: Math.round(length), sf: startFinish(trace, geo) };
 }

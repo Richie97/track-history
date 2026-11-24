@@ -15,7 +15,13 @@ import XCTest
 final class VideoImportUITests: XCTestCase {
     private static let track = "Video Import Test Circuit (UITest)"
 
+    /// The event-less import's own track, so the line it remembers is never one
+    /// another test left behind.
+    private static let knownLineTrack = "Known Line Test Circuit (UITest)"
+
     private var seededEventId: Int?
+    /// Events the app itself created (NS-57), found again by track and date.
+    private var createdEventIds: [Int] = []
 
     override func setUp() {
         continueAfterFailure = false
@@ -26,6 +32,8 @@ final class VideoImportUITests: XCTestCase {
             _ = try? api("DELETE", "/api/events/\(id)")
             seededEventId = nil
         }
+        for id in createdEventIds { _ = try? api("DELETE", "/api/events/\(id)") }
+        createdEventIds = []
     }
 
     /// A PDR clip with beacons: exact laps, and the line picker never appears.
@@ -139,7 +147,115 @@ final class VideoImportUITests: XCTestCase {
         attach(app, named: "import-gopro-picked")
     }
 
+    /// NS-57: a GoPro clip opened with no event, at a track the driver has timed
+    /// before. The line their last session there used times it with no tap, the
+    /// track is recognised from where the clip was driven, and saving makes the
+    /// event — dated from the file — and its session.
+    func testAClipWithNoEventIsPlacedAndTimedFromTheRememberedLine() throws {
+        try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        try setDevTier(.free)
+        let token = try devSessionToken()
+
+        // First, the ordinary import onto an event, with a tapped line: this is
+        // what gives the track a place and a start/finish line to remember.
+        let eventId = try seedEvent(track: Self.knownLineTrack)
+        var app = launch(token: token, importing: "gopro.mp4", into: eventId)
+        let map = app.buttons["linePickerMap"]
+        XCTAssertTrue(map.waitForExistence(timeout: 30), "a GoPro clip needs a picked line")
+        map.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap()
+        XCTAssertTrue(app.staticTexts["Lap 1"].waitForExistence(timeout: 10))
+        let save = app.buttons["reviewSave"]
+        XCTAssertTrue(scrollTo(save, in: app), "the review should offer its save")
+        save.tap()
+        _ = try waitForSession(eventId: eventId)
+
+        // Then the same clip with no event picked.
+        app.terminate()
+        app = launch(token: token, importing: "gopro.mp4", into: nil)
+
+        XCTAssertTrue(
+            app.staticTexts["groupedSummary"].waitForExistence(timeout: 30),
+            "with no event, the review groups files by where they were driven"
+        )
+        let hint = app.staticTexts["venuePickerHint0"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 15), "the venue keeps its line picker")
+        // The line arrives once the driver's tracks have loaded, a moment after
+        // the picker itself: wait for the sentence rather than read it at once.
+        let found = NSPredicate(
+            format: "label CONTAINS %@", "Start/finish from your last session at \(Self.knownLineTrack)"
+        )
+        let arrived = XCTNSPredicateExpectation(predicate: found, object: hint)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [arrived], timeout: 15), .completed,
+            "the line should come from the last session there, got: \(hint.label)"
+        )
+        // …and it is drawn, so the driver can see where the laps were cut.
+        XCTAssertEqual(app.buttons["linePickerMap"].value as? String, "Line found")
+        attach(app, named: "import-eventless-review")
+
+        // Recognised as the driver's own track, as a new event: the seeded one is
+        // on another date.
+        let named = app.staticTexts.matching(
+            NSPredicate(format: "label == %@", Self.knownLineTrack)
+        ).firstMatch
+        XCTAssertTrue(scrollTo(named, in: app), "the card should name the track the clip was driven at")
+
+        let saveAll = app.buttons["reviewSave"]
+        XCTAssertTrue(scrollTo(saveAll, in: app), "the grouped review should offer its save")
+        XCTAssertEqual(saveAll.label, "Save 1 event")
+        saveAll.tap()
+
+        // The event is real once the server has it: dated from the file, at the
+        // same track, with the clip's three laps timed from the remembered line.
+        let created = try waitForEvent(track: Self.knownLineTrack, on: "2026-06-20")
+        let id = try XCTUnwrap(created["id"] as? Int)
+        createdEventIds.append(id)
+        XCTAssertNotEqual(id, eventId)
+        let detail = try waitForSession(eventId: id)
+        let session = try XCTUnwrap((detail["sessions"] as? [[String: Any]])?.first)
+        let laps = try XCTUnwrap(session["laps"] as? [[String: Any]])
+        XCTAssertEqual(laps.map { $0["time_ms"] as? Int }, [47124, 47124, 47124])
+    }
+
     // MARK: - Helpers
+
+    /// Launch straight into an import with a session token, skipping the browser.
+    /// `eventId` nil is the event-less import (NS-57).
+    private func launch(token: String, importing fixture: String, into eventId: Int?) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-server.url", Self.devServerURL, "-resetAuth", "-resetRecording", "-authToken", token,
+            "-importFixture", fixture
+        ] + (eventId.map { ["-importFixtureEvent", String($0)] } ?? [])
+        app.launch()
+        return app
+    }
+
+    /// Poll the event list for one at `track` starting `date`. A list, which the
+    /// shared `api` helper (objects only) can't read.
+    private func waitForEvent(track: String, on date: String, timeout: TimeInterval = 30) throws -> [String: Any] {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            try signInOverHTTP()
+            var request = URLRequest(url: URL(string: "\(Self.devServerURL)/api/events")!)
+            request.timeoutInterval = 15
+            var rows: [[String: Any]] = []
+            let done = expectation(description: "GET /api/events")
+            URLSession.shared.dataTask(with: request) { data, _, _ in
+                if let data, let list = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    rows = list
+                }
+                done.fulfill()
+            }.resume()
+            wait(for: [done], timeout: 20)
+            if let hit = rows.first(where: {
+                $0["track_name"] as? String == track && $0["start_date"] as? String == date
+            }) { return hit }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        XCTFail("no event at \(track) on \(date) reached the server")
+        return [:]
+    }
 
     private func launchSignedIn(importing fixture: String, into eventId: Int) throws -> XCUIApplication {
         // Import itself is free on every client, but this test walks through to the
@@ -165,11 +281,11 @@ final class VideoImportUITests: XCTestCase {
         return app
     }
 
-    private func seedEvent() throws -> Int {
+    private func seedEvent(track: String = VideoImportUITests.track) throws -> Int {
         let event = try api(
             "POST", "/api/events",
             body: [
-                "track_name": Self.track,
+                "track_name": track,
                 // Fixed and in the past, so this never lands in the dashboard's hero
                 // slot and never changes which event another test finds there.
                 "start_date": "2024-04-20",

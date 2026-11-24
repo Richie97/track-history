@@ -1,6 +1,7 @@
 package app.trackevolution.core.model
 
 import kotlinx.serialization.SerialName
+import app.trackevolution.core.TrackLocate
 import kotlinx.serialization.Serializable
 
 /**
@@ -13,12 +14,12 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 public data class Track(
-    val id: Int,
-    val name: String,
+    override val id: Int,
+    override val name: String,
     /** Target lap time the user is chasing here. */
     @SerialName("goal_ms") val goalMs: Int? = null,
     val notes: String? = null,
-    @SerialName("catalog_id") val catalogId: Int? = null,
+    @SerialName("catalog_id") override val catalogId: Int? = null,
     @SerialName("updated_at") val updatedAt: Long,
     /** Past events only — `tracksSummary` filters `start_date <= today`. */
     @SerialName("event_count") val eventCount: Int,
@@ -39,10 +40,10 @@ public data class Track(
      * Where the track is (NS-57): the place of the newest session here that
      * kept its anchor, null without one. The owner's `GET /api/tracks` only —
      * a coach's view and the share page never carry it. Decoded for
-     * `TrackLocate` (ticket 3); nothing reads it yet.
+     * `TrackLocate` (ticket 3); read by `TrackLocate`.
      */
-    val geo: TrackPlace? = null,
-)
+    override val geo: TrackPlace? = null,
+) : TrackLocate.OwnTrack
 
 /**
  * A track's place: the centre of a driven best lap's bounding box and that
@@ -53,6 +54,20 @@ public data class TrackPlace(
     val lat: Double,
     val lon: Double,
     @SerialName("length_m") val lengthM: Int,
+    /**
+     * The start/finish line that lap was timed from (NS-57 phase 3), null when
+     * the trace gave no direction to read. `TrackLocate.gateFromSf` turns it
+     * into a gate for another day's recording.
+     */
+    val sf: StartFinish? = null,
+)
+
+/** A timing line: a point on it and the heading across it, degrees clockwise from north. */
+@Serializable
+public data class StartFinish(
+    val lat: Double,
+    val lon: Double,
+    val heading: Double,
 )
 
 /**
@@ -71,18 +86,18 @@ public data class TrackSeriesPoint(
  */
 @Serializable
 public data class CatalogTrack(
-    val id: Int,
-    val name: String,
+    override val id: Int,
+    override val name: String,
     /**
      * A point inside the layout's footprint and its published lap length
      * (NS-57) — what an import matches a recording's place against. Defaulted,
      * so a catalog cached before the fields existed still decodes; the three
      * rows that name no single layout have no length.
      */
-    val lat: Double? = null,
-    val lon: Double? = null,
-    @SerialName("length_m") val lengthM: Int? = null,
-)
+    override val lat: Double? = null,
+    override val lon: Double? = null,
+    @SerialName("length_m") override val lengthM: Int? = null,
+) : TrackLocate.CatalogRow
 
 /**
  * The per-track community leaderboard (`GET /api/tracks/:id/leaderboard`):

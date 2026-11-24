@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import app.trackevolution.core.Garage
 import app.trackevolution.core.RemoteRecording
+import app.trackevolution.core.TrackLocate
 import app.trackevolution.core.SessionConditions
 
 /** One item of an event's prep checklist. */
@@ -127,7 +128,7 @@ public data class Event(
      * entered (`eventCostCents` in `src/lib/costs.ts`).
      */
     @SerialName("cost_cents") val costCents: Int? = null,
-) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent, Garage.LogbookEvent, Garage.SwapEvent
+) : RemoteRecording.EventCandidate, SessionConditions.AmbientEvent, Garage.LogbookEvent, Garage.SwapEvent, TrackLocate.EventRow
 
 /**
  * `GET /api/events/:id` — an event plus its sessions and per-day setup sheets.

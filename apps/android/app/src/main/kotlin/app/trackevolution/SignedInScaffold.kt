@@ -392,7 +392,15 @@ fun SignedInScaffold(
                         // graph, and the chooser comes off the stack underneath it
                         // so backing out of the review lands on the event page — or
                         // on the New Event form, for an import started from it.
-                        flow.beginImport(clips, route.eventId, forNewEvent = route.forNewEvent)
+                        // With no event to save onto — the dashboard's *Import
+                        // laps*, or files shared into the app — the review
+                        // places each file by where it was driven (NS-57).
+                        flow.beginImport(
+                            clips,
+                            route.eventId,
+                            forNewEvent = route.forNewEvent,
+                            auto = route.eventId == null && !route.forNewEvent,
+                        )
                         reviewing = true
                         nav.popBackStack()
                     },
@@ -441,6 +449,10 @@ fun SignedInScaffold(
                     clipScope = clipScope,
                     onClipScopeChange = flow::setClipScope,
                     onRequirePro = { paywall = true },
+                    onPickVenue = flow::pickVenue,
+                    onChooseTrack = flow::chooseTrack,
+                    onEditGroup = flow::editGroup,
+                    onRetryPlaces = flow::reloadPlaces,
                     onDiscard = { flow.discard(context); reviewing = false },
                     onSaveToNewEvent = {
                         // The form first, so it is on the back stack by the time

@@ -25,7 +25,18 @@ import {
   metricsSummary,
 } from "./ui.js";
 import { clipOffer, offersEveryLap } from "./clip.js";
-import { VENUE_RADIUS_M, distanceM, eventBodyFor, groupDatesText, groupImports, locateTrack, recordingPlace } from "./locate.js";
+import {
+  VENUE_RADIUS_M,
+  distanceM,
+  eventBodyFor,
+  gateFromSf,
+  groupDatesText,
+  groupImports,
+  knownLines,
+  lineFits,
+  locateTrack,
+  recordingPlace,
+} from "./locate.js";
 
 const OTHER = "__other__";
 
@@ -42,8 +53,29 @@ export function reviewAuto(box, results, ctx, options = {}) {
     if (!p) pickers.push((p = { place, results: [], origin: r.parsed.gps[0], gate: null }));
     p.results.push(r);
   });
+  // A venue the driver has been to already has a start/finish line: the one
+  // their last session there was timed from. Try it before asking (phase 3).
+  for (const picker of pickers) applyKnownLine(picker, ctx);
   const state = { results, pickers, choices: {}, editing: new Set(), errors: {}, saved: [], busy: false };
   render(box, state, ctx, options);
+}
+
+// Time a picker's files from a line the driver already has at this venue,
+// keeping the first whose laps turn out to be that track's. Leaves the picker
+// as it was — no line, no laps — when none fits.
+function applyKnownLine(picker, ctx) {
+  for (const line of knownLines(picker.place, ctx.tracks)) {
+    picker.gate = gateFromSf(line.sf, picker.origin);
+    applyGate(picker);
+    const places = picker.results.map((r) => (r.parsed.laps.length ? recordingPlace(r.parsed) : null));
+    if (lineFits(line.id, places, ctx.tracks, ctx.catalog)) {
+      picker.lineFrom = line.name;
+      return;
+    }
+  }
+  picker.gate = null;
+  picker.lineFrom = null;
+  applyGate(picker);
 }
 
 function located(r, ctx) {
@@ -152,7 +184,9 @@ function pickerHtml(picker, n) {
   return `<div class="panel" style="margin-top:12px">
     <strong>Start/finish line</strong>
     <div class="hint" style="margin:4px 0 8px">${
-      picker.gate
+      picker.lineFrom
+        ? `Start/finish from your last session at ${esc(picker.lineFrom)}. Click the map to use a different line.`
+        : picker.gate
         ? pending.length
           ? "No laps cross the picked line in every file — click a different spot to adjust it."
           : "Line set — click the map again to adjust it."
@@ -226,6 +260,7 @@ function render(box, state, ctx, options) {
       const gate = buildGate(picker.pickTrace, best);
       if (!gate) return;
       picker.gate = gate;
+      picker.lineFrom = null;
       applyGate(picker);
       again();
     });
