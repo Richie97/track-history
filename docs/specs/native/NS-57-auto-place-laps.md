@@ -293,6 +293,53 @@ Tickets 2 and 3 are independent of each other; 4 follows all three.
 - Not built: the *looks already imported* warning, and the landing page's
   features grid, which waits for the phones.
 
+## As built (tickets 2–4)
+
+- **The line comes from the driver's own last session there — and only from
+  there.** `geo` on `GET /api/tracks` gains `sf: { lat, lon, heading }`
+  (`startFinish` in `src/lib/geo.ts`): the stored best lap's first point,
+  unprojected, and the heading to the first point 15 m on. Checked first:
+  every parser's stored trace is `lapTrace(trace, best.startT, best.endT)`,
+  whose first point is the first fix at or after the crossing, so it sits on
+  the timing line to within one fix. **The catalog half is not built**: no
+  `sf_*` columns were added, because there is no curated line to put in them
+  and an empty column is not a feature. A venue the driver has never timed
+  still asks for a click, once.
+- **A known line is tried, then checked.** `knownLines(place, ownTracks)`
+  offers every own track within `VENUE_RADIUS_M` that has an `sf`, nearest
+  first; `gateFromSf` rebuilds the gate in the file's own frame (direction
+  filter included, so a day driven the other way finds no laps);
+  `lineFits` keeps it only when the laps it cuts locate `exact` to that same
+  own track. A line from another layout at the venue cuts laps of the wrong
+  length and is dropped, and the picker asks as before. The picker stays, and
+  a tap replaces the line.
+- **On an event's own page too**, on all three clients: a file waiting for a
+  line on an event whose track has one is timed without a click, under the
+  same check. Changing the event in the phone's picker afterwards does not
+  re-try it.
+- **Android (ticket 3).** `TrackLocate` in `:core` under the JS names, its
+  inputs three small interfaces the models implement (`OwnTrack`,
+  `CatalogRow`, `EventRow`), pinned by `TrackLocateTest`. `Route.Import()` with
+  no event — the dashboard's and the welcome card's new *Import laps*, and
+  files shared into the app — begins `RecordingFlow` with `auto = true`: one
+  `VenuePicker` per venue, `groups` from `groupImports`, and a save that is
+  `POST /events` then its sessions per group. `GroupedImportTest` pins the
+  request order, the retry onto an event already made, and the known line;
+  `GroupedReviewScreenTest` the cards.
+- **iOS (ticket 2).** `TrackLocate` in the Kit, its inputs three small
+  structs built from the models, pinned by `TrackLocateTests` — which was run
+  on Linux against a Foundation-only subset of the Kit. The app half
+  (`ReviewModel`'s `auto` mode, the cards in `ReviewScreen`, the dashboard's
+  *Import laps*) mirrors Android's and **has not been compiled or run**: there
+  is no Xcode here. The UI test the ticket asks for is not written.
+- **The phones' cards list the candidates and a name field**, not the web's
+  select with the driver's other tracks under it; typing an own track's name
+  still joins it (`groupImports` matches names).
+- **A grouped save lands on the event when there is one, the dashboard when
+  there are several** (Android); iOS dismisses the importer.
+- The phones' `LinePicker` draws no marker for a line nobody tapped; the
+  sentence above it is what says where it came from.
+
 ## Open questions
 
 - **A genuine extra day and the date slack.** The slack exists for file
