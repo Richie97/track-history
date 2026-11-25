@@ -160,7 +160,9 @@ import {
 import {
   balanceLabel,
   balancePoints,
+  balanceReference,
   balanceSummary,
+  balanceTendency,
   cornerBalance,
   estimateSteeringRatio,
   fmtBalance,
@@ -1032,14 +1034,59 @@ const steeringExpected = {
   value: measuredRatioValue(lineEstimate),
   formatted: [16.25, 15.7, 12, 15.8321].map(fmtSteeringRatio),
 };
+// The speed-aware reference (`balanceReference`). Two corners *from* the
+// bicycle model — a slow one at 80 km/h (k 2–13) and a fast one at 200 km/h
+// (k 18–29) — so the car answers its steering in both and both are neutral,
+// though it rotates far less per degree at 200 than at 80. Against one gain
+// for every speed (`blindReadings`) the fast corner reads understeer and the
+// slow one oversteer; a port that drops the (1 + K·v²) term reproduces those
+// instead of the session. `pushed` adds a lap that delivers 70% of the
+// rotation in the fast corner, which must still be found. The three fallbacks
+// to the median with K = 0 are pinned too: no fit (the constant-speed
+// `channels` above), a fit under MIN_FIT_R2, and a fit with a negative K.
+const refLap = (scaleAt = () => 1) => {
+  const speed = [], steering = [], latG = [], yaw = [];
+  for (let k = 0; k < 32; k++) {
+    const slow = k >= 2 && k <= 13, fast = k >= 18 && k <= 29;
+    const kph = fast ? 200 : 80;
+    const v = kph / 3.6;
+    const deg = slow ? 60 : fast ? -20 : 0;
+    speed.push(kph);
+    steering.push(deg);
+    latG.push(slow || fast ? 0.9 : 0);
+    yaw.push(((v * (deg / 16.25)) / (2.71 * (1 + 0.0014 * v * v))) * scaleAt(k));
+  }
+  return { n: 1, timeMs: 100000, speed, steering, latG, yaw };
+};
+const refSessions = {
+  twoSpeed: { v: 1, dStepM: 20, laps: [refLap()] },
+  pushed: { v: 1, dStepM: 20, laps: [refLap(), { ...refLap((k) => (k >= 18 ? 0.7 : 1)), n: 2 }] },
+  constantSpeed: balanceChannels,
+  poorFit: { v: 1, dStepM: 20, laps: [fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: 0.0014, noise: (k) => (((k * 7) % 5) - 2) * 12 })] },
+  negativeGradient: { v: 1, dStepM: 20, laps: [fitLap({ ratio: 16.25, wheelbaseM: 2.71, K: -0.0003, kphTo: 150 })] },
+  noData: { v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 1000, speed: [100] }] },
+};
+const refPushed = balanceReference(refSessions.pushed);
+const refTwoSpeedCorners = sessionCorners(refSessions.twoSpeed);
+const referenceExpected = {
+  references: Object.fromEntries(Object.entries(refSessions).map(([k, ch]) => [k, balanceReference(ch)])),
+  twoSpeedSession: sessionBalance(refSessions.twoSpeed),
+  twoSpeedSummary: balanceSummary(refSessions.twoSpeed),
+  // One gain for every speed — what the reading was before, and must not be.
+  blindReadings: refTwoSpeedCorners.map((c) => cornerBalance(refSessions.twoSpeed.laps[0], c, referenceGain(refSessions.twoSpeed))),
+  pushedSession: sessionBalance(refSessions.pushed),
+  pushedSummary: balanceSummary(refSessions.pushed),
+  // The scatter's points with the speed term divided out.
+  pushedPoints: balancePoints(refSessions.pushed.laps[1], 1, refPushed.K),
+};
 const balCorners = sessionCorners(balanceChannels);
 // Either side of both wording thresholds, and the two figures the JS rounds.
 const balPcts = [0, 7.9, -8, 19.9, -20, 40, -25.4, 12, 3];
 const balanceFixture = {
   description:
     "Balance reference output from public/js/balance.js (yawSign / usableAt / " +
-    "yawGain / referenceGain / balancePoints / cornerBalance / sessionBalance / " +
-    "balanceLabel / fmtBalance / balanceSummary, plus #223's steeringFit / " +
+    "yawGain / referenceGain / balanceReference / balancePoints / cornerBalance / sessionBalance / " +
+    "balanceLabel / fmtBalance / balanceSummary / balanceTendency, plus #223's steeringFit / " +
     "estimateSteeringRatio / measuredRatioLine / measuredRatioValue / " +
     "fmtSteeringRatio under `steering`). Ports must reproduce the " +
     "wording exactly and the doubles to 1e-9. Regenerate with " +
@@ -1056,6 +1103,7 @@ const balanceFixture = {
     refGain: balK,
     pcts: balPcts,
     steering: steeringFixture,
+    reference: { sessions: refSessions },
   },
   expected: {
     // Measured, not assumed: the flipped recorder reads -1 and, once aligned,
@@ -1085,6 +1133,12 @@ const balanceFixture = {
     labels: balPcts.map(balanceLabel),
     formatted: balPcts.map(fmtBalance),
     summary: balanceSummary(balanceChannels),
+    // The stats tile: the same readings as one word and its corners.
+    tendency: balanceTendency(balanceChannels),
+    neutralTendency: balanceTendency({ v: 1, dStepM: 20, laps: [balNeutral] }),
+    manyTendency: balanceTendency({ v: 1, dStepM: 20, laps: [balManyLap] }),
+    fewTendency: balanceTendency({ v: 1, dStepM: 20, laps: [balFewLap] }),
+    noDataTendency: balanceTendency({ v: 1, dStepM: 20, laps: [{ n: 1, timeMs: 1000, speed: [100] }] }),
     neutralSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balNeutral] }),
     manySummary: balanceSummary({ v: 1, dStepM: 20, laps: [balManyLap] }),
     fewSummary: balanceSummary({ v: 1, dStepM: 20, laps: [balFewLap] }),
@@ -1092,6 +1146,7 @@ const balanceFixture = {
     // Cornering force, no yaw: nowhere to read a balance from.
     noYaw: sessionBalance({ v: 1, dStepM: 20, laps: [balNoYaw] }),
     steering: steeringExpected,
+    reference: referenceExpected,
   },
 };
 

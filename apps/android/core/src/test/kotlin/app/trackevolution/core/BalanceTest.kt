@@ -3,6 +3,7 @@ package app.trackevolution.core
 import app.trackevolution.core.model.LapChannels
 import app.trackevolution.core.model.SessionChannels
 import kotlin.math.abs
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -317,6 +318,151 @@ class BalanceTest {
         assertNull(Balance.steeringFit(sessionOf(bicycleLap().let { it.copy(yaw = it.yaw!!.map { 0.0 }) })))
     }
 
+    // ---- balanceReference: the response at that speed ------------------------
+
+    /**
+     * A lap of two corners *from* the bicycle model: a slow one (80 km/h,
+     * k 2–13) and a fast one (200 km/h, k 18–29). The model answers the
+     * steering exactly in both, so both are neutral for this car — but it
+     * rotates far less per degree at 200 than at 80.
+     */
+    private fun twoSpeedLap(n: Int = 1, scaleAt: (Int) -> Double = { 1.0 }): LapChannels {
+        val speed = ArrayList<Double>()
+        val steer = ArrayList<Double>()
+        val lat = ArrayList<Double>()
+        val yw = ArrayList<Double>()
+        for (i in 0 until 32) {
+            val slow = i in 2..13
+            val fast = i in 18..29
+            val kph = if (fast) 200.0 else 80.0
+            val vv = kph / 3.6
+            val deg = if (slow) 60.0 else if (fast) -20.0 else 0.0
+            speed.add(kph)
+            steer.add(deg)
+            lat.add(if (slow || fast) 0.9 else 0.0)
+            yw.add(((vv * (deg / 16.25)) / (2.71 * (1 + 0.0014 * vv * vv))) * scaleAt(i))
+        }
+        return LapChannels(n = n, timeMs = 100_000, speed = speed, latG = lat, steering = steer, yaw = yw)
+    }
+
+    @Test
+    fun `the reference is the fit when the session fits`() {
+        val ref = Balance.balanceReference(sessionOf(bicycleLap()))!!
+        assertEquals(1 / (16.25 * 2.71), ref.refGain, 1e-9)
+        assertEquals(0.0014, ref.k, 1e-9)
+    }
+
+    @Test
+    fun `the reference falls back to the median with no speed term`() {
+        // One speed all session: nothing to fit a slope to.
+        assertNull(Balance.steeringFit(channels))
+        assertEquals(Balance.Reference(Balance.referenceGain(channels)!!, 0.0), Balance.balanceReference(channels))
+        // A fit that explains too little of the yaw.
+        val noisy = sessionOf(bicycleLap(noise = { ((it * 7) % 5 - 2) * 12.0 }))
+        assertTrue(Balance.steeringFit(noisy)!!.r2 < Balance.MIN_FIT_R2)
+        assertEquals(Balance.Reference(Balance.referenceGain(noisy)!!, 0.0), Balance.balanceReference(noisy))
+        // A negative gradient: slow corners pushing and fast ones loose is
+        // balance, not the car.
+        val loose = sessionOf(bicycleLap(k = -0.0003, kphTo = 150.0))
+        val fit = Balance.steeringFit(loose)!!
+        assertTrue(fit.r2 >= Balance.MIN_FIT_R2 && fit.k < 0)
+        assertEquals(Balance.Reference(Balance.referenceGain(loose)!!, 0.0), Balance.balanceReference(loose))
+        assertNull(Balance.balanceReference(sessionOf(LapChannels(n = 1, timeMs = 0, speed = listOf(1.0)))))
+        assertNull(Balance.balanceReference(null))
+    }
+
+    @Test
+    fun `reads a fast corner and a slow one both neutral`() {
+        val one = sessionOf(twoSpeedLap())
+        val sb = Balance.sessionBalance(one)!!
+        assertEquals(0.0014, sb.k, 1e-9)
+        assertEquals(listOf(1, 2), sb.corners.map { it.corner.n })
+        assertEquals(0.0, sb.corners[0].all.pct, 1e-6)
+        assertEquals(0.0, sb.corners[1].all.pct, 1e-6)
+        assertEquals("balance neutral", Balance.balanceSummary(one))
+        // One gain for every speed cannot: it calls the fast corner understeer
+        // and the slow one oversteer.
+        val corners = Corners.sessionCorners(one)
+        val blind = Balance.referenceGain(one)!!
+        assertTrue(Balance.cornerBalance(one.laps[0], corners[0], blind)!!.pct > Balance.NEUTRAL_PCT)
+        assertTrue(Balance.cornerBalance(one.laps[0], corners[1], blind)!!.pct < -Balance.NEUTRAL_PCT)
+        // The points plot with the speed term divided out, so the reference is one line.
+        Balance.balancePoints(one.laps[0], 1.0, sb.k).filter { it.usable }.forEach {
+            assertEquals(sb.refGain * it.steer, it.rot, 1e-9)
+        }
+    }
+
+    @Test
+    fun `still finds the lap that pushed in the fast corner`() {
+        val pushed = sessionOf(twoSpeedLap(), twoSpeedLap(n = 2) { if (it >= 18) 0.7 else 1.0 })
+        val fast = Balance.sessionBalance(pushed)!!.corners[1]
+        assertTrue(fast.laps[1].pct < -Balance.NEUTRAL_PCT)
+        assertTrue(fast.laps[1].pct < fast.laps[0].pct - 20)
+    }
+
+    /** The speed-aware reference, pinned by the JS implementation's own output. */
+    @Test
+    fun `matches the JavaScript reference on a shared fixture`() {
+        val json = Json { ignoreUnknownKeys = false }
+        val fixture = Json.parseToJsonElement(
+            RepoRoot.path("contracts/logic/balance.json").readText(),
+        ).jsonObject
+        val sessions = json.decodeFromJsonElement<Map<String, SessionChannels>>(
+            fixture["input"]!!.jsonObject["reference"]!!.jsonObject["sessions"]!!,
+        )
+        val want = fixture["expected"]!!.jsonObject["reference"]!!.jsonObject
+        val wantRefs = json.decodeFromJsonElement<Map<String, Balance.Reference?>>(want["references"]!!)
+
+        assertEquals(6, wantRefs.size)
+        for ((name, expected) in wantRefs) {
+            val got = Balance.balanceReference(sessions[name]!!)
+            if (expected == null) {
+                assertNull(got, "$name has no reference")
+                continue
+            }
+            assertEquals(expected.refGain, got!!.refGain, 1e-9, "$name refGain")
+            assertEquals(expected.k, got.k, 1e-9, "$name K")
+        }
+        // The three fallbacks read against the median, with no speed term.
+        for (name in listOf("constantSpeed", "poorFit", "negativeGradient")) {
+            assertEquals(0.0, wantRefs[name]!!.k, "$name falls back")
+        }
+
+        fun assertSession(name: String, key: String) {
+            val w = json.decodeFromJsonElement<SessionRow>(want[key]!!)
+            val got = Balance.sessionBalance(sessions[name]!!)!!
+            assertEquals(w.refGain, got.refGain, 1e-9, "$name refGain")
+            assertEquals(w.k, got.k, 1e-9, "$name K")
+            assertEquals(w.corners.map { it.n }, got.corners.map { it.corner.n }, "$name corners")
+            got.corners.forEachIndexed { i, row ->
+                assertEquals(w.corners[i].laps.map { it.chIdx }, row.laps.map { it.chIdx })
+                row.laps.forEachIndexed { j, lap ->
+                    assertEquals(w.corners[i].laps[j].pct, lap.pct, 1e-6, "$name corner $i lap $j pct")
+                }
+                assertEquals(w.corners[i].all.pct, row.all.pct, 1e-6, "$name corner $i pooled pct")
+            }
+        }
+        assertSession("twoSpeed", "twoSpeedSession")
+        assertSession("pushed", "pushedSession")
+        assertEquals(want["twoSpeedSummary"]!!.jsonPrimitive.content, Balance.balanceSummary(sessions["twoSpeed"]!!))
+        assertEquals(want["pushedSummary"]!!.jsonPrimitive.content, Balance.balanceSummary(sessions["pushed"]!!))
+
+        val twoSpeed = sessions["twoSpeed"]!!
+        val blind = Balance.referenceGain(twoSpeed)!!
+        val wantBlind = json.decodeFromJsonElement<List<Balance.Reading>>(want["blindReadings"]!!)
+        Corners.sessionCorners(twoSpeed).forEachIndexed { i, c ->
+            assertEquals(wantBlind[i].pct, Balance.cornerBalance(twoSpeed.laps[0], c, blind)!!.pct, 1e-6, "blind reading $i")
+        }
+
+        val pushed = sessions["pushed"]!!
+        val ref = Balance.balanceReference(pushed)!!
+        assertSamePoints(
+            json.decodeFromJsonElement<List<Balance.Point>>(want["pushedPoints"]!!),
+            Balance.balancePoints(pushed.laps[1], 1.0, ref.k),
+            "pushed points",
+        )
+    }
+
     @Test
     fun `pools sessions into one ratio given the wheelbase`() {
         val fitA = Balance.steeringFit(sessionOf(bicycleLap()))!!
@@ -434,6 +580,7 @@ class BalanceTest {
     private data class SessionRow(
         val sign: Double,
         val refGain: Double,
+        @SerialName("K") val k: Double,
         val corners: List<SessionCornerRow>,
     )
 
@@ -564,6 +711,17 @@ class BalanceTest {
             expected["fewSummary"]!!.jsonPrimitive.content,
             Balance.balanceSummary(SessionChannels(v = 1, dStepM = 20.0, laps = listOf(fewLap))),
         )
+        // The stats tile: the same readings as one word and its corners.
+        fun wantTendency(key: String) = json.decodeFromJsonElement<Balance.Tendency?>(expected[key]!!)
+        assertEquals(wantTendency("tendency"), Balance.balanceTendency(fixtureChannels))
+        assertEquals(Balance.Tendency("Understeer", "T2"), wantTendency("tendency"))
+        assertEquals(wantTendency("neutralTendency"), Balance.balanceTendency(sessionOf(lapA)))
+        assertEquals(Balance.Tendency("Neutral"), wantTendency("neutralTendency"))
+        assertEquals(wantTendency("manyTendency"), Balance.balanceTendency(sessionOf(manyLap)))
+        assertEquals(wantTendency("fewTendency"), Balance.balanceTendency(sessionOf(fewLap)))
+        assertEquals("Mixed", wantTendency("fewTendency")!!.value)
+        assertNull(wantTendency("noDataTendency"))
+        assertNull(Balance.balanceTendency(sessionOf(LapChannels(n = 1, timeMs = 1000, speed = listOf(100.0)))))
         // The third fixture lap has cornering force but no yaw.
         assertNull(
             Balance.sessionBalance(SessionChannels(v = 1, dStepM = 20.0, laps = listOf(fixtureChannels.laps[2]))),

@@ -12,24 +12,42 @@
 // are understeering, because understeer feels like nothing happening, and
 // this view exists to settle that argument with the car's own numbers.
 //
-// The rigorous version is the bicycle model: expected yaw rate = v·δ/L, with
-// δ the *road-wheel* angle (steering-wheel angle ÷ steering ratio) and L the
-// wheelbase. Neither the ratio nor the wheelbase is stored, and the ratio is
-// non-linear with lock on some cars, so v1 is deliberately **relative**: the
-// session's own median yaw-per-degree-per-metre-per-second over every
-// cornering sample is taken as this car's typical response (`referenceGain`,
-// which absorbs 1/(L·ratio)), and each corner is read against it. A corner
-// whose rotation falls short of that is understeering *relative to how this
-// car usually responds*, one that exceeds it is oversteering. The consequence
-// is stated wherever the figures are shown: a car that pushes in every corner
-// reads neutral in every corner. What the view does find is the corner that
-// behaves differently from the rest — which is the one worth taking to the
-// setup sheet.
+// The rigorous version is the bicycle model: yaw rate = v·δ / (L·(1 + K·v²)),
+// with δ the *road-wheel* angle (steering-wheel angle ÷ steering ratio), L the
+// wheelbase and K the car's understeer gradient. Neither the ratio nor the
+// wheelbase is stored, so the reading is deliberately **relative**: this
+// session's own response is taken as the reference and each corner is read
+// against it. A corner whose rotation falls short of that is understeering
+// *relative to how this car usually responds*, one that exceeds it is
+// oversteering. The consequence is stated wherever the figures are shown: a
+// car that pushes in every corner reads neutral in every corner. What the
+// view does find is the corner that behaves differently from the rest —
+// which is the one worth taking to the setup sheet.
+//
+// **The reference is the car's response *at that speed*.** v1 took one
+// number — the session's median yaw gain (`referenceGain`) — for every
+// corner. But the (1 + K·v²) term means any car rotates less per degree of
+// steering the faster it goes, so against a single gain every fast corner
+// read understeer and every slow one oversteer: on real footage the
+// per-corner readings tracked corner speed with a correlation of -0.9 to
+// -1.0, and "understeer in T1, T3, T6" was a list of the fast corners. The
+// reference is now `balanceReference`: the low-speed gain and K that
+// `steeringFit` (#223, below) measures from the same samples, so a sample is
+// read against refGain / (1 + K·v²). A session the fit can't describe — too
+// few samples, one speed, a poor fit — falls back to the median with K = 0,
+// which is v1 and is only wrong by the speed spread it doesn't have. So does
+// a fit with a *negative* K: a car whose gain rises with speed is not one
+// anybody tracks, and what produces that fit is a session whose slow corners
+// push and whose fast ones are loose — exactly the differences the view is
+// for, which the speed term would otherwise absorb. The same limit holds in
+// the other direction and is stated with the figures: balance that worsens
+// steadily with speed is the car's gradient, and reads neutral.
 //
 // The scatter is the ticket's steering-against-yaw plot with the speed
 // dependence divided out: y is yaw rate ÷ speed (°/m — how far the car
-// rotated per metre driven, i.e. the curvature it actually took), so a
-// neutral car is *one* dashed line through the origin rather than a fan of
+// rotated per metre driven, i.e. the curvature it actually took) × (1 + K·v²)
+// (what that rotation would have been without the understeer term), so the
+// reference is *one* dashed line through the origin rather than a fan of
 // lines, one per speed, that needs a colour ramp to read. That frees colour
 // for lap identity, which is what colour means everywhere else in the panel.
 // Speed goes in the tooltip.
@@ -121,8 +139,9 @@ export function median(values) {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-// This car's typical response today: the median yaw gain over every usable
-// sample of every readable lap. null when there is none.
+// The median yaw gain over every usable sample of every readable lap: the
+// speed-blind reference `balanceReference` falls back to. null when there is
+// none.
 export function referenceGain(channels, sign = yawSign(channels)) {
   const gains = [];
   for (const { entry } of balanceLaps(channels)) {
@@ -135,18 +154,31 @@ export function referenceGain(channels, sign = yawSign(channels)) {
   return median(gains);
 }
 
+// This car's response today, as the two numbers a sample is read against:
+// { refGain, K } — the reference gain at a speed v is refGain / (1 + K·v²)
+// (v in m/s). From `steeringFit` when it describes the session (r² at least
+// MIN_FIT_R2 and K not negative); otherwise the median gain with K = 0. null
+// when there is nothing to measure. See the header.
+export function balanceReference(channels, sign = yawSign(channels)) {
+  const fit = steeringFit(channels);
+  if (fit && fit.r2 >= MIN_FIT_R2 && fit.K >= 0) return { refGain: fit.gain0, K: fit.K };
+  const refGain = referenceGain(channels, sign);
+  return refGain == null ? null : { refGain, K: 0 };
+}
+
 // One lap as scatter points: [{k, steer, rot, speed, usable}] with `steer` the
-// steering angle as stored, `rot` the aligned yaw rate ÷ speed (°/m) and
-// `speed` in km/h. One point per grid sample carrying all three channels; a
-// stationary sample has no rotation per metre and is skipped.
-export function balancePoints(entry, sign = 1) {
+// steering angle as stored, `rot` the aligned yaw rate ÷ speed (°/m) with the
+// reference's speed term divided out (× (1 + K·v²); K = 0 leaves it as
+// driven) and `speed` in km/h. One point per grid sample carrying all three
+// channels; a stationary sample has no rotation per metre and is skipped.
+export function balancePoints(entry, sign = 1, K = 0) {
   if (!hasBalanceData(entry)) return [];
   const n = usableLength(entry);
   const out = [];
   for (let k = 0; k < n; k++) {
     const v = entry.speed[k] * KPH_TO_MPS;
     if (!(v > 0)) continue;
-    out.push({ k, steer: entry.steering[k], rot: (entry.yaw[k] * sign) / v, speed: entry.speed[k], usable: usableAt(entry, k) });
+    out.push({ k, steer: entry.steering[k], rot: ((entry.yaw[k] * sign) / v) * (1 + K * v * v), speed: entry.speed[k], usable: usableAt(entry, k) });
   }
   return out;
 }
@@ -155,19 +187,21 @@ export function balancePoints(entry, sign = 1) {
 // rotation sits from the reference, in percent — negative is understeer.
 const withPct = (sums) => ({ ...sums, ratio: sums.actual / sums.expected, pct: (sums.actual / sums.expected - 1) * 100 });
 
-// How one lap took one corner ({k0, k1}) against the reference gain: the
+// How one lap took one corner ({k0, k1}) against the reference (`refGain`
+// and `K` from `balanceReference`; K = 0 is one gain at every speed): the
 // sum over its usable samples of the rotation the steering asked for
-// (`expected`, |refGain·v·δ|) and the rotation the car delivered projected
+// (`expected`, |refGain·v·δ / (1 + K·v²)|) and the rotation the car delivered projected
 // onto it (`actual`), their `ratio`, and `pct` = (ratio − 1)·100. Sums rather
 // than a mean of per-sample ratios, so a barely-steering sample can't blow
 // the reading up. null when the corner holds no usable sample of this lap.
-export function cornerBalance(entry, corner, refGain, sign = 1) {
+export function cornerBalance(entry, corner, refGain, sign = 1, K = 0) {
   if (!hasBalanceData(entry) || !(refGain > 0)) return null;
   let expected = 0, actual = 0, samples = 0;
   const n = usableLength(entry);
   for (let k = corner.k0; k <= corner.k1 && k < n; k++) {
     if (!usableAt(entry, k)) continue;
-    const e = refGain * entry.speed[k] * KPH_TO_MPS * entry.steering[k];
+    const v = entry.speed[k] * KPH_TO_MPS;
+    const e = (refGain * v * entry.steering[k]) / (1 + K * v * v);
     expected += Math.abs(e);
     actual += entry.yaw[k] * sign * Math.sign(e);
     samples++;
@@ -191,7 +225,7 @@ export function fmtBalance(pct) {
   return label === "neutral" ? label : `${label} ${Math.round(Math.abs(pct))}%`;
 }
 
-// A session reduced for the read-out: { sign, refGain, corners: [{…corner,
+// A session reduced for the read-out: { sign, refGain, K, corners: [{…corner,
 // laps: [{chIdx, expected, actual, samples, ratio, pct}], all}] } with one
 // entry per corner some readable lap took, `laps` in channel order and `all`
 // the same sums pooled across every readable lap. null when no lap stored the
@@ -203,14 +237,15 @@ export function sessionBalance(channels) {
   const corners = sessionCorners(channels);
   if (!corners.length) return null;
   const sign = yawSign(channels);
-  const refGain = referenceGain(channels, sign);
-  if (!(refGain > 0)) return null;
+  const ref = balanceReference(channels, sign);
+  if (!(ref?.refGain > 0)) return null;
+  const { refGain, K } = ref;
   const rows = [];
   for (const c of corners) {
     const perLap = [];
     let expected = 0, actual = 0, samples = 0;
     for (const { chIdx, entry } of laps) {
-      const cb = cornerBalance(entry, c, refGain, sign);
+      const cb = cornerBalance(entry, c, refGain, sign, K);
       if (!cb) continue;
       perLap.push({ chIdx, ...cb });
       expected += cb.expected;
@@ -220,7 +255,7 @@ export function sessionBalance(channels) {
     if (!perLap.length) continue;
     rows.push({ ...c, laps: perLap, all: withPct({ expected, actual, samples }) });
   }
-  return rows.length ? { sign, refGain, corners: rows } : null;
+  return rows.length ? { sign, refGain, K, corners: rows } : null;
 }
 
 // Corners named when there are a few, counted when there are many —
@@ -244,6 +279,23 @@ export function balanceSummary(channels) {
   if (us.length) parts.push(`understeer in ${namedOrCounted(us)}`);
   if (os.length) parts.push(`oversteer in ${namedOrCounted(os)}`);
   return parts.length ? parts.join(" and ") : "balance neutral";
+}
+
+// The session's balance as a stats tile: { value, note } — one word for which
+// way the car leaned ("Understeer", "Oversteer", "Mixed" when corners sit off
+// the reference on both sides, "Neutral" when none does) and, as the note, the
+// corners behind it ("T5"; "T6 under, T3 over" when mixed; none when
+// neutral). The same pooled readings and threshold as `balanceSummary`, which
+// is the sentence form. null when the session can't be read.
+export function balanceTendency(channels) {
+  const sb = sessionBalance(channels);
+  if (!sb) return null;
+  const us = sb.corners.filter((c) => c.all.pct <= -NEUTRAL_PCT);
+  const os = sb.corners.filter((c) => c.all.pct >= NEUTRAL_PCT);
+  if (us.length && os.length) return { value: "Mixed", note: `${namedOrCounted(us)} under, ${namedOrCounted(os)} over` };
+  if (us.length) return { value: "Understeer", note: namedOrCounted(us) };
+  if (os.length) return { value: "Oversteer", note: namedOrCounted(os) };
+  return { value: "Neutral", note: null };
 }
 
 // --- steering ratio and understeer gradient, measured (#223) ----------------
@@ -410,11 +462,11 @@ export function balanceScatterSvg(channels, lit, labelFor, { width = 900, height
   const laps = balanceLaps(channels);
   if (!laps.length) return "";
   const sign = yawSign(channels);
-  const refGain = referenceGain(channels, sign);
+  const { refGain = null, K = 0 } = balanceReference(channels, sign) ?? {};
   const dStep = channels.dStepM;
   const corners = sessionCorners(channels);
 
-  const pts = laps.map(({ chIdx, entry }) => ({ chIdx, pts: balancePoints(entry, sign) }));
+  const pts = laps.map(({ chIdx, entry }) => ({ chIdx, pts: balancePoints(entry, sign, K) }));
   let xMax = 0, yMax = 0;
   for (const { pts: ps } of pts) {
     for (const p of ps) {
@@ -445,7 +497,7 @@ export function balanceScatterSvg(channels, lit, labelFor, { width = 900, height
   grid += `<line x1="${cx.toFixed(1)}" x2="${cx.toFixed(1)}" y1="${pad.t}" y2="${height - pad.b}" stroke="var(--border-strong)" stroke-width="1"/>`;
   labels += `<text x="${pad.l}" y="12" fill="var(--text-muted)" font-size="11" font-weight="600">Rotation (°/m) against steering (°)</text>`;
 
-  // The reference: this car's typical response, clipped to the plot.
+  // The reference: this car's response with its speed term divided out, clipped to the plot.
   let ref = "";
   if (refGain > 0) {
     const xEnd = Math.min(xMax, yMax / refGain);
@@ -484,7 +536,7 @@ export function balanceScatterSvg(channels, lit, labelFor, { width = 900, height
   return `<svg class="balance-svg" viewBox="0 0 ${width} ${height}" role="img" data-balance="1" data-dstep="${dStep}" data-corners="${corners.length}"
     aria-label="Balance: yaw rate per metre against steering angle, one point per 20 metre sample${
       litLabels.length ? ` for ${esc(litLabels.join(", "))}` : ""
-    }. The dashed line is this car's typical response; points above it are oversteer, below it understeer.">
+    }. The dashed line is this car's typical response at that speed; points above it are oversteer, below it understeer.">
     ${grid}${dim}${ref}${dots}${labels}
   </svg>`;
 }
@@ -535,7 +587,7 @@ export function balanceHtml(channels, lit, labelFor) {
     <div class="sec-head">Balance <span class="hint">— rotation against steering. Below the line is understeer, above it oversteer.</span></div>
     <div class="balance-plot">${svg}</div>
     ${table}
-    <div class="hint">Corners are numbered from the start/finish line (${fmtG(CORNER_MIN_G)} G or more), not by the circuit's map. Readings are relative to this car's typical response — the dashed line — so a car that pushes everywhere reads neutral in every corner.</div>
+    <div class="hint">Corners are numbered from the start/finish line (${fmtG(CORNER_MIN_G)} G or more), not by the circuit's map. Readings are relative to this car's typical response at that speed — the dashed line — so a car that pushes everywhere reads neutral in every corner.</div>
   </div>`;
 }
 

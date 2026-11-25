@@ -80,7 +80,7 @@ struct BalanceScatter: View {
     var body: some View {
         if !readable.isEmpty {
             let sign = Balance.yawSign(channels)
-            let refGain = Balance.referenceGain(channels, sign: sign)
+            let ref = Balance.balanceReference(channels, sign: sign)
             let sb = Balance.sessionBalance(channels)
             TECard {
                 VStack(alignment: .leading, spacing: 10) {
@@ -95,13 +95,13 @@ struct BalanceScatter: View {
                         .foregroundStyle(Color(.textFaint))
                     }
                     Canvas { context, size in
-                        draw(sign: sign, refGain: refGain, in: context, size: size)
+                        draw(sign: sign, ref: ref, in: context, size: size)
                     }
                     .aspectRatio(1.6, contentMode: .fit)
                     .frame(maxWidth: .infinity)
                     if let sb { table(sb) }
                     Text(
-                        "Corners are numbered from the start/finish line (\(String(format: "%.2f", Corners.CORNER_MIN_G)) G or more), not by the circuit's map. Readings are relative to this car's typical response — the dashed line — so a car that pushes everywhere reads neutral in every corner."
+                        "Corners are numbered from the start/finish line (\(String(format: "%.2f", Corners.CORNER_MIN_G)) G or more), not by the circuit's map. Readings are relative to this car's typical response at that speed — the dashed line — so a car that pushes everywhere reads neutral in every corner."
                     )
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textFaint))
@@ -127,12 +127,13 @@ struct BalanceScatter: View {
 
     // MARK: - Plot
 
-    private func draw(sign: Double, refGain: Double?, in context: GraphicsContext, size: CGSize) {
+    private func draw(sign: Double, ref: Balance.Reference?, in context: GraphicsContext, size: CGSize) {
+        let refGain = ref?.refGain
         let pad = (l: 44.0, r: 10.0, t: 16.0, b: 20.0)
         let plotW = size.width - pad.l - pad.r
         let plotH = size.height - pad.t - pad.b
         guard plotW > 0, plotH > 0 else { return }
-        let lapPoints = readable.map { (chIdx: $0.chIdx, pts: Balance.balancePoints($0.entry, sign)) }
+        let lapPoints = readable.map { (chIdx: $0.chIdx, pts: Balance.balancePoints($0.entry, sign, ref?.K ?? 0)) }
         var xMax = 0.0, yMax = 0.0
         for lap in lapPoints {
             for p in lap.pts {
@@ -208,7 +209,7 @@ struct BalanceScatter: View {
         }
         context.fill(dim, with: .color(Color(.chartDim)))
 
-        // The reference: this car's typical response, clipped to the plot.
+        // The reference: this car's response with its speed term divided out, clipped to the plot.
         if let refGain, refGain > 0 {
             let xEnd = min(xMax, yMax / refGain)
             var line = Path()

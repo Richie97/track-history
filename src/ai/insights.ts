@@ -184,7 +184,7 @@ export function sessionInsights(session: DetailSession) {
         : undefined,
       balance: balance && {
         summary: balanceSummary(ch),
-        note: "Relative to this session's own typical steering response: a car that understeers everywhere reads neutral everywhere. Negative pct is understeer, positive oversteer.",
+        note: "Relative to this session's own typical steering response at each corner's speed: a car that understeers everywhere, or steadily more with speed, reads neutral everywhere. Negative pct is understeer, positive oversteer.",
         corners: balance.corners.map((c: any) => ({
           corner: cornerLabel(c),
           pct: round(c.all.pct, 1),

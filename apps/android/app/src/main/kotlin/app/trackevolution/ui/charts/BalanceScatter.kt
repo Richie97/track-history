@@ -122,10 +122,11 @@ fun BalanceScatter(
     val readable = remember(channels) { Balance.balanceLaps(channels) }
     if (readable.isEmpty()) return
     val sign = remember(channels) { Balance.yawSign(channels) }
-    val refGain = remember(channels) { Balance.referenceGain(channels, sign) }
+    val ref = remember(channels) { Balance.balanceReference(channels, sign) }
+    val refGain = ref?.refGain
     val sb = remember(channels) { Balance.sessionBalance(channels) }
     val lapPoints = remember(channels, sign) {
-        readable.map { it.chIdx to Balance.balancePoints(it.entry, sign) }
+        readable.map { it.chIdx to Balance.balancePoints(it.entry, sign, ref?.k ?: 0.0) }
     }
     val colors = TrackTheme.colors
     val measurer = rememberTextMeasurer()
@@ -213,8 +214,8 @@ fun BalanceScatter(
             }
             Text(
                 "Corners are numbered from the start/finish line (${"%.2f".format(Corners.CORNER_MIN_G)} G or more), " +
-                    "not by the circuit's map. Readings are relative to this car's typical response — the dashed " +
-                    "line — so a car that pushes everywhere reads neutral in every corner.",
+                    "not by the circuit's map. Readings are relative to this car's typical response at that speed — the " +
+                    "dashed line — so a car that pushes everywhere reads neutral in every corner.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
             )
@@ -306,7 +307,7 @@ private fun DrawScope.drawPlot(
         )
     }
 
-    // The reference: this car's typical response, clipped to the plot.
+    // The reference: this car's response with its speed term divided out, clipped to the plot.
     if (refGain != null && refGain > 0) {
         val xEnd = min(xMax, yMax / refGain)
         drawLine(

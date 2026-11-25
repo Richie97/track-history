@@ -4,9 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.trackevolution.core.Balance
-import app.trackevolution.core.Gears
-import app.trackevolution.core.Health
-import app.trackevolution.core.JsMath
+import app.trackevolution.core.CompareLaps
 import app.trackevolution.core.LapStats
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.Limits
@@ -244,31 +242,22 @@ fun Session.statItems(units: UnitSystem): List<SessionStat> {
     val items = mutableListOf<SessionStat>()
     LapStats.bestNAvg(laps, 3)?.let { items += SessionStat("best3", "Best 3 avg", LapTime.fmtMs(it)) }
     LapStats.warmupLapCount(laps)?.let { items += SessionStat("warmup", "Up to speed", "Lap $it") }
-    LapStats.paceSlope(laps)?.let { slope ->
-        // A tenth and a half per lap either way is drift, not a story.
-        val (note, tone) = when {
-            slope > LapStats.FADING_MS_PER_LAP -> "fading" to SessionStat.Tone.Warn
-            slope < -LapStats.FADING_MS_PER_LAP -> "improving" to SessionStat.Tone.Good
-            else -> null to null
-        }
-        items += SessionStat("pace", "Pace", "${LapTime.fmtDelta(JsMath.roundToInt(slope))}/lap", note, tone)
-    }
     channels?.let { ch ->
         // What stringing the session's best sectors together would have been
         // worth (`Sectors`, #146); the splits themselves are in the panel.
         Sectors.sessionSectors(ch)?.takeIf { it.laps.size >= 2 && it.gapMs > 0 }
             ?.let { items += SessionStat("theoretical", "Theoretical best", LapTime.fmtMs(it.theoreticalBestMs)) }
-        // The typical upshift rpm across the session (`Gears`, #187).
-        Gears.shiftPoints(ch)
-            ?.let { items += SessionStat("upshifts", "Upshifts", "${Gears.fmtRpm(it.medianRpm.toDouble())} rpm") }
-        // Where the car hit its limit (`Limits`, #188), the corners whose
-        // rotation sits off this car's typical response (`Balance`, #189) and
-        // any figure past its line (`Health`, #190) — each a short sentence.
+        // The session's top speed and peak cornering G — `peakStatItems` on the
+        // web: the highest of each lap's `CompareLaps.lapMetrics`.
+        val metrics = ch.laps.map(CompareLaps::lapMetrics)
+        metrics.mapNotNull { it.topSpeedKph }.maxOrNull()
+            ?.let { items += SessionStat("topSpeed", "Top speed", Units.fmtSpeedKph(it, units)) }
+        metrics.mapNotNull { it.maxLatG }.maxOrNull()
+            ?.let { items += SessionStat("maxG", "Max G", String.format("%.2f G", it)) }
+        // Which way the car leaned, and in which corners (`Balance`, #189).
+        Balance.balanceTendency(ch)?.let { items += SessionStat("balance", "Balance", it.value, it.note) }
+        // Where the car hit its limit (`Limits`, #188), as a short sentence.
         Limits.limitSummary(ch)?.let { items += SessionStat("limits", "Limits", it, text = true) }
-        Balance.balanceSummary(ch)?.let { items += SessionStat("balance", "Balance", it, text = true) }
-        // `healthSummary` leads with "car: " for the old one-line sentence; the label says it here.
-        Health.healthSummary(ch, Units.healthUnits(units))
-            ?.let { items += SessionStat("car", "Car", it.removePrefix("car: "), text = true) }
     }
     return items
 }
