@@ -125,149 +125,123 @@
   <article class="docs-content">
     <h1>Telemetry import</h1>
     <p class="lede">
-      On any event page — or on the <strong>New event</strong> form, so a day's
-      footage can go in with the event — <strong>Import video / telemetry…</strong> turns
-      recordings into sessions with laps. Parsing happens entirely on your own
-      device — for videos, via byte-range reads of the embedded telemetry track (a
-      few MB of a multi-GB file). <strong>Files never leave your computer or
-      phone</strong> — the one exception is a <a href="#best-lap-video">best-lap
-      video</a>, a clip of a single lap you can choose to save with Pro.
+      On any event page, or on the <strong>New event</strong> form,
+      <strong>Import video / telemetry…</strong> turns recordings into sessions
+      with laps. Files are read on your own device and <strong>never leave your
+      computer or phone</strong>. The one exception is a
+      <a href="#best-lap-video">best-lap video</a>, a clip of a single lap you
+      can choose to save with Pro.
     </p>
 
     <div class="callout">
-      <strong>Importing is free</strong> — the lap times, the racing line, the
-      car's top speed, max RPM and max lateral G, and the per-lap speed,
-      throttle and brake graphs come out of any supported file at no cost. The
-      <strong>rest of the channel graphs (steering, RPM, lateral G, gear, the
-      limit marks and the car-health strip), sector splits and lap-vs-lap
-      deltas</strong> inside that same file are part of Track Evolution Pro
+      <strong>Importing is free</strong>: the lap times, the racing line, top
+      speed, max RPM and max lateral G, and the per-lap speed, throttle and
+      brake graphs. The <strong>rest of the channel graphs (steering, RPM,
+      lateral G, gear, the limit marks and the car-health strip), sector splits
+      and lap-vs-lap deltas</strong> are part of Track Evolution Pro
       ($1.99/month or $19.99/year, one subscription across the iPhone, Android
-      and web apps). See
-      <a href="./#subscription">Free and Pro</a>.
+      and web apps). See <a href="./#subscription">Free and Pro</a>.
     </div>
 
     <h2 id="without-an-event">Import without adding an event first</h2>
     <p>
-      In the browser you don't have to create the event, or even name the
-      track, before importing. Choose <strong>Import laps</strong> from the
-      <strong>+</strong> menu in the top bar and drop in the files from one track day or several. Each file
-      is matched to its track by where it was driven, and the files are grouped
-      into events by track and date &mdash; a two-day weekend becomes one
-      two-day event, and a file from a day you have already logged joins that
-      event.
+      You don't have to create the event, or name the track, first. Choose
+      <strong>Import laps</strong> from the <strong>+</strong> menu (the top
+      bar in the browser, the home screen in the phone apps), or share a file
+      into the phone app. Add the files from one track day or several.
     </p>
-    <p>
-      Nothing is saved until you have looked: the review shows one card per
-      event, with the track, the dates and the sessions it found, and
-      <strong>Change</strong> on any card lets you pick a different track.
-      Where a venue has more than one layout, the length of your lap decides
-      which one it was; when that can't settle it, the app asks instead of
-      guessing. At a track it knows, a layout it doesn't is offered that
-      track's layouts, or you name the one you drove. A place it doesn't know
-      asks for a name once and is recognised from then on. The matching happens on your device, like the rest of the
-      import. The phone apps have the same thing: <strong>Import laps</strong>
-      in the home screen's <strong>+</strong> menu, or share a file into the app.
-    </p>
-    <p>
-      A GoPro clip, a plain <code>.vbo</code> or a phone recording has no lap
-      markers, so the first time at a track you tap the start/finish line on
-      the map. After that the app remembers it: the next file from that track
-      is timed from the line your last session there used, and you can still
-      tap the map to move it.
-    </p>
+    <ul>
+      <li>Each file is matched to its track by where it was driven. The
+        matching happens on your device.</li>
+      <li>Files are grouped into events by track and date. A two-day weekend
+        becomes one two-day event, and a file from a day you have already
+        logged joins that event.</li>
+      <li>Nothing is saved until you have looked. The review shows one card per
+        event with its track, dates and sessions; <strong>Change</strong> on a
+        card picks a different track.</li>
+      <li>At a venue with several layouts, the length of your lap decides which
+        one it was. When that can't settle it, the app asks. At a track it
+        knows, a layout it doesn't is offered that track's layouts, or you name
+        the one you drove.</li>
+      <li>A place the app doesn't know asks for a name once and is recognised
+        from then on.</li>
+    </ul>
 
     <h2 id="on-your-phone">On your phone</h2>
     <p>
-      Video imports in the iPhone and Android apps as well as in the browser: tap
-      <strong>Import video</strong> on an event page and pick the clip from Files
-      or Photos, or share it to Track Evolution (<strong>Open with</strong> on
-      iPhone, <strong>Share</strong> on Android) from wherever the clip already
-      is. On an iPad you can also drag a clip out of Files and drop it straight
-      onto an event page, and the same App Store app on an Apple silicon Mac
-      imports from Finder. It is the same import — the same lap times, the same
-      racing line, the same channel graphs. On the phones every lap on the
-      event page opens: tap one for its racing line (the session's best lap),
-      its own traces and the gap to the best, and <strong>Compare laps</strong>
-      for the overlay with that lap already lit beside the best.
+      The iPhone and Android apps run the same import, with the same lap times,
+      racing line and channel graphs. Tap <strong>Import video</strong> on an
+      event page and pick the clip from Files or Photos, or share it to Track
+      Evolution (<strong>Open with</strong> on iPhone, <strong>Share</strong>
+      on Android). VBO and CSV files import the same way, including the ones
+      Porsche's Track Precision app exports on your phone. On an iPad you can
+      also drag a clip from Files onto an event page, and the same App Store
+      app on an Apple silicon Mac imports from Finder.
     </p>
     <p>
-      That is where the footage usually is first: a GoPro clip comes over Wi-Fi
-      into Photos and a PDR clip lands in Files off a USB stick, both
-      before the laptop is opened. The clip is read where it sits — nothing is
-      copied and nothing is uploaded for the lap times, which also means a
-      multi-gigabyte video imports without needing gigabytes of free space.
-      (Saving a <a href="#best-lap-video">best-lap video</a> is the one thing
-      that copies any of it: just that lap.)
+      The clip is read where it sits. Nothing is copied, so a multi-gigabyte
+      video needs no free space. Saving a
+      <a href="#best-lap-video">best-lap video</a> copies only that lap.
     </p>
     <p>
-      VBO and CSV files import on the phone too. Porsche's Track Precision app
-      records and exports on your phone, so its VBO or CSV export is already
-      there — share it to Track Evolution or pick it from Files. A VBOX's SD card
-      works just as well in the browser.
+      Every lap on the event page opens: tap one for its traces, the gap to the
+      best and, on the session's best lap, the racing line. <strong>Compare
+      laps</strong> opens the overlay with that lap lit beside the best.
     </p>
 
     <h2 id="best-lap-video">Best-lap video</h2>
     <p>
-      The telemetry is the record; the video is the part you can't get back once
-      the SD card is wiped. With <a href="./#subscription">Track Evolution
-      Pro</a>, the iPhone and Android apps and the web app keep the lap worth
-      rewatching. When you import a Corvette or Cadillac PDR clip or a GoPro
-      clip, the review has a <strong>Save best-lap video</strong> switch, and it
-      is on every time. Leave it on, and saving does one more thing for each
-      session: it cuts that session's fastest lap out of the video on your
-      phone or computer — the
-      lap plus a few seconds either side, at the camera's own quality and with
-      its sound — and uploads only that clip. Not the rest of the video, and
-      none of the telemetry or location data inside the file. A clip is
-      typically 100–150 MB; the switch says roughly how big this import's
-      will be.
+      With <a href="./#subscription">Track Evolution Pro</a>, the iPhone,
+      Android and web apps can keep the video of your fastest lap. Importing a
+      Corvette or Cadillac PDR clip or a GoPro clip shows a <strong>Save
+      best-lap video</strong> switch in the review, on every time. Saving then
+      cuts each session's fastest lap out of the video on your phone or
+      computer (the lap plus a few seconds either side, at the camera's own
+      quality, with sound) and uploads only that clip, with none of the
+      telemetry or location data in the file. A clip is typically 100–150 MB;
+      the switch says roughly how big this import's will be.
     </p>
     <p>
-      A Corvette or Cadillac PDR import can keep <strong>every lap</strong>
-      instead. The switch becomes <strong>Save lap videos</strong> with a
-      <strong>Best lap / Every lap</strong> choice, and it starts on Best lap
-      every time. Pick Every lap and each full lap of each PDR session is saved
-      as its own clip, from one crossing of the start/finish line to the next,
-      so the out-lap and in-lap aren't included. The switch says how many clips
-      that is and roughly how much space they take: an eight-lap session is
-      typically 700 MB–1 GB. A GoPro clip in the same import still keeps just
-      its best lap.
+      A PDR import can keep <strong>every lap</strong> instead. The switch
+      becomes <strong>Save lap videos</strong> with a <strong>Best lap / Every
+      lap</strong> choice, starting on Best lap every time. Every lap saves
+      each full lap of each PDR session as its own clip, from one start/finish
+      crossing to the next, so not the out-lap or in-lap. The switch says how
+      many clips that is and roughly how much space they take; an eight-lap
+      session is typically 700 MB–1 GB. A GoPro clip in the same import still
+      keeps just its best lap.
     </p>
     <ul>
-      <li><strong>In the browser.</strong> Importing on a computer — a PDR card
-        in the laptop's SD slot, say — offers the same box under the session
-        list. The clip uploads from the open tab, so keep it open until the
-        banner at the top says it's done; the session line on the event page
-        shows how far each clip has got. The video file is read where it sits,
-        so leave the card in until then too. Closing the tab stops the upload
-        but keeps the session.</li>
-      <li><strong>Wi-Fi first (phones).</strong> Clips upload over Wi-Fi unless you turn
-        on <strong>Settings → Upload lap videos over cellular</strong> — tracks
-        rarely have Wi-Fi, so most clips go up once you're home, and until then
-        the lap says <em>Video waiting for Wi-Fi</em>. The session itself saves
-        straight away either way, and one saved with no signal at all uploads
-        its clip once it syncs. If a clip can't be cut, the session is kept and
-        the lap says so. An upload cut short by a patchy track connection
-        starts again on its own once you're back on a good one; on iPhone the
-        lap shows how far it has got, offers <strong>Retry now</strong> after
-        an interruption, and says why if the upload had to be given up.</li>
-      <li><strong>Where it plays.</strong> Tap the lap — the event page marks
-        it ▶ — and the video sits above its racing line, starting a couple of
-        seconds before the line so you see the car cross it, and running a few
-        seconds past the end of the lap. The player's fullscreen button fills the
-        screen; turn the phone sideways for the widest view. The web app plays it too: on the
-        event page each lap with a video has a ▶ beside it, which opens the
-        lap above the session's charts, with buttons to step to the previous
-        and next lap's video — see <a href="#watching">Watching a lap</a>. <strong>Download</strong> from
-        the player's menu saves the file, named after the track, the day and
-        the lap. Playing needs a connection.</li>
-      <li><strong>Who sees it.</strong> You, and the coaches you've invited —
+      <li><strong>In the browser.</strong> The same box sits under the session
+        list. The clip uploads from the open tab: keep the tab open and the
+        card in until the banner at the top says it's done. The session line on
+        the event page shows each clip's progress. Closing the tab stops the
+        upload but keeps the session.</li>
+      <li><strong>On the phones.</strong> Clips upload over Wi-Fi unless you
+        turn on <strong>Settings → Upload lap videos over cellular</strong>;
+        until then the lap says <em>Video waiting for Wi-Fi</em>. The session
+        saves straight away either way, and one saved with no signal uploads
+        its clip once it syncs. An interrupted upload restarts on its own on a
+        good connection. On iPhone the lap shows its progress, offers
+        <strong>Retry now</strong> after an interruption, and says why if the
+        upload had to be given up. If a clip can't be cut, the session is kept
+        and the lap says so.</li>
+      <li><strong>Playing.</strong> Tap a lap marked ▶ on the event page. The
+        video sits above the lap's racing line and runs from a couple of
+        seconds before the start/finish line to a few seconds past the end of
+        the lap. The player's fullscreen button fills the screen; turn a
+        phone sideways for the widest view. In the web app the ▶
+        opens the lap above the session's charts, with buttons to step to the
+        previous and next lap's video (see <a href="#watching">Watching a
+        lap</a>). <strong>Download</strong> in the player's menu saves the
+        file, named after the track, the day and the lap. Playing needs a
+        connection.</li>
+      <li><strong>Who sees it.</strong> You, and the coaches you've invited;
         the switch says <em>Your coaches can watch it too.</em> when you have
-        any. Coaches can watch, never download or delete. When you
-        <a href="./data-model.html#sharing-one">share one event or session</a>,
-        anyone with that link can watch its best-lap videos too, for as long as
-        you have Pro. Clips are never on your share page, a leaderboard or what
-        an AI assistant can read.
+        any. Coaches can watch, never download or delete. Anyone with a link to
+        a <a href="./data-model.html#sharing-one">shared event or session</a>
+        can watch its best-lap videos while you have Pro. Clips are never on
+        your share page, a leaderboard or what an AI assistant can read.
         Removing a coach stops them watching; it can't take back a video they
         saved.</li>
       <li><strong>Storage.</strong> Each account has 50 GB of lap videos,
@@ -276,43 +250,41 @@
         turns off and says so, and when only saving every lap would, Every lap
         is greyed out. Nothing is ever deleted to make room.</li>
       <li><strong>Deleting.</strong> <strong>Delete video</strong> on the lap's
-        page removes it, and it also goes when you delete its lap, session or
+        page removes it. It also goes when you delete its lap, session or
         event, or your account. Deleting is always free: if Pro lapses, your
-        clips are kept and locked, not removed, and you can still delete
-        them.</li>
-      <li>A phone recording, a VBO log and a CSV export have no video, so their
-        reviews have no switch.</li>
+        clips are kept and locked, and you can still delete them.</li>
+      <li><strong>No video.</strong> A phone recording, a VBO log and a CSV
+        export have no video, so their reviews have no switch.</li>
     </ul>
 
     <h3 id="watching">Watching a lap</h3>
     <p>
       In the web app, a lap's video and its charts move together. Open a lap
-      from its ▶, or press <strong>Play the lap</strong> under a session's laps,
-      and the video sits above the channel graphs with a line across every
-      chart at the car's place in it. Scrub the bar under the video and the
-      line, the dot on the track map and the read-out beside it — speed, gear,
-      throttle and brake, and the time you're up or down — follow. Tap or click
-      a chart and the video pauses and jumps to that spot on the lap.
+      from its ▶, or press <strong>Play the lap</strong> under a session's
+      laps. The video sits above the channel graphs, with a line across every
+      chart at the car's place in the lap. Scrub the bar under the video and
+      the line, the dot on the track map and the read-out beside it (speed,
+      gear, throttle and brake, and the time you're up or down) follow. Tap or
+      click a chart and the video pauses and jumps to that spot.
     </p>
     <ul>
       <li><strong>Two laps at once.</strong> Light a second lap in the session,
-        or open <strong>Compare laps</strong> on a track, and both laps' videos
-        play from one button. <strong>Same place</strong> keeps both cars at the
-        same point on the track — the slower lap's video speeds up to keep up —
-        and <strong>Same time</strong> runs both from the line together, so you
-        see one car pull away and by how many feet. The last one you picked is
-        the one you get next time.</li>
+        or open <strong>Compare laps</strong> on a track, and both videos play
+        from one button. <strong>Same place</strong> keeps both cars at the
+        same point on the track, speeding up the slower lap's video.
+        <strong>Same time</strong> runs both from the line together, so you see
+        one car pull away and by how many feet. Your last choice is
+        remembered.</li>
       <li><strong>The bar under the video</strong> draws where the time went: a
-        line climbing is time lost against the other lap, and the ticks mark the
-        corners and the sector splits.</li>
-      <li><strong>No video?</strong> The lap still plays: the track map takes
-        the video's place and a dot drives the lap at real speed, with the same
-        line across the charts. A lap from another driver's leaderboard entry
-        always plays this way.</li>
+        climbing line is time lost against the other lap, and the ticks mark
+        the corners and the sector splits.</li>
+      <li><strong>No video?</strong> The track map takes the video's place and
+        a dot drives the lap at real speed, with the same line across the
+        charts. Another driver's leaderboard lap always plays this way.</li>
       <li><strong>On a phone,</strong> the other lap's video is a small picture
-        in the corner — tap it to swap which one is big and which one you hear —
-        and turning the phone sideways fills the screen with the video and a
-        read-out over it. Turn it back to carry on where you were.</li>
+        in the corner; tap it to swap which one is big and which one you hear.
+        Turning the phone sideways fills the screen with the video and a
+        read-out over it; turn it back to carry on where you were.</li>
       <li><strong>Keyboard:</strong> Space plays and pauses, ← and → step a
         second, Option-← and Option-→ about 20 metres, <kbd>,</kbd> and
         <kbd>.</kbd> a frame, <kbd>S</kbd> switches Same place and Same time,
@@ -320,73 +292,68 @@
     </ul>
     <p>
       The place on the video comes from the lap's own telemetry, so it can sit
-      a few metres off at times — rarely more than the length of a car or two.
+      a few metres off at times, rarely more than a car length or two.
     </p>
 
     <h3 id="youtube">Upload to YouTube</h3>
     <p>
-      A saved best-lap video can go to your own YouTube channel from its lap:
-      <strong>Upload to YouTube…</strong> under the lap's video on the event
-      page in the web app, and in the video's menu on the lap's page in the
-      iPhone and Android apps. Uploading is
-      part of Track Evolution Pro. <em>This is rolling out gradually; if you
-      don't see it yet, it hasn't reached your account.</em>
+      With Track Evolution Pro, a saved best-lap video can go to your own
+      YouTube channel. <strong>Upload to YouTube…</strong> is under the lap's
+      video on the event page in the web app, and in the video's menu on the
+      lap's page in the iPhone and Android apps. <em>This is rolling out
+      gradually; if you don't see it yet, it hasn't reached your account.</em>
     </p>
     <ul>
       <li><strong>Connecting.</strong> The first time, the lap offers
-        <strong>Connect YouTube…</strong> instead. It opens Google's permission
-        screen in your browser, asking to upload videos to your channel and
-        nothing else — Track Evolution can't see, change or delete anything
-        already there. It's separate from how you sign in, so it works if you
-        sign in with Apple, and the channel can belong to a different Google
-        account. <strong>Settings → YouTube</strong> shows which account is
-        connected. Connecting is free.</li>
+        <strong>Connect YouTube…</strong> instead. Google's permission
+        screen opens in your browser, asking only to upload videos to your
+        channel: Track Evolution can't see, change or delete anything already
+        there. It's separate from how you sign in, so it works if you sign in
+        with Apple, and the channel can belong to a different Google account.
+        <strong>Settings → YouTube</strong> shows which account is connected.
+        Connecting is free.</li>
       <li><strong>The form.</strong> The title and description come filled in
-        with the track, the lap time, the car, the session and the date, and
-        you can change both. Visibility is <em>Private</em>,
-        <em>Unlisted</em> or <em>Public</em>, and starts on Unlisted: anyone
-        with the link can watch, but the video isn't in YouTube's search or on
-        your channel's page. The video is marked not made for kids, and no
-        location is sent with it.</li>
-      <li><strong>It runs on our server.</strong> Tap <strong>Upload</strong>
-        and the clip goes from our storage to YouTube, not from your phone —
-        so you can close the app or the browser tab, and it uses none of your
-        mobile data. The lap shows <em>Uploading to YouTube · 40%</em> while it
-        goes, then <em>On YouTube · Unlisted</em> with an
-        <strong>Open</strong> link that stays on the lap. Starting an upload
-        needs a connection. If YouTube turns it down, the lap says why and
-        offers <strong>Try again</strong>.</li>
-      <li><strong>Limits.</strong> Each account can upload 10 videos to
-        YouTube a day. YouTube also limits how much the whole app can upload in
-        a day; when that's reached, the lap says <em>Waiting for YouTube —
-        uploads continue tomorrow.</em> and the upload finishes the next day
-        on its own. A lap's video goes up once: after that the lap links to it
-        rather than offering another upload.</li>
-      <li><strong>Who sees the link.</strong> Just you. Coaches can watch the
-        lap's video in the app but never see the YouTube link or the upload
-        controls, and the link isn't on your share page, a leaderboard or what
-        an AI assistant can read. If Pro lapses, the link to a video already
-        on YouTube stays.</li>
+        with the track, the lap time, the car, the session and the date; you
+        can change both. Visibility is <em>Private</em>, <em>Unlisted</em> or
+        <em>Public</em>, and starts on Unlisted: anyone with the link can
+        watch, but the video isn't in YouTube's search or on your channel's
+        page. The video is marked not made for kids, and no location is sent
+        with it.</li>
+      <li><strong>Uploading.</strong> Tap <strong>Upload</strong> and the clip
+        goes from our storage to YouTube, so you can close the app or the tab,
+        and it uses none of your mobile data. Starting an upload needs a
+        connection. The lap shows <em>Uploading to YouTube · 40%</em>, then
+        <em>On YouTube · Unlisted</em> with an <strong>Open</strong> link that
+        stays on the lap. If YouTube turns it down, the lap says why and offers
+        <strong>Try again</strong>.</li>
+      <li><strong>Limits.</strong> Each account can upload 10 videos to YouTube
+        a day. YouTube also limits how much the whole app can upload in a day;
+        when that's reached, the lap says <em>Waiting for YouTube — uploads
+        continue tomorrow.</em> and the upload finishes the next day on its
+        own. A lap's video goes up once; after that the lap links to it.</li>
+      <li><strong>Who sees the link.</strong> Just you. Coaches never see the
+        YouTube link or the upload controls, and the link isn't on your share
+        page, a leaderboard or what an AI assistant can read. If Pro lapses,
+        the link to a video already on YouTube stays.</li>
       <li><strong>Deleting.</strong> Track Evolution never deletes anything on
-        YouTube, and the permission doesn't allow it. Deleting the lap video in
-        the app — or its lap, session, event or your account — leaves the copy
-        on YouTube; the confirmation says so, and you delete it in YouTube
-        Studio. If you delete a video on YouTube, its lap offers the upload
-        again within a month.</li>
+        YouTube; the permission doesn't allow it. Deleting the lap video, its
+        lap, session, event or your account leaves the copy on YouTube, and you
+        delete it in YouTube Studio.
+        If you delete a video on YouTube, its lap offers the upload again
+        within a month.</li>
       <li><strong>Disconnecting.</strong> <strong>Settings → YouTube →
         Disconnect YouTube</strong>, free on every plan, withdraws the
-        permission at Google. Videos you've uploaded stay on YouTube. You can
-        also remove Track Evolution's access on Google's
+        permission at Google, as does Google's
         <a href="https://myaccount.google.com/permissions">permissions
-        page</a>. See the <a href="./privacy.html#youtube">privacy policy</a>
-        for what's stored and sent.</li>
+        page</a>. Videos you've uploaded stay on YouTube. See the
+        <a href="./privacy.html#youtube">privacy policy</a> for what's stored
+        and sent.</li>
     </ul>
 
     <h2 id="sources">Supported sources</h2>
     <p>
-      Each source has its own page with what you need, the steps in the
-      browser and on your phone, and what to do when a file won't import;
-      the table links to them.
+      Each source's page has what you need, the steps in the browser and on
+      your phone, and what to do when a file won't import.
     </p>
     <div class="table-scroll">
       <table>
@@ -396,33 +363,33 @@
         <tbody>
           <tr>
             <td><a href="./corvette-pdr-lap-times.html">Corvette PDR</a> (Cosworth) MP4</td>
-            <td>The <code>ctbx</code>/<code>marl</code> telemetry track, read by byte range</td>
-            <td>Beacon events + odometer recovery, or latitude/odometer lap recovery when a recording has no beacons (see below)</td>
+            <td>GPS, the car's channels and its per-lap readings</td>
+            <td>The recorder's start/finish beacons, with missed crossings estimated (<a href="#pdr">below</a>). No beacons: the line picker</td>
           </tr>
           <tr>
             <td><a href="./cadillac-blackwing-pdr-lap-times.html">Cadillac PDR</a> (Cosworth AliveDrive) MP4<br><small>(the newer recorder in Cadillac's V-Series Blackwings)</small></td>
-            <td>The newer recorder's telemetry track, read by byte range — GPS, the car channels and the slow readings, as with a Corvette</td>
-            <td>The recorder's own lap timer — exact, with no line to pick. A recording whose timer timed no laps uses the line picker</td>
+            <td>GPS, the car's channels and its per-lap readings, as with a Corvette</td>
+            <td>The recorder's own lap timer: exact. If it timed no laps, the line picker</td>
           </tr>
           <tr>
             <td><a href="./gopro-lap-times.html">GoPro</a> MP4 (Hero 5+)</td>
-            <td>The GPS trace from the GPMF metadata track</td>
-            <td>Start/finish line picker</td>
+            <td>GPS</td>
+            <td>The line picker</td>
           </tr>
           <tr>
             <td><a href="./aim-smartycam-lap-times.html">AiM SmartyCam</a> MOV</td>
-            <td>The GPS trace, RPM, throttle and gear the camera stores with the picture</td>
-            <td>The AiM logger's own lap times — the ones on your dash, with no line to pick. A lap needs both of its crossings in the video, so the out-lap and a lap cut off by the end of the recording aren't imported. Best-lap video isn't saved from these files yet</td>
+            <td>GPS, RPM, throttle and gear</td>
+            <td>The AiM logger's own lap times, the ones on your dash. A lap needs both of its crossings in the video, so the out-lap and a lap cut off by the end of the recording aren't imported. Best-lap video isn't saved from these files yet</td>
           </tr>
           <tr>
             <td><a href="./vbo-file-lap-times.html">Racelogic VBO</a><br><small>(VBOX; RaceChrono / TrackAddict / Harry's LapTimer / Porsche Track Precision exports)</small></td>
-            <td>The GPS samples in the file, plus any car channels it logged — RPM, throttle, brake, steering, G, gear and tire pressures</td>
+            <td>GPS, plus any car channels the file logged: RPM, throttle, brake, steering, G, gear and tire pressures</td>
             <td>The file's <code>[laptiming]</code> start line when present, otherwise the line picker</td>
           </tr>
           <tr>
             <td><a href="./porsche-track-precision-export.html">Porsche Track Precision</a> CSV</td>
-            <td>The GPS samples, plus the car channels the app recorded — RPM, throttle, brake, steering, G, gear and tire pressures</td>
-            <td>Track Precision's own lap timer — the same lap times the app showed you, with no line to pick. A recording whose timer never finished a lap uses the line picker</td>
+            <td>GPS, plus the car channels the app recorded: the same set as a VBO</td>
+            <td>Track Precision's own lap timer: the lap times the app showed you. If it never finished a lap, the line picker</td>
           </tr>
         </tbody>
       </table>
@@ -430,228 +397,238 @@
 
     <h2 id="line-picker">The start/finish line picker</h2>
     <p>
-      GPS-only sources have no lap markers, so the import preview shows the track
-      map you actually drove: <strong>click where the start/finish line is</strong>
-      and laps are timed on each pass across it. Crossings are interpolated between
-      10–18&nbsp;Hz GPS fixes, so times are accurate to roughly ±0.1–0.3&nbsp;s and
-      shown with a <code>~</code> prefix.
+      A GoPro clip, a plain <code>.vbo</code> or a phone recording has no lap
+      markers, so the import preview shows the track map you drove.
+      <strong>Click where the start/finish line is</strong> and laps are timed
+      on each pass across it. These times are accurate to roughly
+      ±0.1–0.3&nbsp;s and shown with a <code>~</code> prefix.
     </p>
     <p>
-      One picked line applies to every file in the batch, so a day's worth of
-      sessions needs a single click. Racelogic's west-positive longitude convention
-      is detected and mirrored automatically.
+      One picked line applies to every file in the batch. The app then
+      remembers it: the next file from that track is timed from the line your
+      last session there used, and you can still tap the map to move it.
     </p>
 
     <h2 id="pdr">How PDR lap times are derived</h2>
-    <p>
-      There are two generations of the recorder. The newer one, in Cadillac's
-      V-Series Blackwings, times laps itself, so its clips arrive with the
-      recorder's own lap times, to the millisecond — and with the GPS trace,
-      the car channels and the slow readings described below. It logs no battery voltage, and a clip whose
-      timer didn't run gets the start/finish line picker.
-    </p>
-    <p>
-      The Corvette's recorder marks the start/finish line with beacons instead.
-      That logic is reverse-engineered from the recorder's telemetry track and
-      validated against Cosworth Toolbox lap times:
-    </p>
     <ul>
-      <li>PDR <strong>Beacon</strong> events mark start/finish crossings to the
-        millisecond, but the recorder drops some crossings.</li>
-      <li>The cumulative <strong>odometer</strong> channel recovers the missing
-        ones: beacon-to-beacon distance ÷ crossing count gives the lap length, and
-        a missing crossing is the moment distance passes
-        <code>D0&nbsp;+&nbsp;k&nbsp;×&nbsp;lapLength</code> (accurate to
-        ~0.05–0.3&nbsp;s, shown with <code>~</code>).</li>
-      <li>Crossings beyond the first/last beacon are extrapolated the same way and
-        sanity-checked against GPS latitude.</li>
-      <li>The recording's <strong>GPS trace</strong> is decoded from the
-        telemetry stream too, so a PDR file with no beacons gets the same
-        track map and start/finish line picker as the other GPS sources. The
-        import preview also reads the car channels and shows each session's
-        <strong>top speed, max RPM and max lateral&nbsp;G</strong>, saved into
-        the session notes.</li>
-      <li>A PDR recording also carries slow readings that change over a lap
-        rather than through one — oil, coolant and transmission temperatures,
-        oil pressure, fuel level, tire pressures and temperatures, battery
-        voltage — so those are kept as <strong>one figure per lap</strong>,
-        along with the ambient temperature, the track's elevation range and
-        the car's odometer reading for the session. The per-lap figures are
-        the channel panel's <strong>Car</strong> tab (below); the ambient
-        temperature shows on the session's header and shades the track page's
-        progress chart, so a hot afternoon reads as a hot afternoon rather
-        than as a bad session (see
-        <a href="data-model.html#conditions">Conditions</a>). All of it is
-        saved at import because the video stays on your device — at most one
-        lap of it is ever uploaded, as a <a href="#best-lap-video">best-lap
-        video</a> with no telemetry in it — so a reading not taken now is
-        gone.</li>
-      <li>Each imported session also stores <strong>per-lap channel data</strong> —
-        speed for every source, plus, from a PDR recording, RPM, lateral and
-        longitudinal&nbsp;G, throttle, brake, steering angle, yaw rate, gear,
-        wheel slip, boost and whether ABS or traction control was active
-        (whichever channels the recording carries — a channel the file lacks
-        simply draws no graph) — sampled
-        along the lap's driven distance. On the event page the session's lap
-        chips double as the picker for the expandable
-        <strong>channel graphs</strong>: laps overlaid on a shared distance
-        axis, comparing up to three laps side by side. With two or more laps
-        selected, a <strong>delta chart</strong> appears above the channels
-        showing where time is gained or lost against the fastest of the
-        selection — the trace climbing means time slipping away, so the corner
-        that costs you shows up as the spot where it climbs
-        (<a href="./lap-delta.html">how to find time with a lap delta</a>
-        walks through reading one). Above the charts,
-        a <strong>sector table</strong> splits each highlighted lap into three
-        sectors along its own driven distance — no setup needed — marking the
-        session's best in each sector and the gap to it otherwise, and the best
-        sectors summed give a <strong>theoretical best lap</strong> that also
-        appears in the session's stats line when it beats your actual best: the
-        gap is what stringing your best sectors together would have been worth.
-        The panel is split into tabs. <strong>Traces</strong> is the main
-        view: the delta, speed, throttle, brake, steering, RPM and gears
-        stacked on one axis, so what your hands and feet did sits directly
-        under what the speed did. <strong>Grip</strong> has the friction
-        circle, balance, lateral G and yaw rate, and <strong>Car</strong>
-        answers whether the car is okay and set up right. Point at a graph
-        (or tap it) to <strong>mark that place</strong> on every graph, with
-        each selected lap's value in the graph's title and a dot per lap on
-        the track map beside the graphs. A tap or click pins the mark until
-        you clear it. A <strong>Distance / Time</strong> switch above the
-        tabs changes what the graphs are plotted against. Distance (the
-        default) lines the laps up corner for corner. Time plots each lap
-        against its own clock, so the laps drift apart around the track by
-        exactly the gap between them, and the map's dots show the slower lap
-        falling behind. From
-        a PDR recording, a <strong>gear ribbon</strong> sits under the
-        RPM trace — one band per selected lap, one block per gear with the
-        number in it, a gap where the clutch was in — and with two or more
-        laps selected the stretches where they were in different gears are
-        outlined, so "third on my best lap, fourth on this one" is visible
-        without reading a chart. Beside it, a <strong>shift points</strong>
-        table gives your upshift RPM from each gear (earliest, typical and
-        latest across the session) with a note when a gear is taken to the top
-        of the day's rev range or shifted out of noticeably earlier than
-        another; the typical upshift RPM also joins the session's stats line
-        (see <a href="./shift-points.html">when to shift on track</a>).
-        A PDR recording's wheel-slip and ABS / traction / stability channels
-        become <strong>marks on the best-lap track map</strong> rather than
-        graphs: a shape wherever that lap hit ABS, locked a wheel, spun the
-        driven wheels or had a system cut in, coloured by kind — braking-side
-        events in one colour, power-side in another, each told apart by
-        shape as well — with the same stretches shaded on the brake, throttle
-        and steering traces for every selected lap, and a line in the
-        session's stats counting the places where each happened, or "no
-        interventions" when nothing fired (which is normal on track with the
-        systems off). On the <strong>Grip</strong> tab, a PDR recording's
-        cornering and braking/acceleration forces are plotted against each
-        other as a <strong>friction circle</strong>: one point per 20&nbsp;m of
-        track for each selected lap, braking at the top, power at the bottom
-        and cornering to the sides, with a dashed arc at the strongest
-        combined grip of the session. A tire has one grip budget and it can be
-        spent in any direction — brake in a straight line, turn, then
-        accelerate and your points draw a cross; trail the brake into the
-        corner and feed the throttle out of it and they fill the circle. The
-        space between the two is time. Under it, two numbers say how much of
-        your tire work was combined — braking while cornering, and cornering
-        while on the power — for each selected lap and for the session, and
-        they are worth watching across a day. Point at a dot to see where on the
-        lap it happened — the distance is marked on the other graphs and, for
-        the lap the map was drawn from, the spot is ringed on the track map.
-        Hover it with a mouse or trackpad; on a touchscreen, tap it. Two things to know: left and right come from your steering, since
-        the recording stores cornering force without a side; and 20&nbsp;m
-        samples smooth the spikes, so the circle shows the <em>shape</em> of
-        your grip use rather than your peak G (that's the max lateral G in the
-        session's stats). The circle and its two numbers are on the iPhone and
-        Android apps too, and <a href="./friction-circle.html">how to read a
-        friction circle</a> explains the shapes. The <strong>Car</strong> tab is the other half of a
-        track day: every slow reading a PDR recording carries — oil, coolant
-        and transmission temperature, oil pressure, boost, the four tire
-        pressures and temperatures, fuel and battery voltage — as one small
-        chart per figure across the session's laps, each with the number that
-        matters for it (the peak of a temperature, the lowest oil pressure or
-        voltage, the tire pressure as the lap ended), shaded when a figure
-        approaches or passes a line worth watching, such as oil over about
-        130&nbsp;°C or the battery under 12.5&nbsp;V. Under the charts, the
-        <strong>tire spread</strong> per lap — left minus right on each axle
-        and front minus rear, for temperatures and pressures — is the camber
-        and balance evidence a setup change gets judged by, a fuel line gives
-        your burn per lap and the laps left at that rate (it joins the
-        session's stats line too), and on the web a per-lap table carries every
-        figure — on the phones the small charts carry it, which is the same
-        reading in the width a phone has. The strip is on the iPhone and
-        Android apps too, and <a href="./temperatures.html">engine and brake
-        temperatures on track</a> covers what to watch.
-        A session typed in by hand has none of this and shows no Car tab. The
-        tire pressures also close the loop with your
-        <a href="./garage.html#setups">setup notebook</a>: the sheet's cold
-        pressures, the hot pressures the import measured and your car's
-        target hot pressure become the cold pressure to start from next time,
-        recordable onto the day's sheet in one tap. On the web the loop is on
-        the Car tab; in the iPhone and Android apps it sits under the setup
-        notebook on the event page, reading the latest session that recorded
-        tire pressures.
-        Under it, the same tab answers <strong>am I understeering or
-        oversteering?</strong> from the recording's yaw rate and steering
-        angle. In a neutral car the two rise together: steering the car
-        doesn't answer means the front is washing out — understeer — and
-        rotation you didn't ask for means the rear is coming round —
-        oversteer. Most of us believe we're oversteering when we're actually
-        understeering, because understeer feels like nothing happening. The
-        <strong>balance</strong> chart plots each selected lap's samples with
-        steering across and how much the car rotated per metre up, with a
-        dashed line for how this car typically responds: points above the
-        line are oversteer, below it understeer. Under the chart, the lap is
-        split into <strong>corners</strong> — stretches of sustained
-        cornering force, numbered T1, T2… from the start/finish line (the
-        app's numbering, not the circuit's) — and each corner gets a reading
-        per selected lap and for the session: <em>"T1 understeer 14%, T7
-        neutral, T10 slight oversteer 9%"</em> is something you can take to
-        the setup sheet, and the corners that stand out join the session's
-        stats line. On the web app you can hover a point or a corner row to see
-        where on the lap it is. One thing to know: the reading is
-        <em>relative</em>. The exact
-        version needs your car's wheelbase and steering ratio — the garage
-        stores them, but this reading doesn't use them yet — so each corner is
-        compared with how the car responded on average across the session — a car that pushes in every corner reads
-        neutral in every corner, and what shows up is the corner that behaves
-        differently from the rest. Balance is on the iPhone and Android apps too;
-        <a href="./understeer-oversteer.html">understeer and oversteer</a>
-        covers what to do about each.
-        The same recordings also give the <a href="./garage.html#garage">garage</a>
-        a way to <em>measure</em> your car's steering ratio — from how the
-        rotation per degree of steering falls with speed — so the number the
-        exact reading needs can come from your own laps instead of a spec
-        sheet.
-        (This
-        is derived at import time; the recording itself is never uploaded — a
-        <a href="#best-lap-video">best-lap video</a> is a clip of one lap with
-        no telemetry in it — so re-import a file if you delete a session.)</li>
-      <li>Laps from <strong>different sessions and events</strong> compare too:
-        the track page's <strong>Compare two laps</strong> puts any two laps
-        with channel data side by side — it opens on your latest event's best
-        lap against your all-time best — with a head-to-head table (lap time,
-        top/min/average speed, throttle and braking shares), the pair's sector
-        splits and combined theoretical best, the delta chart
-        and the channel graphs on one distance axis. It's on the phone apps as
-        well as the web, and works offline for laps you've viewed before. If
-        the two laps cover clearly different driven distances (a different
-        layout, or a different start/finish line between imports), the page
-        says so rather than lining them up silently.</li>
-      <li>If a recording's GPS can't be decoded, a beacon-less file still gets
-        lap times: latitude as a function of odometer distance repeats every
-        lap, so the lap length is that profile's autocorrelation peak and laps
-        are cut every lap-length of distance. Start/finish alignment comes from
-        a beacon-timed recording of the same track imported in the same batch;
-        without one, laps are still full laps of the track, just cut from where
-        the car first reaches pace rather than at the official line.</li>
+      <li><strong>Corvette.</strong> The recorder's <strong>Beacon</strong>
+        events mark start/finish crossings to the millisecond, but it drops
+        some. A missed crossing is worked out from the distance the car had
+        driven, accurate to ~0.05–0.3&nbsp;s and shown with <code>~</code>. The
+        method is checked against Cosworth Toolbox lap times. A recording with
+        no beacons gets the line picker. If its GPS can't be read either, it
+        still gets full laps: timed from start/finish when a beacon-timed
+        recording of the same track is in the same batch, otherwise from where
+        the car first reaches pace.</li>
+      <li><strong>Cadillac.</strong> The newer recorder in the V-Series
+        Blackwings times laps itself, so its lap times are the recorder's own,
+        to the millisecond. It logs no battery voltage. A clip whose timer
+        didn't run gets the line picker.</li>
     </ul>
 
     <div class="callout plain">
-      Millisecond-exact times are shown as-is; anything derived by interpolation or
-      odometer recovery carries a <code>~</code> so you always know which laps are
-      measured and which are estimated.
+      Millisecond-exact times are shown as-is. An estimated lap time carries a
+      <code>~</code>, so you always know which laps are measured and which are
+      estimated.
     </div>
+
+    <h2 id="analysis">What an imported session shows</h2>
+    <p>
+      The import preview shows each session's <strong>top speed, max RPM and
+      max lateral&nbsp;G</strong> and saves them into the session notes. Each
+      session also stores:
+    </p>
+    <ul>
+      <li><strong>Per-lap channel data</strong>, sampled along the lap's driven
+        distance: speed for every source, plus, from a PDR recording, RPM,
+        lateral and longitudinal&nbsp;G, throttle, brake, steering angle, yaw
+        rate, gear, wheel slip, boost and whether ABS or traction control was
+        active. A channel the file lacks draws no graph.</li>
+      <li><strong>One figure per lap</strong> for each of a PDR recording's
+        slow readings, shown on the <a href="#car">Car tab</a>.</li>
+      <li><strong>The session's conditions</strong> from a PDR recording:
+        ambient temperature, the track's elevation range and the car's odometer
+        reading. The temperature shows on the session's header and shades the
+        track page's progress chart (see
+        <a href="data-model.html#conditions">Conditions</a>).</li>
+    </ul>
+    <p>
+      This is worked out at import and the recording is never uploaded, so
+      re-import the file if you delete a session.
+    </p>
+
+    <h3 id="channel-graphs">The channel graphs</h3>
+    <p>
+      On the event page, the session's lap chips pick the laps for the
+      expandable <strong>channel graphs</strong>: up to three laps overlaid on
+      one distance axis, in three tabs.
+    </p>
+    <ul>
+      <li><strong>Traces</strong>: the delta, speed, throttle, brake, steering,
+        RPM and gears stacked on one axis.</li>
+      <li><strong>Grip</strong>: the friction circle, balance, lateral G and
+        yaw rate.</li>
+      <li><strong>Car</strong>: whether the car is okay and set up right.</li>
+    </ul>
+    <p>
+      Point at a graph, or tap it, to <strong>mark that place</strong> on every
+      graph, with each selected lap's value in the graph's title and a dot per
+      lap on the track map beside the graphs. A tap or click pins the mark
+      until you clear it.
+    </p>
+    <p>
+      The <strong>Distance / Time</strong> switch above the tabs sets the
+      graphs' axis. Distance, the default, lines the laps up corner for corner.
+      Time plots each lap against its own clock, so the laps drift apart by the
+      gap between them and the map's dots show the slower lap falling behind.
+    </p>
+
+    <h3 id="delta-sectors">Delta and sectors</h3>
+    <ul>
+      <li>With two or more laps selected, a <strong>delta chart</strong> above
+        the channels shows where time is gained or lost against the fastest of
+        the selection. Where the trace climbs, you are losing time. See
+        <a href="./lap-delta.html">how to find time with a lap delta</a>.</li>
+      <li>A <strong>sector table</strong> splits each highlighted lap into
+        three sectors along its own driven distance, with no setup, marking the
+        session's best in each sector and the gap to it otherwise.</li>
+      <li>The best sectors summed give a <strong>theoretical best lap</strong>,
+        which joins the session's stats line when it beats your actual
+        best.</li>
+    </ul>
+
+    <h3 id="gears">Gears and shift points</h3>
+    <ul>
+      <li>From a PDR recording, a <strong>gear ribbon</strong> sits under the
+        RPM trace: one band per selected lap, one block per gear with the
+        number in it, and a gap where the clutch was in. With two or more laps
+        selected, stretches where they were in different gears are
+        outlined.</li>
+      <li>A <strong>shift points</strong> table gives your upshift RPM from
+        each gear (earliest, typical and latest across the session), with a
+        note when a gear is taken to the top of the day's rev range or shifted
+        out of noticeably earlier than another. The typical upshift RPM joins
+        the session's stats line. See <a href="./shift-points.html">when to
+        shift on track</a>.</li>
+    </ul>
+
+    <h3 id="limits">ABS, wheelspin and stability marks</h3>
+    <p>
+      A PDR recording's wheel-slip and ABS / traction / stability channels
+      become <strong>marks on the best-lap track map</strong>: a shape wherever
+      that lap hit ABS, locked a wheel, spun the driven wheels or had a system
+      cut in. Braking-side events are one colour and power-side another, and
+      each kind has its own shape. The same stretches are shaded on the brake,
+      throttle and steering traces for every selected lap. The session's stats
+      line counts the places where each happened, or says "no interventions",
+      which is normal on track with the systems off.
+    </p>
+
+    <h3 id="grip">Friction circle</h3>
+    <p>
+      On the <strong>Grip</strong> tab, a PDR recording's cornering and
+      braking/acceleration forces are plotted against each other as a
+      <strong>friction circle</strong>: one point per 20&nbsp;m of track for
+      each selected lap, braking at the top, power at the bottom and cornering
+      to the sides, with a dashed arc at the session's strongest combined grip.
+      It is on the phone apps too; see
+      <a href="./friction-circle.html">how to read a friction circle</a>.
+    </p>
+    <ul>
+      <li>Two numbers under it say how much of your tire work was combined,
+        braking while cornering and cornering while on the power, for each
+        selected lap and for the session.</li>
+      <li>Hover or tap a dot to see where on the lap it happened: the distance
+        is marked on the other graphs and, for the lap the map was drawn from,
+        ringed on the track map.</li>
+      <li>Left and right come from your steering; the recording stores
+        cornering force without a side.</li>
+      <li>20&nbsp;m samples smooth the spikes, so the circle shows the
+        <em>shape</em> of your grip use. Your peak G is the max lateral G in
+        the session's stats.</li>
+    </ul>
+
+    <h3 id="balance">Understeer and oversteer</h3>
+    <p>
+      The <strong>balance</strong> chart reads understeer and oversteer from
+      the recording's yaw rate and steering angle. It plots each selected lap's
+      samples with steering across and how much the car rotated per metre up,
+      with a dashed line for how this car typically responds. Points above the
+      line are oversteer; below it, understeer.
+    </p>
+    <ul>
+      <li>Under the chart, the lap is split into <strong>corners</strong>:
+        stretches of sustained cornering force, numbered T1, T2… from the
+        start/finish line (the app's numbering, not the circuit's).</li>
+      <li>Each corner gets a reading per selected lap and for the session, such
+        as <em>"T1 understeer 14%, T7 neutral, T10 slight oversteer 9%"</em>.
+        The corners that stand out join the session's stats line.</li>
+      <li>On the web app, hover a point or a corner row to see where on the lap
+        it is.</li>
+      <li>The reading is <em>relative</em>: each corner is compared with how
+        the car responded on average across the session. A car that pushes in
+        every corner reads neutral in every corner; what shows up is the corner
+        that behaves differently. The garage stores your car's wheelbase and
+        steering ratio, but this reading doesn't use them yet.</li>
+    </ul>
+    <p>
+      Balance is on the phone apps too; see
+      <a href="./understeer-oversteer.html">understeer and oversteer</a> for
+      what to do about each. The same recordings also let the
+      <a href="./garage.html#garage">garage</a> <em>measure</em> your car's
+      steering ratio from your own laps.
+    </p>
+
+    <h3 id="car">The Car tab</h3>
+    <p>
+      The <strong>Car</strong> tab shows every slow reading a PDR recording
+      carries (oil, coolant and transmission temperature, oil pressure, boost,
+      the four tire pressures and temperatures, fuel and battery voltage) as
+      one small chart per figure across the session's laps. A session typed in
+      by hand shows no Car tab. The tab is on the phone apps too; see
+      <a href="./temperatures.html">engine and brake temperatures on
+      track</a>.
+    </p>
+    <ul>
+      <li>Each chart carries the number that matters for it: the peak of a
+        temperature, the lowest oil pressure or voltage, the tire pressure as
+        the lap ended. It is shaded when a figure approaches or passes a line
+        worth watching, such as oil over about 130&nbsp;°C or the battery under
+        12.5&nbsp;V.</li>
+      <li>The <strong>tire spread</strong> per lap gives left minus right on
+        each axle and front minus rear, for temperatures and pressures.</li>
+      <li>A fuel line gives your burn per lap and the laps left at that rate,
+        and joins the session's stats line.</li>
+      <li>On the web a per-lap table carries every figure; on the phones the
+        small charts carry it.</li>
+      <li>The tire pressures feed your
+        <a href="./garage.html#setups">setup notebook</a>: the sheet's cold
+        pressures, the hot pressures the import measured and your car's target
+        hot pressure become the cold pressure to start from next time,
+        recordable onto the day's sheet in one tap. On the web this is on the
+        Car tab. In the iPhone and Android apps it sits under the setup
+        notebook on the event page, reading the latest session that recorded
+        tire pressures.</li>
+    </ul>
+
+    <h3 id="compare">Compare two laps</h3>
+    <p>
+      The track page's <strong>Compare two laps</strong> puts any two laps with
+      channel data side by side, from any sessions or events. It opens on your
+      latest event's best lap against your all-time best and shows:
+    </p>
+    <ul>
+      <li>a head-to-head table: lap time, top/min/average speed, throttle and
+        braking shares;</li>
+      <li>the pair's sector splits and combined theoretical best;</li>
+      <li>the delta chart and the channel graphs on one distance axis.</li>
+    </ul>
+    <p>
+      It's on the phone apps as well as the web, and works offline for laps
+      you've viewed before. If the two laps cover clearly different driven
+      distances (a different layout, or a different start/finish line between
+      imports), the page says so.
+    </p>
 
     <nav class="docs-pager">
       <a href="./track-days.html"><span class="label">Previous</span>← Your first track day</a>
