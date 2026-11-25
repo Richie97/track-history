@@ -63,12 +63,10 @@ final class CoreScreensUITests: XCTestCase {
     func testDashboardStartsARecording() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        let record = app.buttons["dashboardRecord"]
         XCTAssertTrue(
-            record.waitForExistence(timeout: 20),
-            "the dashboard should offer the recorder next to + Add event"
+            pickFromAddMenu(app, "dashboardRecord"),
+            "the dashboard's + menu should offer the recorder"
         )
-        record.tap()
 
         XCTAssertTrue(
             app.buttons["Start recording"].waitForExistence(timeout: 10),
@@ -102,10 +100,10 @@ final class CoreScreensUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 10), "discarding should ask first")
         confirm.tap()
 
-        // The recorder is back to idle: no banner, and the idle-only Record button.
+        // The recorder is back to idle: no banner, and the dashboard under it.
         XCTAssertTrue(
-            app.buttons["dashboardRecord"].waitForExistence(timeout: 10),
-            "discarding should return the recorder to idle"
+            app.buttons["addMenu"].waitForExistence(timeout: 10),
+            "discarding should return to the dashboard"
         )
         XCTAssertFalse(banner.exists, "the banner should be gone once the recording is discarded")
     }
@@ -304,7 +302,7 @@ final class CoreScreensUITests: XCTestCase {
 
     /// Create an event through the form and land on it.
     private func createEvent(_ app: XCUIApplication, named track: String) throws {
-        app.buttons["+ Add event"].tap()
+        XCTAssertTrue(pickFromAddMenu(app, "addMenuEvent"), "the + menu should offer Add event")
 
         let trackField = app.textFields[Self.seededTrack]
         XCTAssertTrue(trackField.waitForExistence(timeout: 15), "the form should offer the track field")
@@ -332,7 +330,7 @@ final class CoreScreensUITests: XCTestCase {
         // Again, for the confirmation dialog's destructive button.
         app.buttons["Delete event"].tap()
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 20),
+            app.buttons["addMenu"].waitForExistence(timeout: 20),
             "deleting an event should pop back to the dashboard"
         )
     }

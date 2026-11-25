@@ -72,6 +72,19 @@ extension XCTestCase {
         }
     }
 
+    /// The dashboard's + menu — *Add event* (`addMenuEvent`), *Import laps*
+    /// (`dashboardImport`), *Record laps* (`dashboardRecord`): open it and pick one.
+    @discardableResult
+    func pickFromAddMenu(_ app: XCUIApplication, _ item: String, timeout: TimeInterval = 20) -> Bool {
+        let menu = app.buttons["addMenu"]
+        guard menu.waitForExistence(timeout: timeout) else { return false }
+        menu.tap()
+        let button = app.buttons[item]
+        guard button.waitForExistence(timeout: 10) else { return false }
+        button.tap()
+        return true
+    }
+
     @discardableResult
     func scrollTo(_ element: XCUIElement, in app: XCUIApplication, swipes: Int = 12) -> Bool {
         let scroller =
@@ -122,7 +135,7 @@ extension XCTestCase {
         // The dashboard's own button, rather than anything about the account: this is
         // the assertion that the token actually loaded the logbook.
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 30),
+            app.buttons["addMenu"].waitForExistence(timeout: 30),
             "the seeded token should land on the dashboard"
         )
         return app

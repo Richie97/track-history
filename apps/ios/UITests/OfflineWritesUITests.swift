@@ -46,7 +46,7 @@ final class OfflineWritesUITests: XCTestCase {
 
         // Create an event offline. It gets a negative temp id and is patched into the
         // cached responses, so it has to appear straight away.
-        app.buttons["+ Add event"].tap()
+        XCTAssertTrue(pickFromAddMenu(app, "addMenuEvent"), "the + menu should offer Add event")
         let trackField = app.textFields["Virginia International Raceway (Full)"]
         XCTAssertTrue(trackField.waitForExistence(timeout: 15))
         trackField.tap()
@@ -103,7 +103,7 @@ final class OfflineWritesUITests: XCTestCase {
         app.terminate()
         app.launch()
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 30),
+            app.buttons["addMenu"].waitForExistence(timeout: 30),
             "the app should come back up offline"
         )
         XCTAssertTrue(

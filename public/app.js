@@ -796,6 +796,16 @@ function shell(content) {
         <a class="brand" href="#/">${appLogoHtml()} <span class="brand-text">Track Evolution</span></a>
         ${sectionNavHtml()}
         <span class="spacer"></span>
+        <div class="user-menu add-menu">
+          <button class="add-trigger" id="add-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Add" title="Add">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="menu" id="add-dropdown" hidden>
+            <a class="menu-item" href="#/new">Add event</a>
+            <a class="menu-item" href="#/import">Import laps</a>
+            <a class="menu-item" href="/get" target="_blank" rel="noopener">Record laps <span class="menu-note">in the phone app ↗</span></a>
+          </div>
+        </div>
         <div class="user-menu">
           <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false"
             aria-label="Account menu — ${esc(me?.name || me?.email || "")}">
@@ -840,13 +850,17 @@ function shell(content) {
   paintClipUploads();
   paintGarageBadge();
   refreshGarageBadge();
-  const trigger = document.getElementById("user-trigger");
-  const dropdown = document.getElementById("user-dropdown");
-  trigger.onclick = () => {
-    const open = dropdown.hidden;
-    dropdown.hidden = !open;
-    trigger.setAttribute("aria-expanded", String(open));
-  };
+  // The two top-bar menus: opening one closes the other.
+  for (const [triggerId, dropdownId] of TOPBAR_MENUS) {
+    const trigger = document.getElementById(triggerId);
+    const dropdown = document.getElementById(dropdownId);
+    trigger.onclick = () => {
+      const open = dropdown.hidden;
+      closeTopbarMenus();
+      dropdown.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+    };
+  }
   document.getElementById("logout").onclick = async () => {
     if (pendingCount() && !confirm("You have offline changes that haven't synced yet — signing out discards them. Sign out anyway?")) return;
     if (clipUploads.active() && !confirm("Lap videos are still uploading — signing out stops them. Sign out anyway?")) return;
@@ -911,22 +925,30 @@ onSyncChange((_st, change) => {
   }
 });
 
-// Close the user dropdown on outside click or Escape (module-level: shell()
-// re-renders per route, so per-render listeners would accumulate).
-function closeUserMenu() {
-  const dropdown = document.getElementById("user-dropdown");
-  if (dropdown && !dropdown.hidden) {
-    dropdown.hidden = true;
-    document.getElementById("user-trigger")?.setAttribute("aria-expanded", "false");
+// The top bar's dropdowns — the + menu (add event / import / record) and the
+// account menu — closed on outside click, on picking an item, or on Escape
+// (module-level: shell() re-renders per route, so per-render listeners would
+// accumulate).
+const TOPBAR_MENUS = [
+  ["add-trigger", "add-dropdown"],
+  ["user-trigger", "user-dropdown"],
+];
+function closeTopbarMenus() {
+  for (const [triggerId, dropdownId] of TOPBAR_MENUS) {
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown && !dropdown.hidden) {
+      dropdown.hidden = true;
+      document.getElementById(triggerId)?.setAttribute("aria-expanded", "false");
+    }
   }
 }
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".user-menu")) closeUserMenu();
+  if (!e.target.closest(".user-menu") || e.target.closest("#add-dropdown .menu-item")) closeTopbarMenus();
   // The footer's "Cookies" link and Settings' "Cookie settings" (js/analytics.js).
   if (e.target.closest("[data-consent-open]")) openConsentBanner();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeUserMenu();
+  if (e.key === "Escape") closeTopbarMenus();
 });
 
 // The web's plans, read once per page load beside the first /me and again
@@ -1038,11 +1060,7 @@ async function viewDashboard() {
   const hasHistory = events.some((e) => !isUpcoming(e));
   const slug = state.me.share_slug || "";
   const view = shell(`
-    <div class="btn-row" style="margin-top:20px">
-      <a class="btn primary" href="#/new">+ Add event</a>
-      <a class="btn" href="#/import">Import laps</a>
-      ${hasHistory ? `<a class="btn" href="#/year">Year in review</a>` : ""}
-    </div>
+    ${hasHistory ? `<div class="btn-row" style="margin-top:20px"><a class="btn" href="#/year">Year in review</a></div>` : ""}
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${feed ? commentsCardHtml(feed) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}

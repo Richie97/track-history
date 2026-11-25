@@ -132,6 +132,7 @@ class DashboardRecordTest {
         val model = loadedModel(eventsJson(startDate = today, days = 1))
         setDashboard(model, recorderIdle = true)
         compose.waitUntil(10_000) { model.state == LoadState.Ready }
+        compose.onNodeWithTag("addMenu").performClick()
 
         compose.onNodeWithContentDescription("Record laps at Summit Point (Shenandoah)")
             .assertIsDisplayed()
@@ -142,6 +143,7 @@ class DashboardRecordTest {
         val model = loadedModel(eventsJson(startDate = lastMonth, days = 1))
         setDashboard(model, recorderIdle = true)
         compose.waitUntil(10_000) { model.state == LoadState.Ready }
+        compose.onNodeWithTag("addMenu").performClick()
 
         compose.onNodeWithContentDescription(
             "Record laps. No event today — the recording is saved to one afterwards.",
@@ -155,7 +157,10 @@ class DashboardRecordTest {
         val model = loadedModel(eventsJson(startDate = today, days = 1))
         setDashboard(model, recorderIdle = false)
         compose.waitUntil(10_000) { model.state == LoadState.Ready }
+        compose.onNodeWithTag("addMenu").performClick()
 
+        // The menu is open — its other items are there — without the recorder.
+        compose.onNodeWithTag("addMenuEvent").assertIsDisplayed()
         compose.onNodeWithTag("dashboardRecord").assertDoesNotExist()
     }
 
@@ -199,8 +204,9 @@ class DashboardRecordTest {
         }
 
         compose.waitUntil(15_000) {
-            compose.onAllNodesWithTag("dashboardRecord").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("addMenu").fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onNodeWithTag("addMenu").performClick()
         compose.onNodeWithTag("dashboardRecord").performClick()
 
         compose.waitUntil(10_000) {
