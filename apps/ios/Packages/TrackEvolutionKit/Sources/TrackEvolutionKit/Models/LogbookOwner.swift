@@ -62,8 +62,6 @@ public enum LogbookOwner: Hashable, Sendable {
     /// in place of the paywall, which is the student's to answer, not theirs.
     /// `studentFreeNote` in `public/app.js`, word for word.
     public var studentFreeNote: String {
-        "\(displayName) is on the free plan, so you see their lap times, racing lines and the "
-            + "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the rest "
-            + "of the analysis show here once they have Pro."
+        "\(displayName) is on the free plan, so you see lap times, racing lines and the speed, throttle and brake traces. The rest shows once they have Pro."
     }
 }

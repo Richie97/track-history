@@ -235,7 +235,7 @@ struct DashboardScreen: View {
     /// The Mac has no recorder (epic #230), so it points at the phone instead.
     static func welcomeText(runsOnMac: Bool) -> String {
         let record = runsOnMac ? "record them with the app on your iPhone" : "record them on track"
-        return "Your logbook starts with an event: the track, the date and the car. Then add its sessions — \(record), import a video or a logger file, or type your lap times in — and your bests and progress build from there."
+        return "Start with an event — the track, the date, the car. Then add laps: \(record), import a file, or type them in."
     }
 
     private func logbook(_ model: DashboardModel) -> some View {

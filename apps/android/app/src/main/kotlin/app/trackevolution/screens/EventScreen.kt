@@ -929,10 +929,7 @@ private fun AddSessionCard(
             color = colors.textStrong,
         )
         Text(
-            "Corvette or Cadillac PDR clips, GoPro or AiM SmartyCam clips, or a .vbo or Track Precision .csv log, already on this " +
-                "device — laps, " +
-                "racing line and channel graphs come out of the telemetry. The file is read " +
-                "in place, never copied or uploaded.",
+            "PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(vertical = 6.dp),

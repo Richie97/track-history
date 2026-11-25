@@ -422,9 +422,8 @@ private fun Readout(
             )
         }
         Text(
-            "Share of the samples where the tire was working (${"%.2f".format(Grip.MIN_LOAD_G)} G combined " +
-                "or more) spent doing two things at once. Brake straight, turn, then accelerate and both " +
-                "stay low — the gap to the arc is time.",
+            "Share of loaded samples (${"%.2f".format(Grip.MIN_LOAD_G)} G or more) spent blending brake or " +
+                "power with cornering. The gap to the arc is time.",
             style = TrackTheme.typography.xxs,
             color = colors.textFaint,
         )

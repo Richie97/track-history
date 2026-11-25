@@ -335,7 +335,7 @@ struct FrictionCircle: View {
                         }
                     }
                 }
-                Text("Share of the samples where the tire was working (\(String(format: "%.2f", Grip.MIN_LOAD_G)) G combined or more) spent doing two things at once. Brake straight, turn, then accelerate and both stay low — the gap to the arc is time.")
+                Text("Share of loaded samples (\(String(format: "%.2f", Grip.MIN_LOAD_G)) G or more) spent blending brake or power with cornering. The gap to the arc is time.")
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textFaint))
             }

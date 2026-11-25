@@ -18,8 +18,8 @@ struct CatalogCarPicker: View {
     /// What a search that finds nothing says, which depends on the form the
     /// picker opened from: the vehicle form has the two number fields to fall
     /// back on, the add-car sheet has only a name.
-    static let noMatchTypeIn = "No car in the catalog matches that — close this and type the wheelbase and steering ratio in yourself."
-    static let noMatchByName = "No car in the catalog matches that — close this and add it by name; its wheelbase and steering ratio can go in on its page."
+    static let noMatchTypeIn = "No match — close this and type the wheelbase and steering ratio in."
+    static let noMatchByName = "No match — close this and add it by name."
 
     let api: APIClient
     var noMatch: String = CatalogCarPicker.noMatchTypeIn
@@ -42,7 +42,7 @@ struct CatalogCarPicker: View {
                     .accessibilityIdentifier("catalogSearch")
                     .padding(.horizontal, 16)
 
-                Text("Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes.")
+                Text("Picking a car fills in its wheelbase and steering ratio.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                     .padding(.horizontal, 16)

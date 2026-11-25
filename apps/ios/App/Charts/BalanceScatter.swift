@@ -89,8 +89,7 @@ struct BalanceScatter: View {
                             .teStyle(.eyebrow)
                             .foregroundStyle(Color(.textMuted))
                         Text(
-                            "How much the car rotated for the steering it was given. Steering the car "
-                                + "doesn't answer is understeer; rotation it wasn't asked for is oversteer."
+                            "Rotation against steering. Below the line is understeer, above it oversteer."
                         )
                         .teStyle(.xxs)
                         .foregroundStyle(Color(.textFaint))
@@ -102,15 +101,7 @@ struct BalanceScatter: View {
                     .frame(maxWidth: .infinity)
                     if let sb { table(sb) }
                     Text(
-                        "Corners are stretches of sustained cornering force "
-                            + "(\(String(format: "%.2f", Corners.CORNER_MIN_G)) G or more) counted from the "
-                            + "start/finish line, so the T-numbers are this app's, not the circuit's. Each "
-                            + "reading is how far the corner's rotation sits from this car's typical response "
-                            + "over the whole session — the dashed line — because the exact version needs the "
-                            + "wheelbase and steering ratio — the garage stores them, but this reading doesn't "
-                            + "use them yet. That makes it relative: a car that pushes in every corner reads "
-                            + "neutral in every corner, and what shows up is the corner that behaves "
-                            + "differently from the rest."
+                        "Corners are numbered from the start/finish line (\(String(format: "%.2f", Corners.CORNER_MIN_G)) G or more), not by the circuit's map. Readings are relative to this car's typical response — the dashed line — so a car that pushes everywhere reads neutral in every corner."
                     )
                     .teStyle(.xxs)
                     .foregroundStyle(Color(.textFaint))

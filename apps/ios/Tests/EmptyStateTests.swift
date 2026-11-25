@@ -41,7 +41,7 @@ final class EmptyStateTests: XCTestCase {
     func testTheWelcomeCardPointsAMacAtThePhone() {
         XCTAssertEqual(
             DashboardScreen.welcomeText(runsOnMac: false),
-            "Your logbook starts with an event: the track, the date and the car. Then add its sessions — record them on track, import a video or a logger file, or type your lap times in — and your bests and progress build from there."
+            "Start with an event — the track, the date, the car. Then add laps: record them on track, import a file, or type them in."
         )
         XCTAssertTrue(DashboardScreen.welcomeText(runsOnMac: true).contains("record them with the app on your iPhone"))
         XCTAssertFalse(DashboardScreen.welcomeText(runsOnMac: false).contains("this phone"))

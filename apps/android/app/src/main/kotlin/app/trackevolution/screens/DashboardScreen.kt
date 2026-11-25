@@ -253,9 +253,7 @@ internal const val TRACK_DAYS_GUIDE_LINK = "New to track days? Start here"
 
 /** The welcome card's sentence — iOS's `welcomeText` for a phone, verbatim. */
 internal const val WELCOME_TEXT =
-    "Your logbook starts with an event: the track, the date and the car. Then add its sessions — " +
-        "record them on track, import a video or a logger file, or type your lap times in — " +
-        "and your bests and progress build from there."
+    "Start with an event — the track, the date, the car. Then add laps: record them on track, import a file, or type them in."
 
 /**
  * The first-run card (#344) — the web's `.panel.welcome`, plus the recorder

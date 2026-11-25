@@ -81,8 +81,7 @@ internal object ItemShareText {
             "Anyone with this link can see ${noun(kind)} — its laps, racing line, telemetry and video. " +
                 "Notes, costs and setup sheets stay private."
         ItemShareKind.LAP ->
-            "Anyone with this link can see this lap — its time, racing line, telemetry and video. " +
-                "The rest of the session, notes, costs and setup sheets stay private."
+            "Anyone with this link can see this lap — its time, racing line, telemetry and video. Nothing else is shared."
         ItemShareKind.COMPARE ->
             "Anyone with this link can see these two laps compared — their times, telemetry and video. " +
                 "Nothing else in your logbook is shared."

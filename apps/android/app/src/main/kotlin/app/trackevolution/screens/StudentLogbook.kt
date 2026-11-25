@@ -192,8 +192,7 @@ private fun NotSharedWithYou(onGone: () -> Unit) {
     ) {
         Text("Not shared with you", style = TrackTheme.typography.h2, color = colors.textStrong)
         Text(
-            "This logbook isn't shared with you — the driver may have stopped sharing it, or you left. " +
-                "Anything this device had kept of it has been cleared.",
+            "This logbook isn't shared with you any more.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
         )

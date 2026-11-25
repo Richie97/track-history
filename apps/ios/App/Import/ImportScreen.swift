@@ -86,16 +86,7 @@ struct ImportScreen: View {
                     Text("Lap times from video")
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
-                    Text("""
-                        Corvette and Cadillac PDR clips, GoPro clips and AiM SmartyCam clips carry telemetry \
-                        alongside the picture, \
-                        and a Racelogic .vbo log (VBOX, or an export from an app such as \
-                        Porsche Track Precision) or a Track Precision .csv export is nothing \
-                        but telemetry. Pick one and the \
-                        laps come out of it here — the file stays on this device, and only \
-                        its telemetry track is read. With Pro, the review can also save each \
-                        session's best lap as a video clip: just that lap is cut and uploaded.
-                        """)
+                    Text("PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device. With Pro, each session's best lap can be saved as a video clip.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
 
@@ -124,21 +115,10 @@ struct ImportScreen: View {
                     Text("What works")
                         .teStyle(.eyebrow)
                         .foregroundStyle(Color(.textMuted))
-                    Text("""
-                        A PDR clip that timed its own laps — off the track's beacon in a \
-                        Corvette, or the recorder's lap timer in a newer Cadillac — arrives with \
-                        exact lap times and needs nothing from you. A GoPro clip, or a PDR one \
-                        that timed no laps, has GPS but no lap markers — tap where the \
-                        start/finish line is and every pass across it is timed.
-                        """)
+                    Text("A clip that timed its own laps arrives with exact times. One with GPS but no lap markers asks you to tap the start/finish line.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
-                    Text("""
-                        A .vbo log with a start/finish line in it arrives timed, with whatever \
-                        car channels it recorded; one without asks for the line the same way. \
-                        A Track Precision .csv export carries the app's own lap times. Other \
-                        logger formats stay on the web app.
-                        """)
+                    Text("A .vbo log works the same way; a Track Precision .csv carries its own lap times. Other logger formats are on the web app.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                 }

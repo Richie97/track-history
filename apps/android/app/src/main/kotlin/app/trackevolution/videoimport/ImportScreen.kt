@@ -128,10 +128,7 @@ fun ImportScreen(
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("Lap times from video", style = type.h3, color = colors.textStrong)
                     Text(
-                        "Corvette and Cadillac PDR clips, GoPro clips and AiM SmartyCam clips carry telemetry alongside the picture. " +
-                            "Pick one and the " +
-                            "laps come out of it here — the video never leaves this device and is never copied; " +
-                            "only its telemetry track is read.",
+                        "PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.",
                         style = type.sm,
                         color = colors.textMuted,
                         modifier = Modifier.padding(top = 6.dp, bottom = 12.dp),
@@ -177,19 +174,13 @@ fun ImportScreen(
                 TrackCard(Modifier.fillMaxWidth()) {
                     Text("WHAT WORKS", style = type.eyebrow, color = colors.textFaint)
                     Text(
-                        "A PDR clip that timed its own laps — off the track's beacon in a Corvette, or the " +
-                            "recorder's lap timer in a newer Cadillac — arrives with exact lap times and needs " +
-                            "nothing from you. A GoPro clip, or a PDR one that timed no laps, has GPS but no lap " +
-                            "markers — tap where the start/finish line is and every pass across it is timed.",
+                        "A clip that timed its own laps arrives with exact times. One with GPS but no lap markers asks you to tap the start/finish line.",
                         style = type.xs,
                         color = colors.textMuted,
                         modifier = Modifier.padding(top = 6.dp),
                     )
                     Text(
-                        "A .vbo file (Racelogic VBOX, or an export from Porsche's Track Precision app) carries " +
-                            "its own start/finish line and usually needs nothing either; one without a line " +
-                            "asks for a tap, like a GoPro clip. A Track Precision .csv export carries the app's " +
-                            "own lap times. Other logger files stay on the web app.",
+                        "A .vbo log works the same way; a Track Precision .csv carries its own lap times. Other logger formats are on the web app.",
                         style = type.xs,
                         color = colors.textFaint,
                         modifier = Modifier.padding(top = 6.dp),

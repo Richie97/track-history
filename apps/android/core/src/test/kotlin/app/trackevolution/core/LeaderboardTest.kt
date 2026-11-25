@@ -27,8 +27,7 @@ class LeaderboardTest {
     @Test
     fun `opted in with laps here but no row means nothing was device-timed`() {
         assertEquals(
-            "None of your laps here were timed by a device, so you aren't ranked yet. " +
-                "Record with the app or import telemetry to appear.",
+            "Only device-timed laps rank. Record or import a lap here to appear.",
             Leaderboard.note(93_211, board(optedIn = true, row(91_000, you = false))),
         )
     }

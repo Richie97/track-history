@@ -981,7 +981,7 @@ struct EventScreen: View {
             Text("Record laps with your iPhone")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("A Mac has no GPS, so recording lives in the iPhone app. Start it there before heading out — the laps land on this event once the phone syncs.")
+            Text("A Mac has no GPS — record with the iPhone app and the laps land here.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
         }
@@ -1118,7 +1118,7 @@ struct EventScreen: View {
             Text("Import a video")
                 .teStyle(.h3)
                 .foregroundStyle(Color(.textStrong))
-            Text("PDR, GoPro and AiM SmartyCam clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this device.")
+            Text("PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Button("Import video") {

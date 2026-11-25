@@ -630,9 +630,7 @@ export function bindChannelGraphs(container, channels, sessionLaps, { renderExtr
     <details class="ch-details"${memory?.open ? " open" : ""}>
       <summary>Channel graphs <span class="hint">${chanNames} vs <span class="ch-axis-word">${axisWord(state.axis)}</span></span></summary>
       <div class="ch-head">
-        <div class="hint">Tap laps to compare (up to 3). Point at a chart to mark the place on every chart${hasMap ? " and the track map" : ""}; tap or click to pin it.${
-          pro ? " With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest." : ""
-        }</div>
+        <div class="hint">Tap up to 3 laps to compare. Point at a chart to mark that place everywhere; click to pin it.</div>
         ${
           canTime
             ? `<div class="ch-axis seg" role="group" aria-label="Plot the laps against">${["distance", "time"]

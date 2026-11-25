@@ -298,7 +298,7 @@ export function gripReadoutHtml(channels, lit, labelFor) {
       <thead><tr><th></th><th class="num">Braking + cornering</th><th class="num">Cornering + power</th></tr></thead>
       <tbody>${body}${all}</tbody>
     </table></div>
-    <div class="hint">Share of the samples where the tire was working (${fmtG(MIN_LOAD_G)} G combined or more) spent doing two things at once. A driver who brakes straight, turns, then accelerates scores low on both — the gap between that cross and the arc is time.</div>`;
+    <div class="hint">Share of loaded samples (${fmtG(MIN_LOAD_G)} G or more) spent blending brake or power with cornering. The gap to the arc is time.</div>`;
 }
 
 // The whole Grip-tab card: the scatter plus its read-out. Returns "" when the
@@ -308,7 +308,7 @@ export function gripCircleHtml(channels, lit, labelFor) {
   const svg = frictionCircleSvg(channels, lit, labelFor);
   if (!svg) return "";
   return `<div class="ch-grip">
-    <div class="sec-head">Friction circle <span class="hint">— how much of the tire is actually being used. 20 m samples, so this is the shape of grip usage, not peak G.</span></div>
+    <div class="sec-head">Friction circle <span class="hint">— how much of the tire is being used. The shape of grip usage, not peak G.</span></div>
     <div class="grip-plot">${svg}</div>
     ${gripReadoutHtml(channels, lit, labelFor)}
   </div>`;

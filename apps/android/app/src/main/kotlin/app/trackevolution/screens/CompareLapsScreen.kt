@@ -130,8 +130,7 @@ fun CompareLapsScreen(
                 head()
                 item("empty") {
                     TEEmpty(
-                        "Comparing laps needs two laps with telemetry at this track — " +
-                            "import a session, or record laps with the app.",
+                        "Comparing needs two laps with telemetry here — import or record a session.",
                         action = onNavigate?.let { noTelemetryAction(model.events, it) },
                     )
                 }
@@ -172,7 +171,7 @@ fun CompareLapsScreen(
                 item("mismatch") {
                     Text(
                         "⚠️ These laps cover driven distances ${(pair.mismatch * 100).roundToInt()}% apart — " +
-                            "likely a different layout or start/finish line, so the distance alignment may be off.",
+                            "likely a different layout or start/finish line.",
                         style = TrackTheme.typography.xs,
                         color = colors.textMuted,
                     )

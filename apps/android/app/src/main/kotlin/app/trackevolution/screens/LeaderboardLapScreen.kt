@@ -169,8 +169,7 @@ fun LeaderboardLapScreen(
                 if (panel.mine == null) {
                     item("no-lap-of-mine") {
                         TEEmpty(
-                            "You have no lap with telemetry at this track yet, so there's nothing to overlay. " +
-                                "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                            "No lap of yours with telemetry here yet. Import or record one to compare.",
                             action = onNavigate?.let { noTelemetryAction(model.events, it) },
                         )
                     }
@@ -187,7 +186,7 @@ fun LeaderboardLapScreen(
                         item("mismatch") {
                             Text(
                                 "⚠️ These laps cover driven distances ${(panel.mismatch * 100).roundToInt()}% apart — " +
-                                    "likely a different layout or start/finish line, so the distance alignment may be off.",
+                                    "likely a different layout or start/finish line.",
                                 style = TrackTheme.typography.xs,
                                 color = colors.textMuted,
                             )
