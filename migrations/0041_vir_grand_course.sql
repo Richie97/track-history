@@ -7,7 +7,11 @@
 -- halves, and length is what tells the layouts apart — its window is well
 -- clear of Full's (test/unit/locate.test.js).
 
-INSERT INTO track_catalog (name) VALUES
+-- OR IGNORE: the hosted database already had this row, added by hand (with no
+-- length or coordinate) before this migration existed, and a plain INSERT
+-- failed the deploy on the name's UNIQUE constraint. The UPDATEs below fill
+-- that row in just the same.
+INSERT OR IGNORE INTO track_catalog (name) VALUES
   ('Virginia International Raceway (Grand)');
 
 UPDATE track_catalog SET length_m = 6759 WHERE name = 'Virginia International Raceway (Grand)';
