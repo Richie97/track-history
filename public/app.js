@@ -2992,7 +2992,7 @@ function youtubeSettingsHtml() {
   const yt = state.me?.youtube;
   if (!yt?.available) return "";
   return `<h2>YouTube</h2>
-    <div class="hint" style="margin:0 0 4px">With Pro, upload a best-lap video to your YouTube channel from its lap. The upload runs on our server, so you can close the app while it goes.</div>
+    <div class="hint" style="margin:0 0 4px">With Pro, upload a lap video to your YouTube channel from its lap.</div>
     <div class="panel" id="yt-settings">
       <p style="margin:0 0 10px">${esc(youtubeAccountLine(yt))}</p>
       ${
@@ -3001,7 +3001,7 @@ function youtubeSettingsHtml() {
               <button class="btn small danger" type="button" id="yt-disconnect">Disconnect YouTube</button>
               <a class="btn small" href="${GOOGLE_PERMISSIONS_URL}" target="_blank" rel="noopener">Google account permissions ↗</a>
             </div>
-            <div class="hint" style="margin:8px 0 0">${YOUTUBE_DISCONNECT_NOTE} You can also remove Track Evolution's access from your Google account's permissions page.</div>`
+            <div class="hint" style="margin:8px 0 0">${YOUTUBE_DISCONNECT_NOTE}</div>`
           : `<p class="hint">${youtubeConnectHtml()}</p>
             <div class="btn-row"><a class="btn small" href="/youtube/connect?next=${encodeURIComponent("#/settings")}">${
               yt.account ? "Reconnect YouTube…" : "Connect YouTube…"
@@ -4527,9 +4527,9 @@ function subscriptionPanelHtml(notice = null) {
   const detail = !pro
     ? e?.source && e.source !== "legacy"
       ? endedText(e.source)
-      : "The logbook, your lap times, charts, sharing and telemetry import are free and stay that way. Pro adds the lap recorder, the channel graphs and sector splits inside an imported session, the garage's consumables, the setup notebook and year in review."
+      : "The logbook is free. Pro adds the lap recorder, full telemetry analysis, the garage, the setup notebook and year in review."
     : e.source === "legacy"
-      ? "You bought the app before it became a subscription, so Pro is yours for life. There is nothing to renew and nothing to cancel."
+      ? "You bought the app before subscriptions, so Pro is yours for life."
       : `${billedText(e.source) ?? ""}${e.auto_renew === false ? " Auto-renew is off — Pro runs until the date above." : ""}`;
   const legal = `<a href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms of use</a> ·
     <a href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy policy</a>`;
@@ -4549,21 +4549,17 @@ function subscriptionPanelHtml(notice = null) {
              .join("")}
          </div>
          ${trial ? `<div class="hint" style="margin:8px 0 0">${esc(trial)}</div>` : ""}
-         <div class="hint" style="margin:8px 0 0">Checkout is on Stripe's secure page; we never see your card.
-           Cancel or switch plans any time from <em>Manage billing</em> here. ${legal}</div>`
+         <div class="hint" style="margin:8px 0 0">Checkout is on Stripe — we never see your card. Cancel any time. ${legal}</div>`
       : "";
   const storeHint = pro
     ? ""
     : selling
       ? `<div class="hint" style="margin:10px 0 0">Or subscribe in the
            <a href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone</a> or
-           <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app — the subscription follows
-           this account, not the device.</div>`
-      : `<div class="hint" style="margin:10px 0 0">Subscriptions are sold in the phone apps —
-           ${PRO_PRICE}, covering all three apps and this site. Sign in there with this account
-           and Pro appears here within a minute.</div>`;
+           <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app.</div>`
+      : `<div class="hint" style="margin:10px 0 0">Sold in the phone apps — ${PRO_PRICE}. Sign in there with this account and Pro shows up here too.</div>`;
   const banner = notice?.ok
-    ? `<div class="success-banner" role="status">Welcome to Pro — it's on for this account in the web app and both phone apps.</div>`
+    ? `<div class="success-banner" role="status">Welcome to Pro — it's on everywhere you sign in.</div>`
     : notice?.error
       ? `<div class="error-banner" role="alert">${esc(notice.error)}</div>`
       : "";
@@ -4668,7 +4664,7 @@ async function viewSettings(params = new URLSearchParams()) {
     <h2>Subscription</h2>
     ${subscriptionPanelHtml(subNotice)}
     <h2>Units</h2>
-    <div class="hint" style="margin:0 0 4px">How speeds, distances, temperatures, tire pressures and fuel are shown and entered, on every device you sign in on. Nothing already logged changes — the same numbers are just converted.</div>
+    <div class="hint" style="margin:0 0 4px">Display only — nothing you've logged changes.</div>
     <div class="panel">
       <div class="btn-row" role="group" aria-label="Unit system" id="units-toggle">
         ${UNIT_SYSTEMS.map(
@@ -4680,11 +4676,11 @@ async function viewSettings(params = new URLSearchParams()) {
     </div>
     <h2>Coaching</h2>
     <div class="panel">
-      <div class="hint" style="margin:0 0 10px">Share your logbook read-only with an instructor or coach, fill in the driver profile they see, and open the logbooks of drivers you coach.</div>
+      <div class="hint" style="margin:0 0 10px">Share your logbook with a coach, or open your students'.</div>
       <a class="btn small" href="#/coaching">Open Coaching →</a>
     </div>
     <h2>Prep checklist</h2>
-    <div class="hint" style="margin:0 0 4px">The list an upcoming event starts from. Edit it here and every checklist you start from now on uses your version — checklists already on an event keep whatever is on them.</div>
+    <div class="hint" style="margin:0 0 4px">The list new events start from. Existing checklists don't change.</div>
     <div class="panel" id="tmpl-panel">
       ${template
         .map(
@@ -4701,9 +4697,6 @@ async function viewSettings(params = new URLSearchParams()) {
         <button class="btn small" id="tmpl-add">Add</button>
         ${isCustom ? `<button class="btn small" id="tmpl-reset">Reset to default</button>` : ""}
       </div>
-      <div class="hint" style="margin:8px 0 0">${
-        isCustom ? "This is your own list." : "This is the app's default — your first edit makes it yours."
-      }</div>
       <div id="tmpl-error"></div>
     </div>
     <h2>Leaderboards</h2>
@@ -4712,20 +4705,20 @@ async function viewSettings(params = new URLSearchParams()) {
         <input type="checkbox" id="lb-opt" ${state.me?.leaderboard_opt_in ? "checked" : ""}>
         Appear on per-track leaderboards
       </label>
-      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the Track Evolution app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <div class="hint" style="margin:8px 0 0">Shares your name and best device-timed lap at each track. Nothing else.</div>
       <label class="dry-toggle" style="display:block;margin-top:12px">
         <input type="checkbox" id="lb-share" ${state.me?.leaderboard_share_laps ? "checked" : ""} ${state.me?.leaderboard_opt_in ? "" : "disabled"}>
         Let other drivers open my ranked laps
       </label>
-      <div class="hint" style="margin:8px 0 0">A second, separate choice, off unless you turn it on. It publishes one lap per track — the ranked one already on the board — as its racing line and telemetry traces, so a driver ranked at the same track can compare corner for corner. It never publishes any other lap, your notes, your session labels, your car, the conditions you typed, your setup sheets or your garage. Leaving the leaderboards turns it off.</div>
+      <div class="hint" style="margin:8px 0 0">Also shares that lap's racing line and telemetry. No other lap, no notes.</div>
       <div id="lb-error"></div>
     </div>
     ${youtubeSettingsHtml()}
     <h2>AI assistants</h2>
-    <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
+    <div class="hint" style="margin:0 0 4px">With Pro, connect Claude, ChatGPT or another assistant to your logbook. Read-only. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
     <h2>Your data</h2>
-    <div class="hint" style="margin:0 0 4px">Download a copy of everything you've put in the logbook — yours to keep, whatever your plan, including the telemetry, garage and setup sheets only Pro shows.</div>
+    <div class="hint" style="margin:0 0 4px">Download everything in your logbook, on any plan.</div>
     <div class="panel" id="export-panel">
       <div class="btn-row">
         ${EXPORT_FILES.map(
@@ -4735,7 +4728,7 @@ async function viewSettings(params = new URLSearchParams()) {
       <label class="dry-toggle" style="float:none;display:flex;margin-top:12px">
         <input type="checkbox" id="export-telemetry"> Include telemetry in the JSON
       </label>
-      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores. Best-lap videos are listed, not included — download each from its lap.</div>
+      <div class="hint" style="margin:6px 0 0">Telemetry adds about 1 MB per session. Lap videos aren't included — download each from its lap.</div>
       ${state.me?.clips ? `<div class="hint" style="margin:6px 0 0">${esc(clipStorageLine(state.me.clips))}</div>` : ""}
       <div id="export-status" role="status" aria-live="polite">${
         exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
@@ -4743,7 +4736,7 @@ async function viewSettings(params = new URLSearchParams()) {
     </div>
     <h2>New to track days?</h2>
     <div class="panel">
-      <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>
+      <div class="hint" style="margin:0 0 10px">What to expect, what to bring and where to find an event.</div>
       <a class="btn small" href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">Your first track day ↗</a>
     </div>
     <h2>About &amp; legal</h2>
