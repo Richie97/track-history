@@ -17,6 +17,11 @@ on:
   pull_request:
     paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
 
+# Both jobs only read the repository (checkout, and the cache action, which
+# uses its own token), so the workflow's GITHUB_TOKEN is held to that.
+permissions:
+  contents: read
+
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
