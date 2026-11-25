@@ -71,10 +71,7 @@ internal object YouTubeText {
     const val DISCONNECT = "Disconnect YouTube"
     const val PERMISSIONS = "Google account permissions"
     const val SETTINGS_BLURB =
-        "With Pro, upload a best-lap video to your YouTube channel from its lap. " +
-            "The upload runs on our server, so you can close the app while it goes."
-    const val PERMISSIONS_NOTE =
-        "You can also remove Track Evolution's access from your Google account's permissions page."
+        "With Pro, upload a lap video to your YouTube channel from its lap."
 
     /** How often the status line is re-read while an upload is on its way (the web's `YOUTUBE_POLL_MS`). */
     const val POLL_MS = 5_000L
@@ -470,7 +467,7 @@ internal fun YouTubeSettingsCard(onOpenLink: (String) -> Unit, modifier: Modifie
                 }
             }
             Text(
-                "${YouTubeUpload.YOUTUBE_DISCONNECT_NOTE} ${YouTubeText.PERMISSIONS_NOTE}",
+                YouTubeUpload.YOUTUBE_DISCONNECT_NOTE,
                 style = TrackTheme.typography.xs,
                 color = colors.textFaint,
             )

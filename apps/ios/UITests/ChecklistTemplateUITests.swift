@@ -42,9 +42,9 @@ final class ChecklistTemplateUITests: XCTestCase {
 
         let insurance = app.staticTexts[Self.item]
         XCTAssertTrue(scrollTo(insurance, in: app), "the built-in default leads with track insurance")
-        XCTAssertTrue(
-            app.staticTexts["This is the app's default — your first edit makes it yours."].exists,
-            "an untouched template should say so"
+        XCTAssertFalse(
+            app.buttons["Reset to default"].exists,
+            "an untouched template has nothing to reset"
         )
 
         let field = app.textFields["checklistTemplateField"]
@@ -58,8 +58,8 @@ final class ChecklistTemplateUITests: XCTestCase {
             "the added item should appear in the list"
         )
         XCTAssertTrue(
-            app.staticTexts["This is your own list."].waitForExistence(timeout: 10),
-            "editing it makes it the user's own"
+            scrollTo(app.buttons["Reset to default"], in: app),
+            "editing it makes it the user's own, which Reset to default undoes"
         )
         attach(app, named: "checklist-template-settings")
 
