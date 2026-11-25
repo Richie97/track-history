@@ -33,6 +33,8 @@ describe("track pages", () => {
 
   it("formats a length in both systems, or not at all", () => {
     expect(fmtLength(5263)).toBe("3.27 mi (5.26 km)");
+    expect(fmtLength(2655)).toBe("1.65 mi (2.66 km)");
+    expect(fmtLength(6759)).toBe("4.20 mi (6.76 km)");
     expect(fmtLength(null)).toBeNull();
     expect(fmtLength(0)).toBeNull();
   });

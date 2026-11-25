@@ -390,6 +390,13 @@
     },
     {
       "id": 1,
+      "lat": 36.5625,
+      "length_m": 6759,
+      "lon": -79.2053,
+      "name": "Virginia International Raceway (Grand)"
+    },
+    {
+      "id": 1,
       "lat": 36.5655,
       "length_m": 3621,
       "lon": -79.2055,

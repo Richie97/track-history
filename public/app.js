@@ -4665,6 +4665,8 @@ async function viewSettings(params = new URLSearchParams()) {
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/">← Dashboard</a></p>
     <h1>Settings</h1>
+    <h2>Subscription</h2>
+    ${subscriptionPanelHtml(subNotice)}
     <h2>Units</h2>
     <div class="hint" style="margin:0 0 4px">How speeds, distances, temperatures, tire pressures and fuel are shown and entered, on every device you sign in on. Nothing already logged changes — the same numbers are just converted.</div>
     <div class="panel">
@@ -4744,8 +4746,6 @@ async function viewSettings(params = new URLSearchParams()) {
         exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
       }</div>
     </div>
-    <h2>Subscription</h2>
-    ${subscriptionPanelHtml(subNotice)}
     <h2>New to track days?</h2>
     <div class="panel">
       <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>

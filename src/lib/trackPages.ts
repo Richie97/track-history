@@ -58,7 +58,9 @@ export function venueOf(name: string): string {
 // "3.27 mi (5.26 km)" — both systems, since a public page has no account.
 export function fmtLength(lengthM: number | null): string | null {
   if (lengthM == null || !(lengthM > 0)) return null;
-  return `${(lengthM / 1609.344).toFixed(2)} mi (${(lengthM / 1000).toFixed(2)} km)`;
+  // Math.round, not toFixed alone: 2655 m is 2.66 km, and (2.655).toFixed(2) is "2.65".
+  const two = (v: number) => (Math.round(v * 100) / 100).toFixed(2);
+  return `${two(lengthM / 1609.344)} mi (${two(lengthM / 1000)} km)`;
 }
 
 export function trackUrl(name: string): string {

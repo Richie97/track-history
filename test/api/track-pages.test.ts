@@ -98,7 +98,18 @@ describe("GET /tracks/:slug", () => {
   it("links a venue's other layouts", async () => {
     const html = await (await SELF.fetch("https://example.com/tracks/virginia-international-raceway-full")).text();
     expect(html).toContain('href="/tracks/virginia-international-raceway-north"');
+    expect(html).toContain('href="/tracks/virginia-international-raceway-grand"');
     expect(html).not.toContain('href="/tracks/virginia-international-raceway-full"');
+    // The venue's four layouts, at their published lengths.
+    const index = await (await SELF.fetch("https://example.com/tracks")).text();
+    for (const [layout, length] of [
+      ["Grand", "4.20 mi (6.76 km)"],
+      ["Full", "3.27 mi (5.26 km)"],
+      ["North", "2.25 mi (3.62 km)"],
+      ["South", "1.65 mi (2.66 km)"],
+    ]) {
+      expect(index).toContain(`Virginia International Raceway (${layout})</a></td><td>${length}</td>`);
+    }
   });
 
   it("answers an unknown slug with a noindex 404", async () => {
