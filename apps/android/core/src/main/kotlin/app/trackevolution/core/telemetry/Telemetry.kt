@@ -202,8 +202,9 @@ public object Telemetry {
 
     /**
      * "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
-     * channels; "" when the source has none. The speed is in the user's system
-     * at import time and, written into the notes, stays that way — as on the web.
+     * channels; "" when the source has none. The import review's preview line
+     * only: the notes no longer carry it, since the stats strip shows top speed
+     * and max G from the stored channels.
      */
     public fun metricsSummary(p: ParsedTelemetry, units: UnitSystem = Units.DEFAULT_UNITS): String {
         val m = p.metrics ?: return ""
@@ -250,11 +251,8 @@ public object Telemetry {
      */
     public fun importNotes(p: ParsedTelemetry, file: String, units: UnitSystem = Units.DEFAULT_UNITS): String {
         val source = if (p.kind == ParsedTelemetry.Kind.LIVE) "Recorded with the in-app lap timer" else "Imported from $file"
-        val metrics = metricsSummary(p, units)
         val note = estimatedNote(p, p.laps.count { it.estimated })
-        return source +
-            (if (metrics.isEmpty()) "" else " — $metrics") +
-            (if (note.isEmpty()) "" else " — $note")
+        return source + (if (note.isEmpty()) "" else " — $note")
     }
 
     /**

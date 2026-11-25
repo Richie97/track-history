@@ -241,10 +241,9 @@ export function defaultLabel(r) {
 }
 
 // "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
-// channels; "" when the source has none. The speed is written in the user's
-// unit system at import time — it lands in the session's free-text notes, so
-// it is a record of what was said, not a value a later toggle can re-render.
-// Exported for unit tests.
+// channels; "" when the source has none. It is the import review's preview
+// line only: the session's notes no longer carry it, since the stats strip
+// shows top speed and max G from the stored channels. Exported for unit tests.
 export function metricsSummary(p, units = currentUnits()) {
   const m = p.metrics;
   if (!m) return "";
@@ -279,11 +278,10 @@ export function importSessionBody(r, label, units = currentUnits()) {
   const p = r.parsed;
   const estCount = p.laps.filter((l) => l.estimated).length;
   const note = estimatedNote(p, estCount);
-  const metrics = metricsSummary(p, units);
   const source = p.kind === "live" ? "Recorded with the in-app lap timer" : `Imported from ${r.file}`;
   return {
     label: (label ?? "").trim() || r.file,
-    notes: source + (metrics ? ` — ${metrics}` : "") + (note ? ` — ${note}` : ""),
+    notes: source + (note ? ` — ${note}` : ""),
     laps: p.laps.map((l) => l.timeMs),
     trace: p.bestLapTrace ?? null,
     trace_geo: p.bestLapTrace ? (p.traceGeo ?? null) : null,

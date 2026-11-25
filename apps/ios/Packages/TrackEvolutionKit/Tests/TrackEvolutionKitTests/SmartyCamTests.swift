@@ -276,7 +276,7 @@ struct SmartyCamTests {
         let parsed = try Telemetry.parseTelemetryFile(try Self.mov(), name: "SCHD0001.MOV")
         #expect(parsed.laps.map(\.timeMs) == [Self.LAP_MS, Self.LAP_MS, Self.LAP_MS])
         let notes = Telemetry.importNotes(parsed, file: "SCHD0001.MOV", units: .imperial)
-        #expect(notes.hasPrefix("Imported from SCHD0001.MOV — "))
+        #expect(notes == "Imported from SCHD0001.MOV")
         #expect(!notes.contains("Test Driver") && !notes.contains("Test Car"))
         // No lap is estimated, so there is no `~` note.
         #expect(Telemetry.estimatedNote(parsed, estCount: 0).isEmpty)

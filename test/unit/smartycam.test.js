@@ -215,7 +215,7 @@ describe("parseTelemetryFile with a SmartyCam .MOV", () => {
     const parsed = await parseTelemetryFile(mov());
     const body = importSessionBody({ file: "SCHD0001.MOV", parsed }, "", "imperial");
     expect(body.laps).toEqual([LAP_MS, LAP_MS, LAP_MS]);
-    expect(body.notes).toMatch(/^Imported from SCHD0001\.MOV — /);
+    expect(body.notes).toBe("Imported from SCHD0001.MOV");
     expect(body.notes).not.toMatch(/Test Driver|Test Car/);
     expect(body.trace_geo).toEqual(parsed.traceGeo);
     expect(sanitizeChannels(body.channels)).toBeTruthy(); // undefined is the server's 400

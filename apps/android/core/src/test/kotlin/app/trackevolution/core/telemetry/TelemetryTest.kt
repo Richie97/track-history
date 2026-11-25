@@ -247,7 +247,7 @@ class TelemetryTest {
     fun `writes the web importer's notes line`() {
         val pdr = VideoFixtures.parse("pdr-real-shifted.mp4")
         assertEquals(
-            "Imported from morning.mp4 — top speed 89 mph — laps recovered from latitude + odometer (~±0.2s); " +
+            "Imported from morning.mp4 — laps recovered from latitude + odometer (~±0.2s); " +
                 "boundaries are a fixed track point, not the official start/finish",
             Telemetry.importNotes(pdr, "morning.mp4"),
         )

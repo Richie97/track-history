@@ -18,7 +18,6 @@ const parseLap = (s) => {
   return Math.round((Number(m) * 60 + Number(rest)) * 1000);
 };
 const addDays = (iso, n) => new Date(Date.parse(iso) + n * 86_400_000).toISOString().slice(0, 10);
-const fmtMph = (kmh) => `${Math.round(kmh / 1.609344)} mph`;
 
 // One recorded session as the body of POST /events/:id/sessions — the same
 // shape importSessionBody (public/js/import/ui.js) posts.
@@ -39,13 +38,10 @@ export function sessionBody(track, { skill, laps, seed, startTod, ambientC, odom
   const projected = projectTrace(sim.gps, COTA_ORIGIN);
   const best = sim.laps.reduce((a, b) => (b.timeMs < a.timeMs ? b : a));
   const trace = lapTrace(projected, best.startT, best.endT);
-  const top = Math.max(...sim.chans.speed.map((p) => p.v));
-  const maxRpm = Math.max(...sim.chans.rpm.map((p) => p.v));
-  const maxLat = Math.max(...sim.chans.latG.map((p) => p.v));
   return {
     body: {
       label,
-      notes: `Imported from ${file} — top speed ${fmtMph(top)} · max ${Math.round(maxRpm).toLocaleString("en-US")} rpm · ${maxLat.toFixed(2)} G lateral`,
+      notes: `Imported from ${file}`,
       laps: sim.laps.map((l) => l.timeMs),
       trace,
       channels,
