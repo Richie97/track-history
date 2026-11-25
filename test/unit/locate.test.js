@@ -168,7 +168,7 @@ describe("the catalog's coordinates", () => {
   const rows = new Map();
   for (const f of readdirSync("migrations").sort()) {
     const sql = readFileSync(`migrations/${f}`, "utf8");
-    if (sql.includes("INSERT INTO track_catalog (name)")) for (const m of sql.matchAll(/^\s+\('((?:[^']|'')+)'\)[,;]/gm)) rows.set(m[1], {});
+    if (/INSERT (OR IGNORE )?INTO track_catalog \(name\)/.test(sql)) for (const m of sql.matchAll(/^\s+\('((?:[^']|'')+)'\)[,;]/gm)) rows.set(m[1], {});
     for (const m of sql.matchAll(/UPDATE track_catalog SET name = '([^']+)'\s+WHERE name = '([^']+)'/g)) {
       rows.set(m[1], rows.get(m[2]));
       rows.delete(m[2]);
