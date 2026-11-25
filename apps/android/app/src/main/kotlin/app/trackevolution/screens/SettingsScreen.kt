@@ -86,8 +86,6 @@ fun SettingsScreen(
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     onOpenLink: (String) -> Unit,
-    /** Settings' cars row: the Garage tab (NS-37). */
-    onOpenGarage: () -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
     /** The account's tier, as the server last said it (NS-32). */
@@ -151,8 +149,6 @@ fun SettingsScreen(
                 ChecklistTemplateCard(model, checklistTemplate, hasCustomChecklistTemplate)
             }
 
-            item("cars-header") { TESectionHeader("Cars") }
-            item("cars") { CarsCard(onOpenGarage) }
 
             item("lap-videos-header") { TESectionHeader("Lap videos") }
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
@@ -623,11 +619,6 @@ private fun ChecklistTemplateCard(
 }
 
 /**
- * Where the cars went (NS-37): one row to the Garage tab. A car is managed in
- * one place — its own page, reached from the Garage — so this screen no longer
- * lists, adds, renames or deletes them.
- */
-/**
  * Best-lap videos (NS-45): the cellular switch — off by default, so a clip
  * saved at the track uploads on Wi-Fi at home — and the storage line,
  * `clipStorageLine` over `user.clips` ("Lap videos: 3.2 GB of 20 GB"), which
@@ -672,36 +663,6 @@ private fun LapVideosCard(storageLine: String?) {
                 color = colors.textMuted,
                 modifier = Modifier.padding(top = 8.dp).testTag("clipStorage"),
             )
-        }
-    }
-}
-
-@Composable
-private fun CarsCard(onOpenGarage: () -> Unit) {
-    val colors = TrackTheme.colors
-    TrackCard(Modifier.fillMaxWidth()) {
-        Text(
-            "Your cars live in the Garage now — add one there, set the default for new events, " +
-                "and open it to see what it has done.",
-            style = TrackTheme.typography.sm,
-            color = colors.textMuted,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenGarage)
-                .padding(vertical = 8.dp)
-                .testTag("openGarage"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Cars are in the Garage",
-                style = TrackTheme.typography.bodyStrong,
-                color = colors.accentInk,
-                modifier = Modifier.weight(1f),
-            )
-            Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
         }
     }
 }

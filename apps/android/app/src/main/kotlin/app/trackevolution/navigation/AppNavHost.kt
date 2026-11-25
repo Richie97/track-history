@@ -580,7 +580,6 @@ fun AppNavHost(
                     onThemeChange = onThemeChange,
                     serverUrl = serverUrl,
                     onOpenLink = openLink,
-                    onOpenGarage = { nav.selectTab(AppTab.Garage) },
                     onShare = share,
                     onSignOut = onSignOut,
                     entitlement = entitlement ?: Entitlement.FREE,

@@ -206,20 +206,6 @@ struct SettingsScreen: View {
                 }
             }
 
-            TESectionHeader("Cars")
-            TECard {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.")
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textMuted))
-                    Button("Open the Garage") {
-                        router.tab = .garage
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
-                    .accessibilityIdentifier("openGarage")
-                }
-            }
-
             TESectionHeader("New to track days?")
             TECard {
                 VStack(alignment: .leading, spacing: 12) {
