@@ -245,7 +245,7 @@ class RecordingFlowImportTest {
         assertEquals(1, staged.size)
         assertEquals("PDR 09:15:00", staged[0].label)
         assertEquals(listOf(47124, 47124), staged[0].laps)
-        assertTrue(staged[0].notes!!.startsWith("Imported from pdr-delta.mp4 — top speed "))
+        assertEquals("Imported from pdr-delta.mp4", staged[0].notes)
         assertEquals(2, staged[0].channels!!.laps.size)
         assertTrue("the racing line rides along", staged[0].trace!!.size > 10)
         assertNull(flow.savedEventId)
@@ -271,7 +271,7 @@ class RecordingFlowImportTest {
         for (name in listOf("speed", "rpm", "latG", "throttle", "brake", "steering")) {
             assertTrue("$name is carried", lap[name]!!.jsonArray.size > 80)
         }
-        assertTrue(draft["notes"]!!.jsonPrimitive.content.startsWith("Imported from pdr-delta.mp4 — top speed "))
+        assertEquals("Imported from pdr-delta.mp4", draft["notes"]!!.jsonPrimitive.content)
         // NS-53: a trace goes with where it lies; no trace, no anchor.
         if (draft["trace"] != null && draft["trace"] !is JsonNull) assertAnchored(draft) else assertNull(draft["trace_geo"])
     }
@@ -501,7 +501,7 @@ class RecordingFlowImportTest {
             assertTrue("$channel is carried", lap[channel]!!.jsonArray.size > 80)
         }
         val notes = draft["notes"]!!.jsonPrimitive.content
-        assertTrue(notes, notes.startsWith("Imported from $name — top speed "))
+        assertEquals("Imported from $name", notes)
         assertFalse("nothing personal from the camera's XML", notes.contains("Test Driver") || notes.contains("Test Car"))
         assertAnchored(draft)
     }

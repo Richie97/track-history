@@ -309,7 +309,7 @@ class SmartyCamTest {
         val parsed = Telemetry.parseTelemetryFile(mov(), "SCHD0001.MOV")
         assertEquals(listOf(lapMs, lapMs, lapMs), parsed.laps.map { it.timeMs })
         val notes = Telemetry.importNotes(parsed, "SCHD0001.MOV")
-        assertTrue(notes.startsWith("Imported from SCHD0001.MOV — "), notes)
+        assertEquals("Imported from SCHD0001.MOV", notes)
         assertFalse(Regex("Test Driver|Test Car").containsMatchIn(notes), notes)
         // No lap is estimated, so the notes carry no "~" caveat.
         assertEquals("", Telemetry.estimatedNote(parsed, 0))

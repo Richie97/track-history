@@ -1524,9 +1524,7 @@ privacy label and Play's Data safety form.
   sheet). An account that never chose sees imperial, which is what the app
   always showed. Wear measurements are the one exception: each is logged with
   its own unit string, so the preference only changes the default offered for
-  a new one (tread depth in 32nds for imperial, mm otherwise). A top speed
-  written into an imported session's notes is in the system chosen at import
-  time and stays that way. The iOS and Android apps render the preference too
+  a new one (tread depth in 32nds for imperial, mm otherwise). The iOS and Android apps render the preference too
   (Settings → Units, beside the theme), from the same account value: each has
   a `Units` module ported from `public/js/units.js` under the same names —
   Android's pinned to it by `contracts/logic/units.json`, iOS's carrying the

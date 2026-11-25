@@ -192,9 +192,9 @@ public enum Telemetry {
     }
 
     /// "top speed 121 mph · max 6,703 rpm · 1.43 G lateral" from a PDR file's car
-    /// channels; "" when the source has none. The speed is written in the user's
-    /// unit system at import time — it lands in the session's free-text notes, so
-    /// it is a record of what was said, not a value a later toggle can re-render.
+    /// channels; "" when the source has none. The import review's preview line
+    /// only: the notes no longer carry it, since the stats strip shows top speed
+    /// and max G from the stored channels.
     public static func metricsSummary(_ p: ParsedTelemetry, _ units: UnitSystem) -> String {
         guard let m = p.metrics else { return "" }
         var parts: [String] = []
@@ -240,11 +240,8 @@ public enum Telemetry {
         let source = p.kind == .live
             ? "Recorded with the in-app lap timer"
             : "Imported from \(file)"
-        let metrics = metricsSummary(p, units)
         let note = estimatedNote(p, estCount: p.laps.filter(\.estimated).count)
-        return source
-            + (metrics.isEmpty ? "" : " — \(metrics)")
-            + (note.isEmpty ? "" : " — \(note)")
+        return source + (note.isEmpty ? "" : " — \(note)")
     }
 
     private static func stripExtension(_ file: String) -> String {

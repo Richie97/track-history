@@ -144,6 +144,17 @@ describe("applyGate across longitude sign conventions", () => {
   });
 });
 
+describe("importSessionBody notes", () => {
+  it("names the source and the caveat, not the car metrics the stats strip shows", () => {
+    const parsed = { kind: "pdr", laps: [{ timeMs: 90_000 }], metrics: { topSpeedKph: 194.5, maxRpm: 6702.6, maxLatG: 1.432 } };
+    expect(importSessionBody({ file: "a.mp4", parsed }, "", "imperial").notes).toBe("Imported from a.mp4");
+    const gps = { kind: "gopro", laps: [{ timeMs: 90_000, estimated: true }], metrics: { topSpeedKph: 150 } };
+    expect(importSessionBody({ file: "g.mp4", parsed: gps }, "", "imperial").notes).toBe(
+      "Imported from g.mp4 — lap times derived from GPS start/finish crossings (~±0.1–0.3s)"
+    );
+  });
+});
+
 describe("metricsSummary", () => {
   it("formats the car channels and skips missing ones", () => {
     expect(metricsSummary({ metrics: { topSpeedKph: 194.5, maxRpm: 6702.6, maxLatG: 1.432 } })).toBe(
