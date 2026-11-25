@@ -1609,8 +1609,14 @@ button.footer-link { background: none; border: 0; padding: 0; font-family: inher
 .session .s-stat .n { font-size: var(--fs-xs); font-weight: var(--weight-medium); color: var(--text-muted); }
 .session .s-stat.tone-warn .n { color: var(--danger-ink); }
 .session .s-stat.tone-good .n { color: var(--accent-ink); }
-.session .s-stat.text { flex: 1 1 220px; }
-.session .s-stat.text .v { font-size: var(--fs-sm); font-weight: var(--weight-regular, 400); color: var(--text-body); }
+.session .s-stat .v, .session .s-stat .s-spark { height: 20px; line-height: 20px; }
+.session .s-notes { display: grid; gap: 4px; margin-top: 10px; font-size: var(--fs-sm); }
+.session .s-note { display: flex; gap: 10px; align-items: baseline; }
+.session .s-note .k {
+  flex: 0 0 64px; font-size: var(--fs-2xs); font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted);
+}
+.session .s-note .v { color: var(--text-body); }
 .session .s-spark { display: block; }
 .dry-toggle {
   float: right; display: inline-flex; align-items: center; gap: 6px;

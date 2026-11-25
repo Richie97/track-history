@@ -7,7 +7,7 @@
 // upshifts, limits, balance, car health) as more items of the same shape:
 //   { key, label, value, note?, tone?, text? }
 // `text: true` marks a value that is a sentence ("ABS in 3 places") rather
-// than a figure, drawn smaller and allowed to take the row's width.
+// than a figure, drawn as a labelled line under the strip.
 //
 // The phones build the same items under the same names (`Session.statItems`
 // in each `EventModel`) and draw them as `SessionStatsStrip`.
@@ -61,7 +61,7 @@ export function sparkPoints(lapsMs, width, height, pad = 3) {
 }
 
 const SPARK_W = 96;
-const SPARK_H = 30;
+const SPARK_H = 20;
 
 export function sparklineSvg(lapsMs) {
   const spark = sparkPoints(lapsMs, SPARK_W, SPARK_H);
@@ -76,16 +76,30 @@ export function sparklineSvg(lapsMs) {
   </svg>`;
 }
 
+// Figures go in a strip of equal-height cells; sentences (`text` items) go on
+// their own lines under it, so one long sentence can't make a cell taller than
+// its neighbours.
 export function sessionStatsHtml(items, lapsMs = []) {
   const spark = sparklineSvg(lapsMs);
+  const figures = items.filter((it) => !it.text);
+  const notes = items.filter((it) => it.text);
   if (!items.length && !spark) return "";
   const cell = (it) =>
-    `<div class="s-stat${it.text ? " text" : ""}${it.tone ? ` tone-${it.tone}` : ""}" role="listitem">
+    `<div class="s-stat${it.tone ? ` tone-${it.tone}` : ""}" role="listitem">
       <span class="k">${esc(it.label)}</span>
       <span class="v">${esc(it.value)}${it.note ? ` <span class="n">${esc(it.note)}</span>` : ""}</span>
     </div>`;
-  return `<div class="s-stats" role="list">
+  const strip =
+    spark || figures.length
+      ? `<div class="s-stats" role="list">
     ${spark ? `<div class="s-stat spark" role="listitem"><span class="k">Lap times</span>${spark}</div>` : ""}
-    ${items.map(cell).join("")}
-  </div>`;
+    ${figures.map(cell).join("")}
+  </div>`
+      : "";
+  const lines = notes.length
+    ? `<div class="s-notes" role="list">${notes
+        .map((it) => `<div class="s-note" role="listitem"><span class="k">${esc(it.label)}</span><span class="v">${esc(it.value)}</span></div>`)
+        .join("")}</div>`
+    : "";
+  return strip + lines;
 }

@@ -39,7 +39,7 @@ describe("session stats strip", () => {
     expect(points[2].x).toBe(93);
   });
 
-  it("draws a cell per item, sentences marked as text, and escapes them", () => {
+  it("draws a cell per figure, a line per sentence, and escapes them", () => {
     const html = sessionStatsHtml(
       [
         { key: "best3", label: "Best 3 avg", value: "2:00.40" },
@@ -48,7 +48,7 @@ describe("session stats strip", () => {
       [122_000, 120_000, 121_000]
     );
     expect(html).toContain('class="s-stat spark"');
-    expect(html).toContain('class="s-stat text"');
+    expect(html).toContain('class="s-note"');
     expect(html).toContain("understeer in &lt;T1&gt;");
     expect((html.match(/role="listitem"/g) || []).length).toBe(3);
   });

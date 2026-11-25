@@ -4,17 +4,20 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -44,40 +47,69 @@ fun SessionStatsStrip(items: List<SessionStat>, laps: List<Int>, modifier: Modif
     val spark = laps.size >= SPARK_MIN_LAPS
     if (!spark && items.isEmpty()) return
     val colors = TrackTheme.colors
-    FlowRow(
+    val figures = items.filter { !it.text }
+    // Sentences go on their own lines under the strip: one long sentence must
+    // not make a cell taller than its neighbours.
+    val notes = items.filter { it.text }
+    Column(
         modifier = modifier.fillMaxWidth().semantics { testTag = "sessionStats" },
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (spark) {
-            StatCell("Lap times", sparkSpoken(laps)) { LapSparkline(laps, Modifier.size(width = 96.dp, height = 26.dp)) }
-        }
-        items.forEach { item ->
-            StatCell(item.label, item.spoken, if (item.text) Modifier.widthIn(max = 300.dp) else Modifier) {
-                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(
-                        item.value,
-                        style = if (item.text) TrackTheme.typography.sm else TrackTheme.typography.bodyStrong,
-                        color = if (item.text) colors.textBody else colors.textStrong,
-                        modifier = Modifier.alignByBaseline(),
-                    )
-                    item.note?.let {
-                        Text(
-                            it,
-                            style = TrackTheme.typography.xs,
-                            color = when (item.tone) {
-                                SessionStat.Tone.Warn -> colors.dangerInk
-                                SessionStat.Tone.Good -> colors.accentInk
-                                null -> colors.textMuted
-                            },
-                            modifier = Modifier.alignByBaseline(),
-                        )
+        if (spark || figures.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (spark) {
+                    StatCell("Lap times", sparkSpoken(laps)) { LapSparkline(laps, Modifier.size(width = 96.dp, height = CELL_CONTENT_HEIGHT)) }
+                }
+                figures.forEach { item ->
+                    StatCell(item.label, item.spoken) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                item.value,
+                                style = TrackTheme.typography.bodyStrong,
+                                color = colors.textStrong,
+                                maxLines = 1,
+                                modifier = Modifier.alignByBaseline(),
+                            )
+                            item.note?.let {
+                                Text(
+                                    it,
+                                    style = TrackTheme.typography.xs,
+                                    color = when (item.tone) {
+                                        SessionStat.Tone.Warn -> colors.dangerInk
+                                        SessionStat.Tone.Good -> colors.accentInk
+                                        null -> colors.textMuted
+                                    },
+                                    maxLines = 1,
+                                    modifier = Modifier.alignByBaseline(),
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+        notes.forEach { item ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.clearAndSetSemantics { contentDescription = item.spoken },
+            ) {
+                Text(
+                    item.label.uppercase(),
+                    style = TrackTheme.typography.eyebrow,
+                    color = colors.textMuted,
+                    modifier = Modifier.width(64.dp).alignByBaseline(),
+                )
+                Text(item.value, style = TrackTheme.typography.sm, color = colors.textBody, modifier = Modifier.alignByBaseline())
+            }
+        }
     }
 }
+
+/** Every cell's content is this tall, so the strip's boxes line up whatever they hold. */
+private val CELL_CONTENT_HEIGHT = 22.dp
 
 internal fun sparkSpoken(laps: List<Int>): String {
     val best = laps.indexOf(laps.minOrNull() ?: 0) + 1
@@ -99,7 +131,7 @@ private fun StatCell(label: String, spoken: String, modifier: Modifier = Modifie
             .clearAndSetSemantics { contentDescription = spoken },
     ) {
         Text(label.uppercase(), style = TrackTheme.typography.eyebrow, color = colors.textMuted)
-        content()
+        Box(Modifier.height(CELL_CONTENT_HEIGHT), contentAlignment = Alignment.CenterStart) { content() }
     }
 }
 

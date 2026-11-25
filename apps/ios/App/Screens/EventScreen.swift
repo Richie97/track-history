@@ -1262,33 +1262,58 @@ struct SessionStatsStrip: View {
     /// Two points are a line, not a shape (`SPARK_MIN_LAPS`).
     static let SPARK_MIN_LAPS = 3
 
+    /// Every cell's content is this tall, so the strip's boxes line up
+    /// whatever they hold — a figure, a figure with a note, or the sparkline.
+    @ScaledMetric(relativeTo: .body) private var contentHeight: CGFloat = 22
+
     var body: some View {
         let spark = laps.count >= Self.SPARK_MIN_LAPS
+        let figures = items.filter { !$0.text }
+        // Sentences go on their own lines under the strip: one long sentence
+        // must not make a cell taller than its neighbours.
+        let notes = items.filter(\.text)
         if spark || !items.isEmpty {
-            FlowRow(spacing: 8) {
-                if spark {
-                    cell("Lap times") {
-                        LapSparkline(laps: laps).frame(width: 96, height: 26)
-                    }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Self.sparkSpoken(laps))
-                }
-                ForEach(items) { item in
-                    cell(item.label) {
-                        HStack(alignment: .firstTextBaseline, spacing: 5) {
-                            Text(item.value)
-                                .teStyle(item.text ? TETextStyle.sm : TETextStyle.bodyStrong)
-                                .monospacedDigit()
-                                .foregroundStyle(item.text ? Color(.textBody) : Color(.textStrong))
-                                .fixedSize(horizontal: !item.text, vertical: true)
-                            if let note = item.note {
-                                Text(note)
-                                    .teStyle(.xs)
-                                    .foregroundStyle(item.tone == .warn ? Color(.dangerInk) : item.tone == .good ? Color(.accentInk) : Color(.textMuted))
+            VStack(alignment: .leading, spacing: 10) {
+                if spark || !figures.isEmpty {
+                    FlowRow(spacing: 8) {
+                        if spark {
+                            cell("Lap times") {
+                                LapSparkline(laps: laps).frame(width: 96)
                             }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(Self.sparkSpoken(laps))
+                        }
+                        ForEach(figures) { item in
+                            cell(item.label) {
+                                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                    Text(item.value)
+                                        .teStyle(.bodyStrong)
+                                        .monospacedDigit()
+                                        .foregroundStyle(Color(.textStrong))
+                                    if let note = item.note {
+                                        Text(note)
+                                            .teStyle(.xs)
+                                            .foregroundStyle(item.tone == .warn ? Color(.dangerInk) : item.tone == .good ? Color(.accentInk) : Color(.textMuted))
+                                    }
+                                }
+                                .lineLimit(1)
+                                .fixedSize()
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(item.spoken)
                         }
                     }
-                    .frame(maxWidth: item.text ? 300 : nil, alignment: .leading)
+                }
+                ForEach(notes) { item in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(item.label.uppercased())
+                            .teStyle(.eyebrow)
+                            .foregroundStyle(Color(.textMuted))
+                            .frame(width: 64, alignment: .leading)
+                        Text(item.value)
+                            .teStyle(.sm)
+                            .foregroundStyle(Color(.textBody))
+                    }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(item.spoken)
                 }
@@ -1309,6 +1334,7 @@ struct SessionStatsStrip: View {
                 .teStyle(.eyebrow)
                 .foregroundStyle(Color(.textMuted))
             content()
+                .frame(height: contentHeight)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
