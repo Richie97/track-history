@@ -163,11 +163,7 @@ struct SharedItemScreen: View {
     private func sessionCard(_ item: SharedItem, _ session: Session) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sessionHeader(session)
-            if let stats = session.statsSummary(units: auth.units) {
-                Text(stats)
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textMuted))
-            }
+            SessionStatsStrip(items: session.statItems(units: auth.units), laps: session.lapTimesMs)
             channelButton(session)
             TECard(padding: 14) {
                 VStack(spacing: 8) {

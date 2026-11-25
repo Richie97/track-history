@@ -1591,8 +1591,33 @@ button.footer-link { background: none; border: 0; padding: 0; font-family: inher
 #tmpl-panel .check-item .x[disabled] { opacity: 0.3; cursor: default; }
 
 /* ---------- Session analysis & comparisons ---------- */
-.session .s-stats { font-size: 13px; color: var(--text-muted); margin-top: 6px; }
-.session .s-stats .t { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+/* Per-session stats: a strip of small labelled figures (js/session-stats.js). */
+.session .s-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.session .s-stat {
+  display: flex; flex-direction: column; gap: 4px; min-width: 96px;
+  padding: 8px 12px; border-radius: var(--radius-sm);
+  background: var(--surface-raised); border: 1px solid var(--border-hairline);
+}
+.session .s-stat .k {
+  font-size: var(--fs-2xs); font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted);
+}
+.session .s-stat .v {
+  font-size: var(--fs-body); font-weight: var(--weight-semibold);
+  color: var(--text-strong); font-variant-numeric: tabular-nums;
+}
+.session .s-stat .n { font-size: var(--fs-xs); font-weight: var(--weight-medium); color: var(--text-muted); }
+.session .s-stat.tone-warn .n { color: var(--danger-ink); }
+.session .s-stat.tone-good .n { color: var(--accent-ink); }
+.session .s-stat .v, .session .s-stat .s-spark { height: 20px; line-height: 20px; }
+.session .s-notes { display: grid; gap: 4px; margin-top: 10px; font-size: var(--fs-sm); }
+.session .s-note { display: flex; gap: 10px; align-items: baseline; }
+.session .s-note .k {
+  flex: 0 0 64px; font-size: var(--fs-2xs); font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-muted);
+}
+.session .s-note .v { color: var(--text-body); }
+.session .s-spark { display: block; }
 .dry-toggle {
   float: right; display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--fs-sm); color: var(--text-muted); cursor: pointer; user-select: none;

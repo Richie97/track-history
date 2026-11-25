@@ -39,6 +39,7 @@ import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.Session
 import app.trackevolution.core.model.SharedItem
+import app.trackevolution.ui.SessionStatsStrip
 import app.trackevolution.ui.LoadState
 import app.trackevolution.ui.LocalChannelFreeNote
 import app.trackevolution.ui.LocalLayoutMetrics
@@ -364,9 +365,7 @@ private fun SharedSessionCard(
                 )
             }
         }
-        session.statsSummary(units)?.let {
-            Text(it, style = TrackTheme.typography.xs, color = colors.textMuted, modifier = Modifier.padding(top = 4.dp))
-        }
+        SessionStatsStrip(session.statItems(units), session.lapTimesMs, Modifier.padding(top = 8.dp))
         session.laps.forEach { lap ->
             LapRow(lap = lap, isBest = best != null && lap.timeMs == best, onOpen = null, onDelete = null)
         }
