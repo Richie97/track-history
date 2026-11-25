@@ -630,12 +630,8 @@ struct EventScreen: View {
 
     private func sessionSection(_ model: EventModel, _ session: Session) -> some View {
         Section {
-            if let stats = session.statsSummary(units: auth.units) {
-                row {
-                    Text(stats)
-                        .teStyle(.xs)
-                        .foregroundStyle(Color(.textMuted))
-                }
+            row {
+                SessionStatsStrip(items: session.statItems(units: auth.units), laps: session.lapTimesMs)
             }
             if let notes = session.notes, !notes.isEmpty {
                 row {
@@ -1249,6 +1245,101 @@ struct SessionEditSheet: View {
                     }
                     .disabled(isSaving)
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Session stats strip
+
+/// A session's stats as a wrapping row of small labelled figures, led by a
+/// sparkline of its lap times — the web's `sessionStatsHtml`. It used to be one
+/// " · "-joined sentence, which read as a paragraph of numbers.
+struct SessionStatsStrip: View {
+    let items: [SessionStat]
+    let laps: [Int]
+
+    /// Two points are a line, not a shape (`SPARK_MIN_LAPS`).
+    static let SPARK_MIN_LAPS = 3
+
+    var body: some View {
+        let spark = laps.count >= Self.SPARK_MIN_LAPS
+        if spark || !items.isEmpty {
+            FlowRow(spacing: 8) {
+                if spark {
+                    cell("Lap times") {
+                        LapSparkline(laps: laps).frame(width: 96, height: 26)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Self.sparkSpoken(laps))
+                }
+                ForEach(items) { item in
+                    cell(item.label) {
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text(item.value)
+                                .teStyle(item.text ? TETextStyle.sm : TETextStyle.bodyStrong)
+                                .monospacedDigit()
+                                .foregroundStyle(item.text ? Color(.textBody) : Color(.textStrong))
+                                .fixedSize(horizontal: !item.text, vertical: true)
+                            if let note = item.note {
+                                Text(note)
+                                    .teStyle(.xs)
+                                    .foregroundStyle(item.tone == .warn ? Color(.dangerInk) : item.tone == .good ? Color(.accentInk) : Color(.textMuted))
+                            }
+                        }
+                    }
+                    .frame(maxWidth: item.text ? 300 : nil, alignment: .leading)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(item.spoken)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("sessionStats")
+        }
+    }
+
+    static func sparkSpoken(_ laps: [Int]) -> String {
+        let best = (laps.firstIndex(of: laps.min() ?? 0) ?? 0) + 1
+        return "Lap times across the session, \(laps.count) laps; best was lap \(best)"
+    }
+
+    private func cell<Content: View>(_ label: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .teStyle(.eyebrow)
+                .foregroundStyle(Color(.textMuted))
+            content()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.surfaceRaised), in: .rect(cornerRadius: TERadius.sm))
+        .overlay(RoundedRectangle(cornerRadius: TERadius.sm).stroke(Color(.borderHairline), lineWidth: 1))
+    }
+}
+
+/// Lap times across a session: one point per lap, **slower plotted higher**
+/// (the progress chart's rule — down is faster), the best lap dotted.
+struct LapSparkline: View {
+    let laps: [Int]
+
+    var body: some View {
+        Canvas { context, size in
+            guard laps.count >= 2, let lo = laps.min(), let hi = laps.max() else { return }
+            let pad: CGFloat = 3
+            let span = CGFloat(max(hi - lo, 1))
+            let stepX = (size.width - pad * 2) / CGFloat(laps.count - 1)
+            let points = laps.enumerated().map { i, ms in
+                CGPoint(
+                    x: pad + CGFloat(i) * stepX,
+                    y: pad + (1 - CGFloat(ms - lo) / span) * (size.height - pad * 2)
+                )
+            }
+            var path = Path()
+            path.addLines(points)
+            context.stroke(path, with: .color(Color(.chartDim)), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+            if let best = laps.firstIndex(of: lo) {
+                let p = points[best]
+                context.fill(Path(ellipseIn: CGRect(x: p.x - 3, y: p.y - 3, width: 6, height: 6)), with: .color(Color(.chartLine)))
             }
         }
     }

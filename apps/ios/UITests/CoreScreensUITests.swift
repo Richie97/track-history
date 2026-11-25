@@ -154,11 +154,11 @@ final class CoreScreensUITests: XCTestCase {
         // The ported `lap-stats.js` analysis, and the event's recomputed aggregates.
         // Both sit above the laps, and the page is a lazy list that has scrolled
         // down to the form it just saved: back up to them, or they aren't drawn.
-        let stats = app.staticTexts.containing(NSPredicate(format: "label CONTAINS 'best 3 avg'")).firstMatch
+        let stats = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Best 3 avg'")).firstMatch
         for _ in 0..<8 where !stats.exists {
             app.collectionViews.firstMatch.swipeDown(velocity: .slow)
         }
-        XCTAssertTrue(stats.exists, "the per-session stats line should report the best-3 average")
+        XCTAssertTrue(stats.exists, "the per-session stats strip should report the best-3 average")
         for _ in 0..<6 where !(app.staticTexts["1:01.2"].exists || app.staticTexts["2:01.2"].exists) {
             app.collectionViews.firstMatch.swipeDown(velocity: .slow)
         }

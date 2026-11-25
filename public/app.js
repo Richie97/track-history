@@ -14,7 +14,8 @@ import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
   lengthMismatchRatio,
 } from "./js/compare-laps.js";
-import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
+import { bestNAvg } from "./js/lap-stats.js";
+import { lapStatItems, sessionStatsHtml } from "./js/session-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
 import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
@@ -3138,42 +3139,29 @@ async function viewEvent(eventId) {
       const lapsHtml = s.channels?.laps?.length
         ? `<div data-channel-graphs="${s.id}"></div>`
         : `<div class="laps" data-plain-laps="${esc(s.id)}">${plainLapsHtml(s)}</div>`;
-      // Session analysis from the laps we already have: representative pace,
-      // how long it took to get up to speed, and whether pace faded late.
-      const stats = [];
-      const b3 = bestNAvg(lapsMs, 3);
-      if (b3 != null) stats.push(`best 3 avg <span class="t">${fmtMs(b3)}</span>`);
-      const warm = warmupLapCount(lapsMs);
-      if (warm != null) stats.push(warm === 1 ? "on pace from lap 1" : `up to speed by lap ${warm}`);
-      const slope = paceSlope(lapsMs);
-      if (slope != null)
-        stats.push(
-          `pace ${fmtDelta(slope)}/lap${slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""}`
-        );
+      // Session analysis as a strip of labelled figures (js/session-stats.js):
+      // representative pace, how long it took to get up to speed and whether
+      // pace faded, from the laps alone — then what the channel data adds.
+      const stats = lapStatItems(lapsMs);
+      const ch = s.channels?.laps?.length ? s.channels : null;
       // Sector analysis (js/sectors.js): what stringing the session's best
       // sectors together would have been worth. The splits themselves are in
       // the channel panel below.
-      const sec = pro() && s.channels?.laps?.length ? sessionSectors(s.channels) : null;
+      const sec = pro() && ch ? sessionSectors(ch) : null;
       if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
-        stats.push(`theoretical best <span class="t">${fmtMs(sec.theoreticalBestMs)}</span>`);
-      // Shift points (js/gears.js): the typical upshift rpm across the
-      // session; the per-gear breakdown sits in the channel panel.
-      const sp = s.channels?.laps?.length ? shiftPoints(s.channels) : null;
-      if (sp) stats.push(`upshifts ≈ <span class="t">${fmtRpm(sp.medianRpm)}</span> rpm`);
-      // Where the car hit its limit (js/limits.js): ABS / traction / slip,
-      // counted as places on track across the session. The marks themselves
-      // are on the best-lap trace and shaded on the pedal traces.
-      const lim = s.channels?.laps?.length ? limitSummary(s.channels) : null;
-      if (lim) stats.push(esc(lim));
-      // Balance (js/balance.js): the corners whose rotation sits off this
-      // car's typical response, pooled across the session; the per-corner
-      // table and the scatter are on the panel's Grip tab.
-      const bal = s.channels?.laps?.length ? balanceSummary(s.channels) : null;
-      if (bal) stats.push(esc(bal));
-      // Car health (js/health.js): any slow reading past its watch line, and
-      // the fuel outlook; the strip itself is the panel's Car tab.
-      const car = s.channels?.laps?.length ? healthSummary(s.channels, usUnits()) : null;
-      if (car) stats.push(esc(car));
+        stats.push({ key: "theoretical", label: "Theoretical best", value: fmtMs(sec.theoreticalBestMs) });
+      // Shift points (js/gears.js): the typical upshift rpm across the session.
+      const sp = ch ? shiftPoints(ch) : null;
+      if (sp) stats.push({ key: "upshifts", label: "Upshifts", value: `${fmtRpm(sp.medianRpm)} rpm` });
+      // Where the car hit its limit (js/limits.js), the corners whose rotation
+      // sits off this car's typical response (js/balance.js) and any slow
+      // reading past its watch line (js/health.js) — each a short sentence.
+      const lim = ch ? limitSummary(ch) : null;
+      if (lim) stats.push({ key: "limits", label: "Limits", value: lim, text: true });
+      const bal = ch ? balanceSummary(ch) : null;
+      if (bal) stats.push({ key: "balance", label: "Balance", value: bal, text: true });
+      const car = ch ? healthSummary(ch, usUnits()) : null;
+      if (car) stats.push({ key: "car", label: "Car", value: car, text: true });
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -3189,7 +3177,7 @@ async function viewEvent(eventId) {
           }
         </div>
         ${ro ? "" : `<div class="panel share-item" id="share-panel-${s.id}" data-share-panel="${s.id}" hidden></div>`}
-        ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
+        ${sessionStatsHtml(stats, lapsMs)}
         ${s.notes ? `<div class="notes-block" data-session-notes="${s.id}">${esc(s.notes)}</div>` : ""}
         ${
           ro
