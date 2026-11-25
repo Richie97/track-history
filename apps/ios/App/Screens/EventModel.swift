@@ -253,7 +253,9 @@ extension Session {
             items.append(SessionStat(key: "balance", label: "Balance", value: balance, text: true))
         }
         if let channels, let health = Health.healthSummary(channels, Health.Units(units)) {
-            items.append(SessionStat(key: "car", label: "Car", value: health, text: true))
+            // `healthSummary` leads with "car: " for the old one-line sentence; the label says it here.
+            let value = health.hasPrefix("car: ") ? String(health.dropFirst(5)) : health
+            items.append(SessionStat(key: "car", label: "Car", value: value, text: true))
         }
         return items
     }

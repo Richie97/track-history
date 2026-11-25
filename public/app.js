@@ -3161,7 +3161,8 @@ async function viewEvent(eventId) {
       const bal = ch ? balanceSummary(ch) : null;
       if (bal) stats.push({ key: "balance", label: "Balance", value: bal, text: true });
       const car = ch ? healthSummary(ch, usUnits()) : null;
-      if (car) stats.push({ key: "car", label: "Car", value: car, text: true });
+      // healthSummary leads with "car: " for the old one-line sentence; the label says it here.
+      if (car) stats.push({ key: "car", label: "Car", value: car.replace(/^car:\s*/i, ""), text: true });
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>

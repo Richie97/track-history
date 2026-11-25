@@ -266,7 +266,9 @@ fun Session.statItems(units: UnitSystem): List<SessionStat> {
         // any figure past its line (`Health`, #190) — each a short sentence.
         Limits.limitSummary(ch)?.let { items += SessionStat("limits", "Limits", it, text = true) }
         Balance.balanceSummary(ch)?.let { items += SessionStat("balance", "Balance", it, text = true) }
-        Health.healthSummary(ch, Units.healthUnits(units))?.let { items += SessionStat("car", "Car", it, text = true) }
+        // `healthSummary` leads with "car: " for the old one-line sentence; the label says it here.
+        Health.healthSummary(ch, Units.healthUnits(units))
+            ?.let { items += SessionStat("car", "Car", it.removePrefix("car: "), text = true) }
     }
     return items
 }
