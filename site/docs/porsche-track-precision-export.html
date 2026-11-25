@@ -77,7 +77,7 @@
           {
             "@type": "HowToStep",
             "position": 2,
-            "text": "Share the file to Track Evolution, or save it to Files, open the event in the Track Evolution app, tap Import video and pick it. A VBO export goes by way of Files."
+            "text": "Share the file to Track Evolution, or save it to Files, open the event in the Track Evolution app, tap Import video (Import video or VBO… on Android), which takes data files too, and pick it. A VBO export goes by way of Files."
           },
           {
             "@type": "HowToStep",
@@ -189,31 +189,29 @@
     <h1>How to export Porsche Track Precision laps and data</h1>
     <p class="lede">
       Porsche's Track Precision app records lap times, GPS and the car's own
-      data on your phone, and it can export a session as a file. Track
-      Evolution reads both of its export formats, CSV and VBO, on the phone
-      or in the browser, so the laps and data from the Porsche sit in the
-      same logbook as every other day you've driven.
+      data on your phone, and can export a session as CSV or VBO. Track
+      Evolution reads both, on the phone or in the browser, so the Porsche's
+      laps and data sit in the same logbook as every other day you've
+      driven.
     </p>
 
     <h2 id="need">What you need</h2>
     <ul>
-      <li>A session recorded in the Track Precision app.</li>
-      <li>That session <strong>exported from the app as CSV or VBO</strong>.
-        Choose CSV when you can: it carries the app's own lap times.</li>
+      <li>A session recorded in the Track Precision app,
+        <strong>exported from the app as CSV or VBO</strong>. Choose CSV
+        when you can: it carries the app's own lap times.</li>
       <li>A free Track Evolution account, in the iPhone or Android app or
         on the web at
         <a href="https://trackevolution.app">trackevolution.app</a>.</li>
     </ul>
 
     <h2 id="phone">On your phone</h2>
-    <p>
-      Track Precision records on your phone, so the export is already there.
-    </p>
     <ol id="howto-phone">
       <li>Export the session from Track Precision.</li>
       <li>Share the file to Track Evolution, or save it to Files, open the
-        event in the Track Evolution app, tap <strong>Import video</strong>
-        and pick it. A VBO export goes by way of Files.</li>
+        event in the Track Evolution app, tap
+        <strong>Import video</strong> (<strong>Import video or VBO…</strong> on Android),
+        which takes data files too, and pick it. A VBO export goes by way of Files.</li>
       <li>Check the laps in the review, then save.</li>
     </ol>
 
@@ -237,8 +235,8 @@
         <tbody>
           <tr>
             <td><strong>CSV</strong></td>
-            <td>Track Precision's own lap timer: the same times the app
-              showed you</td>
+            <td>Track Precision's own lap timer: the times the app showed
+              you</td>
             <td>No</td>
           </tr>
           <tr>
@@ -252,10 +250,9 @@
       </table>
     </div>
     <p>
-      With a CSV export, a lap is kept when the app's timer ran the whole
-      way round, so a lap with a pit stop in it is left out. If the timer
-      never finished a lap in a recording, the review shows the track map
-      and you pick the line yourself. See
+      A CSV lap is kept when the app's timer ran the whole way round, so a
+      lap with a pit stop in it is left out. If the timer never finished a
+      lap, the review shows the track map and you pick the line. See
       <a href="./telemetry-import.html#line-picker">the start/finish line
       picker</a>.
     </p>
@@ -264,11 +261,11 @@
     <ul>
       <li><strong>Lap times</strong> for every full lap, and the session's
         best.</li>
-      <li><strong>Your racing line</strong> for the best lap, drawn as a
-        track map.</li>
-      <li><strong>Graphs for every lap</strong>, laid over each other by
-        distance around the track: speed, throttle, brake, steering, RPM
-        and gear, and cornering and braking force.</li>
+      <li><strong>Your racing line</strong> for the best lap, as a track
+        map.</li>
+      <li><strong>Graphs for every lap</strong>, overlaid by distance around
+        the track: speed, throttle, brake, steering, RPM, gear, and
+        cornering and braking force.</li>
       <li><strong>Tire pressures</strong>, lap by lap.</li>
     </ul>
     <p>
@@ -278,17 +275,18 @@
     </p>
 
     <h2 id="free-pro">What is free and what is Pro</h2>
+    <ul>
+      <li><strong>Free</strong>, with no limit on files: importing, the lap
+        times, the racing line, and the speed, throttle and brake graphs
+        for every lap.</li>
+      <li><strong><a href="./#subscription">Track Evolution Pro</a></strong>
+        ($1.99 a month or $19.99 a year):
+        the other graphs, sector splits and a theoretical best lap,
+        lap-against-lap time deltas, the friction circle and the tire
+        pressure readings.</li>
+    </ul>
     <p>
-      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, and the speed, throttle and brake
-      graphs for every lap.
-      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
-      $19.99 a year, one subscription across the web, iPhone and Android)
-      adds the other graphs, sector splits and a theoretical best lap,
-      lap-against-lap time deltas, the friction circle and the tire
-      pressure readings.
-    </p>
-    <p>
-      Track Precision's video isn't part of either export, so there is no
+      Neither export includes Track Precision's video, so there is no
       best-lap video to save.
     </p>
 
@@ -298,8 +296,8 @@
         a CSV from something else, or an export without position. Export
         the session again from Track Precision.</li>
       <li><strong>"Track Precision CSV contains no usable GPS
-        data".</strong> The recording has no positions in it, which happens
-        when the phone had no GPS position during the session.</li>
+        data".</strong> The phone had no GPS position during the
+        session.</li>
       <li><strong>The review shows a map and no laps.</strong> The app's
         timer finished no lap in this recording. Click the start/finish
         line on the map.</li>
@@ -314,11 +312,8 @@
       <a href="./vbo-file-lap-times.html">how to get lap times from a VBO
       file</a>. For the tire pressures, see
       <a href="./tire-pressures.html">track-day tire pressures</a>.
-    </p>
-    <p>
-      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
-      every supported source side by side, the start/finish line picker, and
-      what the channel graphs show once a session is in.
+      <a href="./telemetry-import.html">Telemetry import</a> covers every
+      supported source and what the graphs show.
     </p>
 
     <nav class="docs-pager">

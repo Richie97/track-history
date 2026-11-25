@@ -189,10 +189,10 @@
     <h1>How to get lap times from Cadillac Blackwing PDR video</h1>
     <p class="lede">
       The Performance Data Recorder (PDR) in Cadillac's V-Series Blackwing
-      cars times laps itself and saves them, with the car's data, inside the
-      video file. Track Evolution reads that file on your own computer or
-      phone and brings the recorder's lap times in exactly as the car timed
-      them, with no start/finish line to set.
+      cars times laps itself and saves them, with the car's data, inside
+      each video. Track Evolution imports those lap times exactly as the car
+      timed them, with no start/finish line to set. Importing reads the video on your computer or phone and uploads
+      nothing; a lap clip is uploaded only if you save one with Pro.
     </p>
 
     <h2 id="need">What you need</h2>
@@ -202,7 +202,6 @@
       <li>A free Track Evolution account, on the web at
         <a href="https://trackevolution.app">trackevolution.app</a> or in the
         iPhone or Android app.</li>
-      <li>An event in your logbook for the day, or make one as you import.</li>
     </ul>
 
     <h2 id="browser">In the browser</h2>
@@ -228,20 +227,16 @@
         <strong>Share</strong> on Android).</li>
       <li>Check the laps in the review, then save.</li>
     </ol>
-    <p>
-      The video is read where it sits, and it is never uploaded.
-    </p>
 
     <h2 id="laps">Where the lap times come from</h2>
     <p>
-      From the recorder's own lap timer. Each lap the car timed arrives with
-      the time the car gave it, to the millisecond, so the numbers in your
-      logbook match the ones the car showed you.
+      From the recorder's own lap timer, to the millisecond, so your logbook
+      matches what the car showed you.
     </p>
     <p>
-      If the car's timer wasn't timing laps during a recording, the file has
-      none to import. The review then shows the track map you drove:
-      <strong>click where the start/finish line is</strong> and laps are
+      A recording made while the car's timer wasn't timing laps shows the
+      track map you drove.
+      <strong>Click where the start/finish line is</strong> and laps are
       timed on each pass across it, to within a few tenths of a second and
       marked with a <code>~</code>. See
       <a href="./telemetry-import.html#line-picker">the start/finish line
@@ -252,14 +247,13 @@
     <ul>
       <li><strong>Lap times</strong> for every timed lap, and the session's
         best.</li>
-      <li><strong>Your racing line</strong> for the best lap, drawn as a
-        track map.</li>
+      <li><strong>Your racing line</strong> for the best lap, as a track
+        map.</li>
       <li><strong>Top speed, max RPM and max lateral G</strong> for the
         session.</li>
-      <li><strong>Graphs for every lap</strong>, laid over each other by
-        distance around the track: speed, throttle, brake, steering, RPM
-        and gear, cornering and braking force, and where ABS or traction
-        control cut in.</li>
+      <li><strong>Graphs for every lap</strong>, overlaid by distance around
+        the track: speed, throttle, brake, steering, RPM, gear, cornering
+        and braking force, and where ABS or traction control cut in.</li>
       <li><strong>The car's health, lap by lap</strong>: oil, coolant and
         transmission temperatures, oil pressure, tire pressures and
         temperatures, and fuel. This recorder doesn't log battery
@@ -267,42 +261,42 @@
     </ul>
 
     <h2 id="free-pro">What is free and what is Pro</h2>
-    <p>
-      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, the session's top figures, and the
-      speed, throttle and brake graphs for every lap.
-      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
-      $19.99 a year, one subscription across the web, iPhone and Android)
-      adds the other graphs, sector splits and a theoretical best lap, lap-against-lap
-      time deltas, the friction circle, the car-health readings and
-      <a href="./telemetry-import.html#best-lap-video">best-lap video</a>: a
-      clip of your fastest lap, or of every lap, kept with the session.
-    </p>
+    <ul>
+      <li><strong>Free</strong>, with no limit on files: importing, the lap
+        times, the racing line, the session's top figures, and the speed,
+        throttle and brake graphs for every lap.</li>
+      <li><strong><a href="./#subscription">Track Evolution Pro</a></strong>
+        ($1.99 a month or $19.99 a year):
+        the other graphs, sector splits and a theoretical best lap,
+        lap-against-lap time deltas, the friction circle, the car-health
+        readings and
+        <a href="./telemetry-import.html#best-lap-video">best-lap video</a>
+        (a clip of your fastest lap, or of every lap, kept with the
+        session).</li>
+    </ul>
 
     <h2 id="trouble">If it doesn't work</h2>
     <ul>
       <li><strong>The review shows a map and no laps.</strong> The car's lap
         timer timed none in this recording. Click the start/finish line on
         the map.</li>
-      <li><strong>"No laps cross the picked line".</strong> Click a different
-        spot, on a part of the track the car drove on every lap.</li>
+      <li><strong>"No laps cross the picked line".</strong> Click a part of
+        the track the car drove on every lap.</li>
       <li><strong>"No PDR, SmartyCam or GoPro telemetry in this
-        video".</strong> The file has no data track. A video that was
-        re-encoded, trimmed in an editor or downloaded from a sharing site
-        has lost it; use the original from the SD card.</li>
+        video".</strong> The file has no data track. Re-encoding, trimming
+        in an editor or downloading from a sharing site removes it; use the
+        original from the SD card.</li>
     </ul>
 
     <h2 id="related">Related</h2>
     <p>
       The Corvette's recorder marks the line a different way: see
-      <a href="./corvette-pdr-lap-times.html">Corvette PDR video</a>. For
-      what to do with the graphs, start with
+      <a href="./corvette-pdr-lap-times.html">Corvette PDR video</a>. To
+      read the graphs, start with
       <a href="./lap-delta.html">how to find time with a lap delta</a> and
       <a href="./friction-circle.html">how to read a friction circle</a>.
-    </p>
-    <p>
-      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
-      every supported source side by side, the start/finish line picker, and
-      what the channel graphs show once a session is in.
+      <a href="./telemetry-import.html">Telemetry import</a> covers every
+      supported source and what the graphs show.
     </p>
 
     <nav class="docs-pager">

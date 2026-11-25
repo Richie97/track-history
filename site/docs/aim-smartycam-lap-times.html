@@ -189,10 +189,10 @@
     <h1>How to get lap times from AiM SmartyCam video</h1>
     <p class="lede">
       An AiM SmartyCam wired to an AiM dash or logger stores the logger's
-      data inside the video, alongside the picture it draws it over. Track
-      Evolution reads that data from the camera's <code>.MOV</code> file and
-      imports the logger's own lap times, the ones on your dash, with no
-      start/finish line to set. The video stays on your computer or phone.
+      data inside the video. Track Evolution reads it from the camera's
+      <code>.MOV</code> file and imports the logger's own lap times, the
+      ones on your dash, with no start/finish line to set. The video stays
+      on your computer or phone.
     </p>
 
     <h2 id="need">What you need</h2>
@@ -200,15 +200,14 @@
       <li>The camera's video files (<code>.MOV</code>) from its memory
         card. One recording is one session.</li>
       <li>Lap timing working on the AiM dash or logger during the session.
-        The laps come from it, so a recording made while it timed no laps
-        has none to import.</li>
+        A recording made while it timed no laps has none to import.</li>
       <li>A free Track Evolution account, on the web at
         <a href="https://trackevolution.app">trackevolution.app</a> or in the
         iPhone or Android app.</li>
     </ul>
     <p>
-      It is the camera's video that is read. AiM's logger files themselves
-      (from Race Studio) aren't.
+      Only the camera's video is read. AiM's logger files (from Race Studio)
+      aren't.
     </p>
 
     <h2 id="browser">In the browser</h2>
@@ -237,40 +236,38 @@
 
     <h2 id="laps">Where the lap times come from</h2>
     <p>
-      From the AiM logger. Each lap arrives with the time the logger gave
-      it, so your logbook matches your dash and nothing is estimated.
-    </p>
-    <p>
-      A lap is imported when both of its line crossings are in the video.
-      That leaves out the out-lap, and a lap cut off by the end of the
-      recording.
+      From the AiM logger, so your logbook matches your dash and nothing is
+      estimated. A lap is imported when both of its line crossings are in
+      the video, which leaves out the out-lap and a lap cut off by the end
+      of the recording.
     </p>
 
     <h2 id="get">What you get</h2>
     <ul>
-      <li><strong>Lap times</strong> for every full lap in the video, and
-        the session's best.</li>
-      <li><strong>Your racing line</strong> for the best lap, drawn as a
-        track map.</li>
-      <li><strong>Graphs for every lap</strong>, laid over each other by
-        distance around the track: speed, and the RPM, throttle and gear
-        the camera stored.</li>
+      <li><strong>Lap times</strong> for every full lap, and the session's
+        best.</li>
+      <li><strong>Your racing line</strong> for the best lap, as a track
+        map.</li>
+      <li><strong>Graphs for every lap</strong>, overlaid by distance around
+        the track: speed, and the RPM, throttle and gear the camera
+        stored.</li>
     </ul>
     <p>
       Which car readings a file carries depends on how the camera and
-      logger are set up. A reading the file doesn't have, or one that
-      doesn't look right, is left out and the rest still imports.
+      logger are set up. A reading that is missing or doesn't look right is
+      left out, and the rest still imports.
     </p>
 
     <h2 id="free-pro">What is free and what is Pro</h2>
-    <p>
-      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, and the speed and throttle graphs for
-      every lap.
-      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
-      $19.99 a year, one subscription across the web, iPhone and Android)
-      adds the RPM and gear graphs with your shift points, sector splits and a
-      theoretical best lap, and lap-against-lap time deltas.
-    </p>
+    <ul>
+      <li><strong>Free</strong>, with no limit on files: importing, the lap
+        times, the racing line, and the speed and throttle graphs for every
+        lap.</li>
+      <li><strong><a href="./#subscription">Track Evolution Pro</a></strong>
+        ($1.99 a month or $19.99 a year):
+        the RPM and gear graphs with your shift points, sector splits and a
+        theoretical best lap, and lap-against-lap time deltas.</li>
+    </ul>
     <p>
       <a href="./telemetry-import.html#best-lap-video">Best-lap video</a>
       isn't saved from SmartyCam files yet.
@@ -280,30 +277,25 @@
     <ul>
       <li><strong>"This recording wasn't finished by the camera and can't
         be read."</strong> The camera lost power before it closed the file.
-        That recording can't be imported; the others on the card can.</li>
+        The other recordings on the card still import.</li>
       <li><strong>The session has no laps, or fewer than you drove.</strong>
         Only laps the logger timed, with both crossings in the video, are
         imported. A recording that starts after you crossed the line loses
-        its first lap, and one made while the logger timed no laps has
-        none.</li>
+        its first lap.</li>
       <li><strong>"No GPS data in this SmartyCam video".</strong> The
         logger had no GPS position during the recording.</li>
       <li><strong>"No PDR, SmartyCam or GoPro telemetry in this
-        video".</strong> The file isn't the camera's original. A video that
-        was edited or re-encoded has lost its data; use the one from the
-        card.</li>
+        video".</strong> The file isn't the camera's original. Editing or
+        re-encoding removes the data; use the one from the card.</li>
     </ul>
 
     <h2 id="related">Related</h2>
     <p>
-      For what to do with the graphs, see
+      To read the graphs, see
       <a href="./shift-points.html">when to shift on track</a> and
       <a href="./lap-delta.html">how to find time with a lap delta</a>.
-    </p>
-    <p>
-      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
-      every supported source side by side, the start/finish line picker, and
-      what the channel graphs show once a session is in.
+      <a href="./telemetry-import.html">Telemetry import</a> covers every
+      supported source and what the graphs show.
     </p>
 
     <nav class="docs-pager">
