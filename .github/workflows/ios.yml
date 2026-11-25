@@ -4,6 +4,10 @@
 # the path filter and superseded runs are cancelled. It triggers on contracts/**
 # too: a golden change has to be proven against the Swift decoders in the same PR
 # that makes it.
+#
+# Two jobs, in parallel, because the Kit's tests need neither the app build nor
+# a simulator. Both carry a timeout: a job with none runs to GitHub's six-hour
+# default, and one hung run here did sit for 410 minutes.
 name: iOS
 
 on:
@@ -13,35 +17,30 @@ on:
   pull_request:
     paths: ["apps/ios/**", "contracts/**", ".github/workflows/ios.yml"]
 
+# Both jobs only read the repository (checkout, and the cache action, which
+# uses its own token), so the workflow's GITHUB_TOKEN is held to that.
+permissions:
+  contents: read
+
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  # The Kit builds for macOS as well as iOS precisely so its tests need no
+  # simulator: `swift test` runs the whole suite in seconds, where
+  # `xcodebuild test` would boot one first for the same result.
+  #
+  # `swift test` rewrites the Kit's Package.resolved with the Kit's dependencies
+  # alone. That is harmless here — this job has its own checkout, and the strict
+  # resolve that guards the committed file runs in the other job.
+  kit:
+    name: Kit tests (no simulator)
     runs-on: macos-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      # Xcode Cloud resolves packages with automatic resolution disabled, so an
-      # app build reads the *committed* apps/ios/Packages/TrackEvolutionKit/
-      # Package.resolved as is — and that file carries the app's pins
-      # (firebase-ios-sdk and its tree) as well as the Kit's. `swift test` in
-      # the Kit rewrites it with the Kit's dependencies alone, and committing
-      # that rewrite broke every Xcode Cloud archive after NS-45 merged. This
-      # runs the same strict resolve first, before anything here touches the
-      # file, so a stripped Package.resolved fails the PR instead of the release.
-      - name: Package.resolved matches the app's dependencies (as Xcode Cloud resolves)
-        working-directory: apps/ios
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project TrackEvolution.xcodeproj \
-            -scheme TrackEvolution \
-            -disableAutomaticPackageResolution
-
-      # The Kit builds for macOS as well as iOS precisely so its tests need no
-      # simulator: `swift test` runs the whole suite in seconds, where
-      # `xcodebuild test` would boot one first for the same result.
       - name: Cache SPM
         uses: actions/cache@v4
         with:
@@ -49,9 +48,21 @@ jobs:
           key: spm-${{ runner.os }}-${{ hashFiles('apps/ios/Packages/TrackEvolutionKit/Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
 
-      - name: Kit tests (no simulator)
+      - name: Kit tests
         working-directory: apps/ios/Packages/TrackEvolutionKit
         run: swift test
+
+  app:
+    name: App build and unit tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      # One place for the package checkouts and one for the build products, so
+      # the resolve, the build and the test run all read the same ones.
+      SOURCE_PACKAGES: ${{ github.workspace }}/.spm
+      DERIVED_DATA: ${{ github.workspace }}/.derived
+    steps:
+      - uses: actions/checkout@v4
 
       # Apple has granted com.apple.developer.carplay-driving-task, so the key is now
       # checked in (NS-19) and this guard runs the other way: dropping it would
@@ -78,23 +89,34 @@ jobs:
             exit 1
           fi
 
-      # Unsigned simulator build: no signing secret is a prerequisite for green.
-      - name: Build the app
+      # The package checkouts and Firebase's binary artifacts, which are what
+      # the resolve below spends its time downloading. Keyed on the resolved
+      # file alone, with no restore-keys: a different set of pins starts clean
+      # rather than from another set's checkouts.
+      - name: Cache package checkouts
+        uses: actions/cache@v4
+        with:
+          path: .spm
+          key: xcode-spm-${{ runner.os }}-${{ hashFiles('apps/ios/Packages/TrackEvolutionKit/Package.resolved') }}
+
+      # Xcode Cloud resolves packages with automatic resolution disabled, so an
+      # app build reads the *committed* apps/ios/Packages/TrackEvolutionKit/
+      # Package.resolved as is — and that file carries the app's pins
+      # (firebase-ios-sdk and its tree) as well as the Kit's. `swift test` in
+      # the Kit rewrites it with the Kit's dependencies alone, and committing
+      # that rewrite broke every Xcode Cloud archive after NS-45 merged. This
+      # runs the same strict resolve, so a stripped Package.resolved fails the
+      # PR instead of the release. A restored cache does not weaken it: the
+      # pins are still checked against the project, only the download is saved.
+      - name: Package.resolved matches the app's dependencies (as Xcode Cloud resolves)
         working-directory: apps/ios
         run: |
-          xcodebuild build \
+          xcodebuild -resolvePackageDependencies \
             -project TrackEvolution.xcodeproj \
             -scheme TrackEvolution \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES" \
+            -disableAutomaticPackageResolution
 
-      # The app target's own unit tests (NS-34). This is the one thing here that
-      # boots a simulator, and it is a deliberate trade: the layout breakpoints
-      # are duplicated on Android by design — the class comes from each
-      # platform's window APIs, so neither pure-logic module may hold it — and
-      # a test on each platform is what stops the duplication becoming drift.
-      # Only this bundle: the UI tests need `npm run dev` and skip without it.
-      #
       # The device is whatever the runner image has, since the simulator
       # catalogue moves with Xcode and pinning a model name is how this job
       # starts failing on an image bump that has nothing to do with the app.
@@ -105,8 +127,7 @@ jobs:
       # guards it with `canImport(SwiftUI, _version:)`, so 27.0 still builds,
       # answering flat), and `runs-on` moves to whichever label carries 27.1
       # (ticket 2), pinned and said so.
-      - name: App unit tests
-        working-directory: apps/ios
+      - name: Pick a simulator
         run: |
           device=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [^(]+' | sed 's/ *$//')
           if [ -z "$device" ]; then
@@ -114,9 +135,41 @@ jobs:
             exit 1
           fi
           echo "Running on $device"
-          xcodebuild test \
+          echo "DESTINATION=platform=iOS Simulator,name=$device" >> "$GITHUB_ENV"
+
+      # Unsigned simulator build: no signing secret is a prerequisite for green.
+      #
+      # The app is built ONCE, for the simulator the tests run on, and the test
+      # step below runs what this one built. These used to be `xcodebuild build`
+      # for the generic simulator followed by `xcodebuild test` for a named one,
+      # which compiled the app and every package twice and was most of this
+      # job's time. Keep the destination, the two paths and -only-testing the
+      # same in both steps, or the second quietly becomes a build again.
+      - name: Build the app and its unit tests
+        working-directory: apps/ios
+        run: |
+          xcodebuild build-for-testing \
             -project TrackEvolution.xcodeproj \
             -scheme TrackEvolution \
-            -destination "platform=iOS Simulator,name=$device" \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES" \
+            -disableAutomaticPackageResolution \
             -only-testing:TrackEvolutionTests \
             CODE_SIGNING_ALLOWED=NO
+
+      # The app target's own unit tests (NS-34). This is the one thing here that
+      # boots a simulator, and it is a deliberate trade: the layout breakpoints
+      # are duplicated on Android by design — the class comes from each
+      # platform's window APIs, so neither pure-logic module may hold it — and
+      # a test on each platform is what stops the duplication becoming drift.
+      # Only this bundle: the UI tests need `npm run dev` and skip without it.
+      - name: App unit tests
+        working-directory: apps/ios
+        run: |
+          xcodebuild test-without-building \
+            -project TrackEvolution.xcodeproj \
+            -scheme TrackEvolution \
+            -destination "$DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA" \
+            -only-testing:TrackEvolutionTests
