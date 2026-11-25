@@ -1,0 +1,4 @@
+- One + button on the home screen to add an event, import laps or record laps.
+- Import laps without picking an event first: each file is matched to its track and grouped into events for you.
+- Clearer, shorter wording throughout, and easier-to-read session stats.
+- Bug fixes and polish.

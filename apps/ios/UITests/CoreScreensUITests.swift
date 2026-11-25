@@ -242,8 +242,8 @@ final class CoreScreensUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts[try XCTUnwrap(email)].exists, "with the signed-in account"
         )
-        // Cars moved to their own tab (NS-37); Settings keeps a row that goes there.
-        XCTAssertTrue(app.buttons["openGarage"].exists, "Settings should point at the Garage")
+        // Cars are the Garage tab's (NS-37); Settings no longer points there.
+        XCTAssertFalse(app.buttons["openGarage"].exists, "Settings carries no Garage row")
         XCTAssertTrue(app.buttons["Sign out"].exists)
 
         // A year is an identifier, not a quantity. `Text` interpolation formats a bare

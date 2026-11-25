@@ -4678,11 +4678,6 @@ async function viewSettings(params = new URLSearchParams()) {
       </div>
       <div id="units-error"></div>
     </div>
-    <h2>Cars</h2>
-    <div class="panel">
-      <div class="hint" style="margin:0 0 10px">Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.</div>
-      <a class="btn small" href="#/garage">Open the Garage →</a>
-    </div>
     <h2>Coaching</h2>
     <div class="panel">
       <div class="hint" style="margin:0 0 10px">Share your logbook read-only with an instructor or coach, fill in the driver profile they see, and open the logbooks of drivers you coach.</div>
