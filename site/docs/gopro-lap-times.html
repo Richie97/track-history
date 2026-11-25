@@ -193,28 +193,25 @@
   <article class="docs-content">
     <h1>How to get lap times from GoPro video</h1>
     <p class="lede">
-      A GoPro with GPS records where the camera was alongside the picture,
-      which is enough to time laps. Track Evolution reads that GPS straight
-      from the video file, shows you the track you drove, and times a lap
-      each time the car crosses the start/finish line you pick. The video
-      stays on your computer or phone.
+      A GoPro with GPS records where the camera was alongside the picture.
+      Track Evolution reads that GPS from the video file, draws the track
+      you drove, and times a lap each time the car crosses the start/finish
+      line you pick. The video stays on your computer or phone.
     </p>
     <p>
-      You pick the line once per track. The next import from a track you have
-      already timed uses the line your last session there used, and the map is
-      still there if you want to move it.
+      You pick the line once per track. Later imports from that track use
+      your last session's line, and you can still move it on the map.
     </p>
 
     <h2 id="need">What you need</h2>
     <ul>
       <li><strong>A GoPro that records GPS</strong>, HERO5 or newer. Not
-        every model has it (the HERO12 Black has none), so check yours.</li>
+        every model has it (the HERO12 Black has none).</li>
       <li><strong>GPS switched on</strong> in the camera's settings before
-        you record. Footage shot with it off has no positions in it and
-        can't be timed afterwards.</li>
+        you record. Footage shot with it off can't be timed afterwards.</li>
       <li><strong>The camera's original files</strong> (<code>.mp4</code>).
-        A video that was edited, re-encoded or downloaded from a sharing
-        site has lost its GPS.</li>
+        Editing, re-encoding or downloading from a sharing site removes the
+        GPS.</li>
       <li>A free Track Evolution account, on the web at
         <a href="https://trackevolution.app">trackevolution.app</a> or in the
         iPhone or Android app.</li>
@@ -252,58 +249,59 @@
         save.</li>
     </ol>
     <p>
-      The video is read where it sits. Nothing is copied, so a long session
-      needs no extra free space on the phone.
+      Nothing is copied, so a long session needs no extra free space on the
+      phone.
     </p>
 
     <h2 id="laps">How accurate the lap times are</h2>
     <p>
       A GoPro records its position 10 to 18 times a second, and a lap is
-      timed between the positions either side of the line. That puts each
-      lap within roughly 0.1 to 0.3 seconds, which is why the times carry a
-      <code>~</code>. It is plenty for seeing whether you got faster and how
+      timed between the positions either side of the line. Each lap is
+      within roughly 0.1 to 0.3 seconds, so the times carry a
+      <code>~</code>. That is enough to see whether you got faster and how
       consistent you were. <a href="./phone-gps-lap-timing.html">Phone GPS
-      versus a dedicated lap timer</a> covers what that precision is and
-      isn't good for.
+      versus a dedicated lap timer</a> covers what that precision is good
+      for.
     </p>
 
     <h2 id="get">What you get</h2>
     <ul>
       <li><strong>Lap times</strong> for every full lap, and the session's
         best.</li>
-      <li><strong>Your racing line</strong> for the best lap, drawn as a
-        track map.</li>
-      <li><strong>A speed graph for every lap</strong>, laid over each
-        other by distance around the track.</li>
+      <li><strong>Your racing line</strong> for the best lap, as a track
+        map.</li>
+      <li><strong>A speed graph for every lap</strong>, overlaid by distance
+        around the track.</li>
     </ul>
     <p>
       A GoPro isn't connected to the car, so there is no throttle, brake,
-      RPM or steering in the footage.
+      RPM or steering.
     </p>
 
     <h2 id="free-pro">What is free and what is Pro</h2>
-    <p>
-      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line and the speed graph for every lap.
-      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
-      $19.99 a year, one subscription across the web, iPhone and Android)
-      adds sector splits and a theoretical best lap, lap-against-lap time deltas,
-      and <a href="./telemetry-import.html#best-lap-video">best-lap
-      video</a>: your fastest lap cut out of the footage and kept with the
-      session, playing in step with its graphs.
-    </p>
+    <ul>
+      <li><strong>Free</strong>, with no limit on files: importing, the lap
+        times, the racing line and the speed graph for every lap.</li>
+      <li><strong><a href="./#subscription">Track Evolution Pro</a></strong>
+        ($1.99 a month or $19.99 a year):
+        sector splits and a theoretical best lap, lap-against-lap time
+        deltas, and
+        <a href="./telemetry-import.html#best-lap-video">best-lap video</a>
+        (your fastest lap cut out of the footage and kept with the session,
+        playing in step with its graphs).</li>
+    </ul>
 
     <h2 id="trouble">If it doesn't work</h2>
     <ul>
       <li><strong>"No GPS data in this video (was GPS enabled on the
-        camera?)".</strong> The camera recorded no positions. Either GPS was
-        off, the model has none, or it never found a position. That footage
-        can't be timed; turn GPS on for next time, and type this session's
-        laps in by hand if you have them.</li>
+        camera?)".</strong> GPS was off, the model has none, or the camera
+        never found a position. This footage can't be timed; type the
+        session's laps in by hand if you have them.</li>
       <li><strong>"No PDR, SmartyCam or GoPro telemetry in this
         video".</strong> The file isn't the camera's original. Use the one
         from the SD card.</li>
-      <li><strong>"No laps cross the picked line".</strong> Click a different
-        spot, on a part of the track the car drove on every lap.</li>
+      <li><strong>"No laps cross the picked line".</strong> Click a part of
+        the track the car drove on every lap.</li>
       <li><strong>The first lap is missing.</strong> A lap needs a crossing
         at each end, so the out-lap and the lap you pitted on aren't
         counted.</li>
@@ -311,15 +309,12 @@
 
     <h2 id="related">Related</h2>
     <p>
-      For what the speed graph can tell you, see
+      To read the speed graph, see
       <a href="./lap-delta.html">how to find time with a lap delta</a> and
       <a href="./lap-consistency.html">lap time consistency and your
       theoretical best</a>.
-    </p>
-    <p>
-      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
-      every supported source side by side, the start/finish line picker, and
-      what the channel graphs show once a session is in.
+      <a href="./telemetry-import.html">Telemetry import</a> covers every
+      supported source and what the graphs show.
     </p>
 
     <nav class="docs-pager">
