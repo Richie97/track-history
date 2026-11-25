@@ -177,10 +177,7 @@ struct VehicleScreen: View {
         // picker: the swap is now, and on a track day the server puts it after
         // the last session logged; editing the new part corrects either.
         .confirmationDialog(
-            "Fresh set of the same part? This retires the current one now (keeping its history) and installs "
-                + "a new one with the same details — hours reset to zero. If you're at the track, the swap goes "
-                + "in after the last session logged; edit the new part to change when it went on, or its cost "
-                + "or compound.",
+            "Fresh set of the same part? This retires the current one, keeping its history, and installs a new one with the same details.",
             isPresented: .init(get: { confirmingRefresh != nil }, set: { if !$0 { confirmingRefresh = nil } }),
             titleVisibility: .visible
         ) {
@@ -318,12 +315,7 @@ struct VehicleScreen: View {
             } else if model.proLocked {
                 ProUpsellCard(
                     title: "Consumables, hours and costs",
-                    blurb: """
-                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
-                        accrued from this car's own track days — a wear projection, reminders before \
-                        the next event, and what the car has cost you. The car and what it has done \
-                        stay free.
-                        """
+                    blurb: "Hours on pads, tires, rotors and fluid, wear projections, reminders before an event, and what the car has cost."
                 )
             } else if let error = model.garageError {
                 TEErrorBanner(message: error)
@@ -488,18 +480,13 @@ struct VehicleScreen: View {
     @ViewBuilder
     private func proSection(_ model: VehicleModel) -> some View {
             TESectionHeader("On the car")
-            Text("""
-                Wear accrues automatically from this car's logged events — the logged lap time on days \
-                with 3+ laps, else 1 h 15 m per track day, unless an event says otherwise — but only while a part is equipped: switch it off to put a set on \
-                the shelf, and on again to swap it back. Log a quick pad or tread measurement between \
-                events and the projection switches from estimated to measured.
-                """)
+            Text("Wear accrues from this car's events while a part is equipped. Log a measurement and the projection goes from estimated to measured.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
 
             if model.activeParts.isEmpty {
                 // "Below": the + Add part button follows the shelf.
-                TEEmpty("Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due.")
+                TEEmpty("Nothing tracked yet — add pads, tires or fluid below.")
             } else {
                 ForEach(model.activeParts) { part in
                     partCard(model, part)
@@ -509,10 +496,7 @@ struct VehicleScreen: View {
             // The shelf (migration 0029): off the car, not thrown away.
             if !model.spareParts.isEmpty {
                 TESectionHeader("Spares")
-                Text("""
-                    Off the car but not retired — a second set of wheels, the street pads. Their hours \
-                    are frozen until you equip them, which takes off whatever is in their place.
-                    """)
+                Text("Off the car, not retired. Hours freeze until you equip them.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 ForEach(model.spareParts) { part in
@@ -1816,7 +1800,7 @@ struct VehicleFormSheet: View {
                                 .foregroundStyle(Color(.textFaint))
                                 .accessibilityIdentifier("catalogSource")
                         }
-                        Text("Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.")
+                        Text("Optional, from the spec sheet. They sharpen the understeer / oversteer read-out.")
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textFaint))
                     }
@@ -1913,7 +1897,7 @@ struct VehicleFormSheet: View {
     private var catalogField: some View {
         TEField(
             label: "Find your car in the catalog (optional)",
-            hint: "Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes, and a car the catalog doesn't know is just typed in below."
+            hint: "Picking a car fills in its wheelbase and steering ratio. Not listed? Just type the name."
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 Button {

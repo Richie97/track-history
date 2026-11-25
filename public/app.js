@@ -146,9 +146,8 @@ const ent = () =>
 // What a coach is told where the student's channels stop at the free half —
 // in place of the paywall, which is the student's to answer, not theirs.
 const studentFreeNote = () =>
-  `${esc(viewing?.name || "This driver")} is on the free plan, so you see their lap times, racing lines and the ` +
-  "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the rest " +
-  "of the analysis show here once they have Pro.";
+  `${esc(viewing?.name || "This driver")} is on the free plan, so you see lap times, racing lines and the ` +
+  "speed, throttle and brake traces. The rest shows once they have Pro.";
 
 // The same sentence for anyone opening a shared event or session (NS-48) —
 // a statement about the driver's plan, never an offer to the reader.
@@ -246,16 +245,13 @@ function proNoteHtml(text) {
 // the one sentence every free channel panel ends on. "Where the recording
 // carries them" because a GoPro clip has none of these for anyone.
 const PRO_CHANNELS_NOTE =
-  "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw traces, " +
-  "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a theoretical best, " +
-  "the car-health strip, and lap-vs-lap delta charts.";
+  "Pro adds every other channel the recording carries, sector splits, lap deltas, grip and car health.";
 
 // What a free account gets from an import — said the same way wherever the
 // importer is offered, because the event page and the new-event form used to
 // disagree about which traces were free.
 const IMPORT_FREE_NOTE =
-  "Importing is free — you get the lap times, the racing line, top speed, RPM and lateral G, and the " +
-  "per-lap speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
+  "Importing is free: lap times, the racing line, and speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
 
 // ---------- garage & setup-sheet renderers -----------------------------------
 
@@ -497,7 +493,7 @@ function setupHistoryHtml(setupRows, partsById) {
     })
     .join("");
   return `<h2>Setup vs. lap times</h2>
-    <div class="hint" style="margin:0 0 4px">Every setup sheet logged at this track, oldest first, with what changed between sheets. Best and consistency are the event's — decide for yourself what a change bought you.</div>
+    <div class="hint" style="margin:0 0 4px">Every setup sheet here, oldest first, with what changed. Best and consistency are the event's.</div>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Setup changes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
@@ -1041,11 +1037,11 @@ async function viewDashboard() {
       <div class="panel welcome">
         ${emptyHtml({
           title: "Welcome to Track Evolution",
-          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a video or a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
+          body: "Start with an event — the track, the date, the car. Then add laps: import a file, type them in, or record with the Track Evolution app.",
           action: { label: "Add your first event", href: "#/new" },
         })}
         <div class="welcome-guide">
-          <a href="#/import">Have files from a track day already? Import them — the track and the dates are found for you.</a>
+          <a href="#/import">Already have files? Import them — the track and dates are found for you.</a>
         </div>
         <div class="welcome-guide">
           <a href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">New to track days? Start here ↗</a>
@@ -1077,7 +1073,7 @@ async function viewDashboard() {
         })}
     ${hasHistory ? `<h2>Share your history</h2>
     <div class="panel share-panel">
-      <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
+      <div class="hint" style="margin:0 0 10px">A read-only page of your bests and history. Notes stay private.</div>
       <div class="btn-row">
         <span class="share-url">
           <span class="share-prefix">${esc(serverHost())}/share/</span>
@@ -1143,7 +1139,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
   if (lb.opted_in && !you && viewerBestMs != null)
-    yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the Track Evolution app or import telemetry to appear.";
+    yourNote = "Only device-timed laps rank. Record or import a lap here to appear.";
   else if (you && viewerBestMs != null && viewerBestMs < you.best_ms)
     yourNote = `Your best here (${fmtMs(viewerBestMs)}) was entered by hand and isn't ranked.`;
   // A row is openable when its owner published the lap itself (NS-35) — the
@@ -1169,13 +1165,13 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   // driver is looking at exactly what it would publish.
   const shareControl = lb.opted_in
     ? lb.share_laps
-      ? `<div class="hint" style="margin:4px 0 0">Your ranked lap is open to other drivers here — its racing line and telemetry, and nothing else from your logbook. <button class="btn small" id="lb-unshare">Stop sharing my laps</button></div>`
-      : `<div class="hint" style="margin:4px 0 0">Your ranked lap is a time only. Sharing it lets other drivers ranked here open its racing line and telemetry — never your notes, your car, your setup or any other lap. <button class="btn small" id="lb-share">Share my ranked laps</button></div>`
+      ? `<div class="hint" style="margin:4px 0 0">Other drivers here can open your ranked lap — its racing line and telemetry only. <button class="btn small" id="lb-unshare">Stop sharing my laps</button></div>`
+      : `<div class="hint" style="margin:4px 0 0">Your ranked lap shows its time only. Sharing adds its racing line and telemetry — nothing else. <button class="btn small" id="lb-share">Share my ranked laps</button></div>`
     : "";
   const optControl = lb.opted_in
-    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
-    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
-  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the Track Evolution app or imported from telemetry count; hand-entered times don't.</div>
+    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards, with your name and best device-timed lap. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
+    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares your name and best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
+  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps here. Hand-entered times don't count.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -1588,8 +1584,7 @@ function noTelemetryAction(events, trackName) {
 async function viewLapCompare(trackId, params) {
   destroyAllStages();
   if (!canViewChannels(ent())) return viewProGate(trackId, "Compare two laps",
-    "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
-      "speed, throttle, brake and steering side by side, and sector splits.");
+    "Any two laps here, head to head: the time delta, the traces side by side and sector splits.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Channel data lives on event details. The prefetcher warms these after any
   // dashboard visit, so this is mostly cache reads — and works offline.
@@ -1603,7 +1598,7 @@ async function viewLapCompare(trackId, params) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
       ${emptyHtml({
-        body: "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the Track Evolution app.",
+        body: "Comparing needs two laps with telemetry here — import or record a session.",
         action: readOnly() ? null : noTelemetryAction(allEvents, trackName),
       })}`);
     return;
@@ -1751,7 +1746,7 @@ function renderLapPair(sides, headHtml) {
     ${sectorsHtml}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
-      <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the playhead there.</div>
+      <div class="hint" style="margin:2px 0 6px">Delta shows where time is gained or lost; the channels show why. Tap a chart to move the playhead.</div>
       <div class="ch-graphs" id="cmp-charts">${chartsHtml}</div>
     </div>
     </div>
@@ -2019,7 +2014,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   const noneHtml = pick
     ? ""
     : emptyHtml({
-        body: "You have no lap with telemetry at this track yet, so there's nothing to overlay. Import a session, or record laps with the Track Evolution app, and this page will put the two side by side.",
+        body: "No lap of yours with telemetry here yet. Import or record one to compare.",
         action: noTelemetryAction(myEvents, track?.name),
         compact: true,
       });
@@ -2038,7 +2033,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
       ${
         pick && proOk
-          ? `<div class="hint" style="margin:2px 0 6px">The delta chart shows where you gain or lose against this lap; the channels below show why.</div>`
+          ? `<div class="hint" style="margin:2px 0 6px">Delta shows where you gain or lose against this lap; the channels show why.</div>`
           : ""
       }
       <div class="ch-graphs" id="lb-charts">${chartsHtml}</div>
@@ -2049,8 +2044,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
         ? ""
         : proPanelHtml(
             "The rest of this lap",
-            (pick ? "The delta chart that shows where you gain or lose against this lap, sector splits, and " : "Sector splits, lap-vs-lap deltas against your own laps, and ") +
-              "the steering, RPM, lateral G and yaw traces where the recording carries them."
+            "Lap deltas, sector splits and every other channel the recording carries."
           )
     }
   `);
@@ -3328,7 +3322,7 @@ async function viewEvent(eventId) {
       ${setupsAllowed ? setupDays.map(setupDayHtml).join("") : ""}
       ${
         setupsAllowed && !e.vehicle_id && garage.length
-          ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
+          ? `<div class="hint" style="margin:6px 0 0">Tip: pick a garage car for this event and setups carry over between its events.</div>`
           : ""
       }
     </details>`;
@@ -3416,7 +3410,7 @@ async function viewEvent(eventId) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${
@@ -4200,7 +4194,7 @@ function catalogFieldHtml(id, pick, { hint = true } = {}) {
         placeholder="Corvette C7, MX-5 ND, 718 Cayman…">
       <div class="combo-list" id="${id}" role="listbox" hidden></div>
     </div>
-    ${hint ? `<div class="hint">Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes, and a car the catalog doesn't know is just typed in.</div>` : ""}
+    ${hint ? `<div class="hint">Picking a car fills in its wheelbase and steering ratio. Not listed? Just type the name.</div>` : ""}
   </div>`;
 }
 
@@ -4260,7 +4254,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
               value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="Virginia International Raceway (Full)">
             <div class="combo-list" id="track-combo-list" role="listbox" hidden></div>
           </div>
-          <div class="hint">Pick from your tracks and known US tracks, or type a new name — layouts time differently, so name them separately ("Virginia International Raceway (Full)" vs "(Patriot)") to keep PBs honest</div>
+          <div class="hint">Pick a track or type a new one. Name each layout separately — "(Full)" vs "(Patriot)".</div>
         </div>
         <div class="field"><label>Start date</label>
           <input name="start_date" type="date" required value="${esc(existing?.start_date ?? new Date().toISOString().slice(0, 10))}">
@@ -4270,7 +4264,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
         </div>
         <div class="field"><label>On-track hours (optional)</label>
           <input name="track_hours" type="number" min="0.5" max="200" step="0.5" value="${existing?.track_hours ?? ""}" placeholder="from laps, or 1h15m/day">
-          <div class="hint">Seat time for consumable wear tracking — leave blank to use your logged laps (with 3 or more), else 1h15m per day</div>
+          <div class="hint">For wear tracking. Blank uses your logged lap time, else 1h15m per day</div>
         </div>
         <div class="field"><label>Club / organizer</label>
           <input name="club" value="${esc(existing?.club ?? "")}" placeholder="VIR Club">
@@ -4311,13 +4305,13 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <input name="${field}" type="number" min="0" max="100000" step="0.01" inputmode="decimal" value="${centsToDollars(existing?.[field])}" placeholder="${esc(placeholder)}"></div>`
         ).join("")}
       </div>
-      <div class="field"><div class="hint">Rolled up per track, per car and in Year in review — where it prices the seconds you found. Private: never on your share page.</div></div>
+      <div class="field"><div class="hint">Private. Rolled up per track, per car and in Year in review.</div></div>
     </form>
     ${
       existing
         ? ""
         : `<h2>Add laps</h2>
-    <div class="hint" style="margin:-4px 0 10px">Optional — pull the laps out of a video or logger file, or type them in, and they're saved with the event. You can always add more from the event page.</div>
+    <div class="hint" style="margin:-4px 0 10px">Optional — import a file or type laps in. You can add more later.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,video/quicktime,.mp4,.mov,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
@@ -4326,7 +4320,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${
@@ -4490,7 +4484,7 @@ async function viewImport() {
   ]);
   const view = shell(`
     <h1>Import laps</h1>
-    <div class="hint" style="margin:-4px 0 12px">Drop the files from one track day or several. Each is matched to its track by where it was driven and grouped into events by date — you check the result before anything is saved.</div>
+    <div class="hint" style="margin:-4px 0 12px">Drop files from any mix of days. Each is matched to its track and grouped into events — nothing saves until you confirm.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,video/quicktime,.mp4,.mov,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
@@ -4499,7 +4493,7 @@ async function viewImport() {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer, and neither does where they were recorded until you save</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${canViewChannels(state.entitlement) ? "" : proNoteHtml(IMPORT_FREE_NOTE)}
@@ -4957,10 +4951,7 @@ async function viewSettings(params = new URLSearchParams()) {
 // What a free account is shown in place of the garage's Pro half, here and on
 // a car's page: locked in place, never simply missing.
 const GARAGE_PRO_WHAT =
-  "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
-  "your own track days — a wear projection from your measurements, reminders before the next " +
-  "event, and what the car has cost you: its parts and its track days. Your cars and what " +
-  "they've done stay free.";
+  "Hours on pads, tires, rotors and fluid, wear projections, reminders before an event, and what the car has cost.";
 
 async function viewGarage() {
   const pro = canUseGarage(state.entitlement);
@@ -5052,7 +5043,7 @@ async function viewGarage() {
   };
   let addPick = null;
   bindCatalogPicker(vehAdd.catalog, view.querySelector("#veh-add-catalog-list"), carCatalog, {
-    emptyText: "No car in the catalog matches that — add it by name, and set its wheelbase and steering ratio on its page.",
+    emptyText: "No match — add it by name.",
     onPick: (row) => {
       addPick = row;
       if (vehAdd.name.value.trim() === "") vehAdd.name.value = catalogCarName(row);
@@ -5228,7 +5219,7 @@ async function viewVehicle(vehicleId) {
     if (!p.equipped) return "";
     const min = (p.mounts ?? []).find((m) => m.removed_on == null)?.mounted_on ?? p.installed_on;
     return `<form class="btn-row equip-form" data-equip-form="${p.id}" hidden>
-      <span class="hint-inline" id="equip-note-${p.id}">Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on.</span>
+      <span class="hint-inline" id="equip-note-${p.id}">Take it off the car? It moves to Spares and stops wearing.</span>
       <input name="on" type="date" required value="${today}" min="${esc(min)}" max="${today}" aria-label="Swap date">
       ${swapSelectHtml()}
       <button class="btn small primary">Take off</button>
@@ -5338,7 +5329,7 @@ async function viewVehicle(vehicleId) {
       <div class="hint" id="veh-measured" hidden></div>
       <div id="veh-asks"></div>
       <div class="hint" id="veh-source" ${initialPick ? "" : "hidden"}>${initialPick ? esc(initialPick.source) : ""}</div>
-      <div class="hint">Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.</div>
+      <div class="hint">Optional, from the spec sheet. They sharpen the understeer / oversteer read-out.</div>
       <div id="veh-error"></div>
       <div class="btn-row">
         <button class="btn small primary">Save</button>
@@ -5423,12 +5414,12 @@ async function viewVehicle(vehicleId) {
     }
     ${logbookLineHtml()}
     <h2>On the car</h2>
-    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
-    ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due." })}
+    <div class="hint" style="margin:0 0 4px">Wear accrues from this car's events while a part is equipped. Log a measurement and the projection goes from estimated to measured.</div>
+    ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below." })}
     ${
       shelf.length
         ? `<h2>Spares</h2>
-    <div class="hint" style="margin:0 0 4px">Off the car but not retired — a second set of wheels, the street pads. Their hours are frozen until you equip them, which takes off whatever is in their place.</div>
+    <div class="hint" style="margin:0 0 4px">Off the car, not retired. Hours freeze until you equip them.</div>
     ${shelf.map(partCard).join("")}`
         : ""
     }
@@ -5691,7 +5682,7 @@ async function viewVehicle(vehicleId) {
   });
   view.querySelectorAll("[data-part-refresh]").forEach((btn) => {
     btn.onclick = async () => {
-      if (!confirm("Fresh set of the same part? This retires the current one now (keeping its history) and installs a new one with the same details — hours reset to zero. If you're at the track, the swap goes in after the last session logged; edit the new part to change when it went on, or its cost or compound."))
+      if (!confirm("Fresh set of the same part? This retires the current one, keeping its history, and installs a new one with the same details."))
         return;
       try {
         await api(`/parts/${btn.dataset.partRefresh}/refresh`, { method: "POST", body: {} });
@@ -5951,8 +5942,7 @@ async function viewYear(params) {
       <h1>Year in review</h1>
       ${proPanelHtml(
         "Year in review",
-        "Your season in one page: events, track days and laps logged, tracks visited, and how " +
-          "much time you found at each of them against every year before.",
+        "Your season on one page: events, laps, tracks, and the time you found at each.",
         { underHeading: true }
       )}
       <p class="sub">Season Wrapped is free: <a href="#/wrapped${params.get("y") ? `/${esc(params.get("y"))}` : ""}">see your season as a story →</a></p>
@@ -6128,10 +6118,8 @@ const dateOfMs = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
 // What a coach reads, as the Coaching page promises it before an invite is
 // made — keep it in step with COACH_ROUTES in src/lib/coaching.ts.
 const COACH_SHARES =
-  "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
-  "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
-  "notes, prep checklists, costs, setup sheets, parts or email. They can't change anything; they can leave " +
-  "comments on your sessions and laps, which only you and that coach see.";
+  "your events, laps, telemetry, lap videos, cars and driver profile. Never your notes, checklists, costs, " +
+  "setup sheets, parts or email. They can't change anything; their comments are seen only by you and them.";
 
 // Removing a coach stops new viewing at once, but a video URL already handed
 // out keeps playing for up to an hour, and any player can save the file (NS-45).
@@ -6231,15 +6219,14 @@ async function viewCoaching() {
           </div>`
         : proPanelHtml(
             "Share with a coach",
-            "Send an instructor or coach a link that gives them read-only access to your logbook — every " +
-              "session, the channel graphs and your racing lines — so they can prepare before the next track day."
+            "Send a coach a link for read-only access to your logbook: every session, its telemetry and racing lines."
           )
     }
     <h3 style="margin:18px 0 6px">Coaches who can see your logbook</h3>
     <div class="panel" id="coaches-panel">${coachesHtml}</div>
     <div class="hint" style="margin:6px 0 0">${esc(COACH_VIDEO_REVOKE)}</div>
     <h2>Driver profile</h2>
-    <div class="hint" style="margin:0 0 4px">What your coaches see about you — your experience, your gear and what you want to work on. Only you and the coaches you've invited can see it.</div>
+    <div class="hint" style="margin:0 0 4px">What your coaches see about you. Only you and they can see it.</div>
     ${profileCardHtml(me.profile, { empty: `<div class="panel">${emptyHtml({ body: "Not filled in yet.", compact: true })}</div>` })}
     <div class="btn-row"><a class="btn small" href="#/profile">${me.profile ? "Edit profile" : "Fill in your profile"}</a></div>
     <div id="coaching-error"></div>
@@ -6353,7 +6340,7 @@ async function viewProfile() {
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/coaching">← Coaching</a></p>
     <h1>Driver profile</h1>
-    <p class="sub">What the coaches you've invited see about you. Only you and them — it's never on your share page or the leaderboards. There's no birth date or emergency contact here on purpose: tell your instructor those at the track.</p>
+    <p class="sub">Only you and your coaches see this. No birth date or emergency contact here — tell your instructor at the track.</p>
     <form class="panel" id="profile-form">
       ${PROFILE_GROUPS.map(
         (g) => `<h3>${esc(g.title)}</h3>
@@ -6467,7 +6454,7 @@ async function viewAcceptInvite() {
     <h1>Coaching invite</h1>
     <div class="panel">
       <p><strong>${esc(name)}</strong> wants to share their Track Evolution logbook with you, read-only.</p>
-      <p class="hint">You'll see their events, sessions and laps with the channel graphs, their racing lines, their cars and modifications, and their driver profile — not their notes, costs, setup sheets or email. Either of you can end it at any time from the Coaching page.</p>
+      <p class="hint">You'll see their events, laps, telemetry, cars and driver profile — not their notes, costs or setup sheets. Either of you can end it any time.</p>
       <p class="hint">Accepting shows ${esc(name)} your name and profile picture, and when you last looked at their logbook.</p>
       <div class="btn-row">
         <button class="btn primary" id="invite-accept">Accept</button>

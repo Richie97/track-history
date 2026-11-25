@@ -85,10 +85,7 @@ struct CoachingScreen: View {
             } else {
                 ProUpsellCard(
                     title: "Share with a coach",
-                    blurb: """
-                        Send an instructor or coach a link that gives them read-only access to your logbook — every \
-                        session, the channel graphs and your racing lines — so they can prepare before the next track day.
-                        """
+                    blurb: "Send a coach a link for read-only access to your logbook: every session, its telemetry and racing lines."
                 )
             }
 
@@ -113,10 +110,7 @@ struct CoachingScreen: View {
                 .foregroundStyle(Color(.textMuted))
 
             TESectionHeader("Driver profile")
-            Text("""
-                What your coaches see about you — your experience, your gear and what you want to work on. \
-                Only you and the coaches you've invited can see it.
-                """)
+            Text("What your coaches see about you. Only you and they can see it.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
                 .fixedSize(horizontal: false, vertical: true)
@@ -260,11 +254,7 @@ struct CoachingScreen: View {
     /// What a coach reads, as the page promises it before an invite is made —
     /// `COACH_SHARES` in `public/app.js`, kept in step with `COACH_ROUTES` in
     /// `src/lib/coaching.ts`.
-    static let coachShares = """
-        your events, sessions and laps with the full channel panel (as far as your plan includes it), your \
-        racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your \
-        notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything.
-        """
+    static let coachShares = "your events, laps, telemetry, lap videos, cars and driver profile. Never your notes, checklists, costs, setup sheets, parts or email — and they can't change anything."
 
     /// `COACH_VIDEO_REVOKE` in `public/app.js`, word for word.
     static let videoRevoke = "Removing a coach stops them watching your videos; it can't take back a video they saved."
@@ -322,11 +312,7 @@ private struct CreatedInvite: View {
                     .accessibilityLabel("QR code for the invite link")
                     .accessibilityIdentifier("inviteQR")
             }
-            Text("""
-                Send this to your coach, or let them scan the code. It works once, \
-                \(Coaching.inviteExpiryText(invite.expiresAt, now: CoachingScreen.nowMs)), and can't be shown \
-                again — make a new one if it gets lost.
-                """)
+            Text("Send this to your coach, or let them scan it. It works once, \(Coaching.inviteExpiryText(invite.expiresAt, now: CoachingScreen.nowMs)), and can't be shown again.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
                 .fixedSize(horizontal: false, vertical: true)

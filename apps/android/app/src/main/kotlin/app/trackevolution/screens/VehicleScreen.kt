@@ -322,12 +322,7 @@ fun VehicleScreen(
                 item("parts-header") { TESectionHeader("On the car") }
                 item("parts-hint") {
                     Text(
-                        "Wear accrues automatically from this car's logged events (the logged lap " +
-                            "time on days with 3+ laps, else 1h15m per track day, unless an event says " +
-                            "otherwise), but only while a part is equipped — flip " +
-                            "the switch off to put a set on the shelf, and on again to swap it back. Log " +
-                            "a quick pad or tread measurement between events and the projection switches " +
-                            "from estimated to measured.",
+                        "Wear accrues from this car's events while a part is equipped. Log a measurement and the projection goes from estimated to measured.",
                         style = TrackTheme.typography.xs,
                         color = colors.textMuted,
                     )
@@ -336,8 +331,7 @@ fun VehicleScreen(
                 if (model.activeParts.isEmpty()) {
                     item("parts-empty") {
                         TEEmpty(
-                            "Nothing tracked yet — add pads, tires or fluid below and Track Evolution " +
-                                "will tell you when they're due.",
+                            "Nothing tracked yet — add pads, tires or fluid below.",
                         )
                     }
                 } else {
@@ -365,9 +359,7 @@ fun VehicleScreen(
                     item("spares-header") { TESectionHeader("Spares") }
                     item("spares-hint") {
                         Text(
-                            "Off the car but not retired — a second set of wheels, the street pads. " +
-                                "Their hours are frozen until you equip them, which takes off whatever " +
-                                "is in their place.",
+                            "Off the car, not retired. Hours freeze until you equip them.",
                             style = TrackTheme.typography.xs,
                             color = colors.textMuted,
                         )
@@ -453,10 +445,7 @@ fun VehicleScreen(
     // edit form corrects when it went on. The web page's words.
     partById(model, confirmRefreshId)?.let { part ->
         TEConfirmDialog(
-            text = "Fresh set of the same part? This retires the current one now (keeping its history) and " +
-                "installs a new one with the same details — hours reset to zero. If you're at the track, the " +
-                "swap goes in after the last session logged; edit the new part to change when it went on, or " +
-                "its cost or compound.",
+            text = "Fresh set of the same part? This retires the current one, keeping its history, and installs a new one with the same details.",
             confirm = "Fit fresh set",
             onConfirm = { confirmRefreshId = null; model.refreshPart(part.id) },
             onDismiss = { confirmRefreshId = null },
@@ -1752,8 +1741,7 @@ internal fun VehicleForm(
             // only reason to pick rather than type.
             TEField(
                 "Find your car in the catalog (optional)",
-                hint = "Picking a car fills in the wheelbase and steering ratio the balance read-out " +
-                    "uses — nothing else changes, and a car the catalog doesn't know is just typed in below.",
+                hint = "Picking a car fills in its wheelbase and steering ratio. Not listed? Just type the name.",
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -1848,9 +1836,7 @@ internal fun VehicleForm(
                 )
             }
             Text(
-                "Both are on the spec sheet or in the owner's manual. They let the balance read-out say " +
-                    "how much understeer, rather than only which corner differs from the rest — leave " +
-                    "them blank and it keeps the relative reading.",
+                "Optional, from the spec sheet. They sharpen the understeer / oversteer read-out.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
             )

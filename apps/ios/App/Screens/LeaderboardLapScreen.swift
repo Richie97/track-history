@@ -112,14 +112,13 @@ struct LeaderboardLapScreen: View {
                 header(lap)
                 if view.mine == nil {
                     TEEmpty(
-                        "You have no lap with telemetry at this track yet, so there's nothing to overlay. "
-                            + "Import a session, or record laps with the app, and this screen will put the two side by side.",
+                        "No lap of yours with telemetry here yet. Import or record one to compare.",
                         action: owner.isReadOnly ? nil : noTelemetryAction(model)
                     )
                 } else {
                     minePicker(model, view)
                     if view.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
-                        Text("⚠️ These laps cover driven distances \(Int((view.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
+                        Text("⚠️ These laps cover driven distances \(Int((view.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line.")
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textMuted))
                     }
@@ -130,7 +129,7 @@ struct LeaderboardLapScreen: View {
                 headToHead(view)
                 Text(view.mine == nil || !pro
                     ? "Tap a chart to move the playhead there."
-                    : "The delta chart shows where you gain or lose against this lap; the channels below show why. Tap a chart to move the playhead there.")
+                    : "Delta shows where you gain or lose against this lap; the channels show why. Tap a chart to move the playhead.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 LapChannelPanel(

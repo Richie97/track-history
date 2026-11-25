@@ -92,8 +92,7 @@ fun EventFormScreen(
             item("track") {
                 SuggestingField(
                     label = "Track",
-                    hint = "Pick from your tracks and known US tracks, or type a new name — " +
-                        "layouts time differently, so name them separately to keep PBs honest",
+                    hint = "Pick a track or type a new one. Name each layout separately — \"(Full)\" vs \"(Patriot)\".",
                     value = model.trackName,
                     onValueChange = { model.trackName = it },
                     placeholder = "Virginia International Raceway (Full)",
@@ -283,10 +282,7 @@ private fun AddLapsCard(
 
         Text("Import a video or VBO", style = type.bodyStrong, color = colors.textStrong)
         Text(
-            "Corvette or Cadillac PDR clips, GoPro or AiM SmartyCam clips, or a .vbo or Track Precision .csv log, already on this " +
-                "device — laps, " +
-                "racing line and channel graphs come out of the telemetry. The file is read " +
-                "in place, never copied or uploaded.",
+            "PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.",
             style = type.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(vertical = 6.dp),

@@ -93,7 +93,7 @@ struct LeaderboardScreen: View {
     /// page's own headline, or a missing one.
     private func board(_ model: LeaderboardModel, _ leaderboard: TrackLeaderboard) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app or imported from telemetry count; hand-entered times don't.")
+            Text("Best device-timed laps here. Hand-entered times don't count.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
             if leaderboard.entries.isEmpty {
@@ -122,7 +122,7 @@ struct LeaderboardScreen: View {
             }
             if leaderboard.optedIn {
                 HStack(spacing: 8) {
-                    Text("You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers.")
+                    Text("You're on the leaderboards, with your name and best device-timed lap.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     Spacer(minLength: 4)
@@ -134,7 +134,7 @@ struct LeaderboardScreen: View {
                 // place a driver is looking at exactly what it would publish.
                 if leaderboard.shareLaps == true {
                     HStack(spacing: 8) {
-                        Text("Your ranked lap is open to other drivers here — its racing line and telemetry, and nothing else from your logbook.")
+                        Text("Other drivers here can open your ranked lap — its racing line and telemetry only.")
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textFaint))
                         Spacer(minLength: 4)
@@ -144,7 +144,7 @@ struct LeaderboardScreen: View {
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Your ranked lap is a time only. Sharing it lets other drivers ranked here open its racing line and telemetry — never your notes, your car, your setup or any other lap.")
+                        Text("Your ranked lap shows its time only. Sharing adds its racing line and telemetry — nothing else.")
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textFaint))
                         Button("Share my ranked laps") {
@@ -155,7 +155,7 @@ struct LeaderboardScreen: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap.")
+                    Text("You're not on the leaderboards. Joining shares your name and best device-timed lap.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     Button("Join leaderboards") { Task { await model.setLeaderboardOptIn(true) } }
@@ -225,7 +225,7 @@ struct LeaderboardScreen: View {
         guard let logbookBest = model.logbookBest else { return nil }
         let you = leaderboard.entries.first { $0.you }
         if leaderboard.optedIn, you == nil {
-            return "None of your laps here were timed by a device, so you aren't ranked yet. Record with the app or import telemetry to appear."
+            return "Only device-timed laps rank. Record or import a lap here to appear."
         }
         if let you, logbookBest < you.bestMs {
             return "Your best here (\(LapTime.fmtMs(logbookBest))) was entered by hand and isn't ranked."

@@ -119,8 +119,7 @@ private fun Board(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            "Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the app " +
-                "or imported from telemetry count; hand-entered times don't.",
+            "Best device-timed laps here. Hand-entered times don't count.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
         )
@@ -195,7 +194,7 @@ private fun Board(
         if (leaderboard.optedIn) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers.",
+                    "You're on the leaderboards, with your name and best device-timed lap.",
                     style = TrackTheme.typography.xs,
                     color = colors.textFaint,
                     modifier = Modifier.weight(1f),
@@ -209,8 +208,7 @@ private fun Board(
             if (leaderboard.shareLaps) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Your ranked lap is open to other drivers here — its racing line and telemetry, " +
-                            "and nothing else from your logbook.",
+                        "Other drivers here can open your ranked lap — its racing line and telemetry only.",
                         style = TrackTheme.typography.xs,
                         color = colors.textFaint,
                         modifier = Modifier.weight(1f),
@@ -221,8 +219,7 @@ private fun Board(
                 }
             } else {
                 Text(
-                    "Your ranked lap is a time only. Sharing it lets other drivers ranked here open its " +
-                        "racing line and telemetry — never your notes, your car, your setup or any other lap.",
+                    "Your ranked lap shows its time only. Sharing adds its racing line and telemetry — nothing else.",
                     style = TrackTheme.typography.xs,
                     color = colors.textFaint,
                 )
@@ -236,7 +233,7 @@ private fun Board(
             }
         } else {
             Text(
-                "You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap.",
+                "You're not on the leaderboards. Joining shares your name and best device-timed lap.",
                 style = TrackTheme.typography.xs,
                 color = colors.textFaint,
             )

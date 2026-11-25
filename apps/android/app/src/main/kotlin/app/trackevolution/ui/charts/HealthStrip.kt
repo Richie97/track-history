@@ -124,8 +124,7 @@ fun HealthStrip(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Car", style = TrackTheme.typography.xxs, color = colors.textMuted)
             Text(
-                "What the car was doing while you drove it. One figure per lap, reduced the way " +
-                    "the recorder stored it.",
+                "One figure per lap for each reading the car recorded.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
             )

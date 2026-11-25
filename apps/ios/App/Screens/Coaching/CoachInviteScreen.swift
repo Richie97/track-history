@@ -95,11 +95,7 @@ struct CoachInviteScreen: View {
                 Text("**\(name)** wants to share their Track Evolution logbook with you, read-only.")
                     .teStyle(.body)
                     .foregroundStyle(Color(.textStrong))
-                Text("""
-                    You'll see their events, sessions and laps with the channel graphs, their racing lines, their cars \
-                    and modifications, and their driver profile — not their notes, costs, setup sheets or email. \
-                    Either of you can end it at any time from the Coaching page.
-                    """)
+                Text("You'll see their events, laps, telemetry, cars and driver profile — not their notes, costs or setup sheets. Either of you can end it any time.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
                     .fixedSize(horizontal: false, vertical: true)

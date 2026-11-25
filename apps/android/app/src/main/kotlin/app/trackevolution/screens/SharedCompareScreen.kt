@@ -208,7 +208,7 @@ fun SharedCompareScreen(model: SharedCompareModel, modifier: Modifier = Modifier
                 item("mismatch") {
                     Text(
                         "⚠️ These laps cover driven distances ${(pair.mismatch * 100).roundToInt()}% apart — " +
-                            "likely a different layout or start/finish line, so the distance alignment may be off.",
+                            "likely a different layout or start/finish line.",
                         style = TrackTheme.typography.xs,
                         color = colors.textMuted,
                     )

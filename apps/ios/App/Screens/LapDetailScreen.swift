@@ -428,7 +428,7 @@ struct LapDetailScreen: View {
                     }
                 } else {
                     TEEmpty(
-                        "No telemetry for this lap. Import a session, or record laps with the app, and its racing line and traces land here.",
+                        "No telemetry for this lap. Import or record a session to see its racing line and traces.",
                         // The importer for this lap's own event (#342) — the
                         // step that puts telemetry here. Not for a coach.
                         action: owner.isReadOnly ? nil : TEEmpty.Action("Import a session") {

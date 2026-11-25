@@ -103,10 +103,7 @@ struct StudentLogbook: View {
                     Text("Not shared with you")
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
-                    Text("""
-                        This logbook isn't shared with you — the driver may have stopped sharing it, or you left. \
-                        Anything this device had kept of it has been cleared.
-                        """)
+                    Text("This logbook isn't shared with you any more.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                     // Out of the logbook and to where the grants are listed,

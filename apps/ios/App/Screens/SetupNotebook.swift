@@ -86,10 +86,7 @@ struct SetupNotebookCard: View {
     /// `ProUpsellCard`'s words, inside this card rather than as a second one.
     private var upsell: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("""
-                Log each day's pressures, alignment, dampers and fuel, see what changed since the \
-                day before, and turn the hot pressures a session recorded into next session's colds.
-                """)
+            Text("Log each day's pressures, alignment, dampers and fuel, and see what changed.")
                 .teStyle(.sm)
                 .foregroundStyle(Color(.textMuted))
             Button("See Track Evolution Pro") { showingPaywall = true }
@@ -303,7 +300,7 @@ private struct PressureLoopView: View {
             Text("Tire pressures — \(session.label ?? "Session") vs day \(day)")
                 .teStyle(.bodyStrong)
                 .foregroundStyle(Color(.textStrong))
-            Text("Cold from the sheet, hot from the session (the highest end-of-lap reading), and the cold to start from next time to land on target. \(unit).")
+            Text("Cold from the sheet, hot from the session, and the cold to start from next time. \(unit).")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textMuted))
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {

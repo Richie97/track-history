@@ -79,8 +79,7 @@ internal fun SetupNotebookCard(
         NotebookToggle(setupNotebookSummary(pro, setups.size), expanded, onToggle)
         if (expanded && !pro) {
             Text(
-                "Log each day's pressures, alignment, dampers and fuel, see what changed since the " +
-                    "day before, and turn the hot pressures a session recorded into next session's colds.",
+                "Log each day's pressures, alignment, dampers and fuel, and see what changed.",
                 style = TrackTheme.typography.sm,
                 color = colors.textMuted,
                 modifier = Modifier.padding(top = 8.dp),
@@ -328,8 +327,7 @@ private fun PressureLoopSection(
             color = colors.textStrong,
         )
         Text(
-            "Cold from the sheet, hot from the session (the highest end-of-lap reading), and the cold to " +
-                "start from next time to land on target. $unit.",
+            "Cold from the sheet, hot from the session, and the cold to start from next time. $unit.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
         )

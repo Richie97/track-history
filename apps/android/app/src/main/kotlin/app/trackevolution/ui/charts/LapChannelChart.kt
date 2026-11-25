@@ -341,15 +341,8 @@ fun LapChannelChart(
         }
 
         Text(
-            "Tap laps to compare (up to ${ChannelGraphs.SLOT_COUNT}). " +
-                (
-                    if (cursorEnabled) {
-                        "Tap a chart to mark the place on every chart${if (mapTrace != null) " and the track map" else ""}."
-                    } else {
-                        "Tap a chart to move the video there."
-                    }
-                    ) +
-                if (pro) " With 2+ laps selected, the delta chart shows where time is gained or lost vs the fastest." else "",
+            "Tap up to ${ChannelGraphs.SLOT_COUNT} laps to compare. " +
+                if (cursorEnabled) "Tap a chart to mark that place everywhere." else "Tap a chart to move the video there.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
         )
@@ -531,9 +524,7 @@ private fun ChannelProCard(onSubscribe: () -> Unit) {
     TrackCard(Modifier.fillMaxWidth().semantics { testTag = "channelProCard" }) {
         Text("The rest of the recording is Pro", style = TrackTheme.typography.h3, color = colors.textStrong)
         Text(
-            "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw " +
-                "traces, the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits " +
-                "with a theoretical best, the car-health strip, and lap-vs-lap delta charts.",
+            "Pro adds every other channel the recording carries, sector splits, lap deltas, grip and car health.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = Modifier.padding(top = 8.dp),

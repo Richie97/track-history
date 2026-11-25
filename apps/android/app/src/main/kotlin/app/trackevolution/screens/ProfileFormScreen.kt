@@ -163,9 +163,7 @@ fun ProfileFormScreen(
                 Column {
                     Text("Driver profile", style = TrackTheme.typography.h1, color = colors.textStrong)
                     Text(
-                        "What the coaches you've invited see about you. Only you and them — it's never on your " +
-                            "share page or the leaderboards. There's no birth date or emergency contact here on " +
-                            "purpose: tell your instructor those at the track.",
+                        "Only you and your coaches see this. No birth date or emergency contact here — tell your instructor at the track.",
                         style = TrackTheme.typography.sm,
                         color = colors.textMuted,
                         modifier = Modifier.padding(top = 4.dp),

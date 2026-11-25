@@ -88,12 +88,7 @@ struct GarageScreen: View {
                 TESectionHeader("Maintenance and costs")
                 ProUpsellCard(
                     title: "Consumables, hours and costs",
-                    blurb: """
-                        Pads, tires, rotors and fluid, each with the hours it has actually done — \
-                        accrued from your own track days — a wear projection, reminders before the \
-                        next event, and what the car has cost you. Your cars and what they've done \
-                        stay free.
-                        """
+                    blurb: "Hours on pads, tires, rotors and fluid, wear projections, reminders before an event, and what the car has cost."
                 )
             }
         }
