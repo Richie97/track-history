@@ -88,6 +88,42 @@ struct DashboardScreen: View {
                 // pushed screen's back button carries.
                 .accessibilityHidden(true)
             }
+            // The one way to add anything: an event, laps from a file, or a
+            // recording. The web's top-bar + and Android's are the same menu.
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        openFromList(.eventForm(.new(presetTrack: nil)))
+                    } label: {
+                        Label("Add event", systemImage: "calendar.badge.plus")
+                    }
+                    .accessibilityIdentifier("addMenuEvent")
+                    // Import with no event picked (NS-57): the review places
+                    // each file by where it was driven.
+                    Button {
+                        openFromList(.importVideo(eventId: nil, incoming: nil))
+                    } label: {
+                        Label("Import laps", systemImage: "square.and.arrow.down")
+                    }
+                    .accessibilityIdentifier("dashboardImport")
+                    // Only when the recorder is idle — a live recording has the
+                    // always-visible banner and an unsaved one its card — and
+                    // never on a Mac (epic #230), which has no GPS.
+                    if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
+                        Button {
+                            openFromList(.record(eventId: model?.todaysEvent?.id))
+                        } label: {
+                            Label("Record laps", systemImage: "record.circle")
+                        }
+                        .accessibilityIdentifier("dashboardRecord")
+                        .accessibilityLabel(Self.recordLabel(model?.todaysEvent))
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("Add")
+                .accessibilityIdentifier("addMenu")
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 // The web app's account dropdown, which carries Settings, the theme
                 // toggle and sign-out. All three live on the settings screen here —
@@ -205,44 +241,6 @@ struct DashboardScreen: View {
     private func logbook(_ model: DashboardModel) -> some View {
         TEPage {
             recordingBanner
-
-            // The two ways into a track day, side by side — the web app's `.btn-row`.
-            // Recording is offered here because the alternative is navigating into an
-            // event first, which is exactly the wrong amount of friction with a helmet
-            // in your other hand.
-            HStack(spacing: TESpacing.gridGap) {
-                // The form opens in the detail pane, and at compact width — where
-                // this screen is the stack's root — that is the push it always was
-                // (NS-34, `AppRouter.open`).
-                Button("+ Add event") { openFromList(.eventForm(.new(presetTrack: nil))) }
-                    .buttonStyle(TEButtonStyle(kind: .accent))
-
-                // Only when the recorder is idle. A live recording already has the
-                // always-visible `RecordingBanner`, and an unsaved one has the card
-                // above; a third control would be a third answer to the same question.
-                // And never on a Mac (epic #230), where there is no GPS to record
-                // with — nothing takes the button's place there, since `+ Add event`
-                // alone is the web dashboard's shape.
-                if Platform.dashboardOffersRecorder(runsOnMac: Platform.runsOnMac, recorderIdle: recorder.phase == .idle) {
-                    Button("Record laps") {
-                        // Full-window at every width. The record screen is a
-                        // phone-in-a-mount layout designed to be read at a glance
-                        // through a helmet, and half of an iPad is a worse version
-                        // of it, not a bigger one (NS-34).
-                        openFromList(.record(eventId: model.todaysEvent?.id))
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
-                    .accessibilityIdentifier("dashboardRecord")
-                    .accessibilityLabel(Self.recordLabel(model.todaysEvent))
-                }
-            }
-
-            // Import with no event picked (NS-57): the review places each file
-            // by where it was driven and groups them into events. A row of its
-            // own — three buttons don't fit one line on a phone.
-            Button("Import laps") { openFromList(.importVideo(eventId: nil, incoming: nil)) }
-                .buttonStyle(TEButtonStyle(kind: .quiet))
-                .accessibilityIdentifier("dashboardImport")
 
             if let year = model.wrappedYear, !Self.wrappedDismissed(year, tick: wrappedDismissals) {
                 wrappedBanner(year)

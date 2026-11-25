@@ -306,6 +306,17 @@ header.topbar {
 @media (hover: hover) {
   .user-trigger:hover { background: var(--surface-raised); border-color: var(--border-hairline); }
 }
+/* The top bar's + : add an event, import laps, record laps. */
+.add-trigger {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--accent-contrast);
+  font: inherit; cursor: pointer; transition: var(--transition);
+}
+.add-trigger:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.add-menu .menu { min-width: 190px; white-space: nowrap; }
+.menu-note { margin-left: 6px; font-size: var(--fs-xs); color: var(--text-muted); }
 .menu {
   position: absolute; top: calc(100% + 8px); right: 0; z-index: 20;
   min-width: 210px; padding: 6px;

@@ -57,7 +57,7 @@ final class GestureUITests: XCTestCase {
         swipeBack(app, atHeight: 0.32)
 
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 10),
+            app.buttons["addMenu"].waitForExistence(timeout: 10),
             "an edge swipe over the chart should still pop back to the dashboard"
         )
     }
@@ -88,7 +88,7 @@ final class GestureUITests: XCTestCase {
         swipeBack(app, atHeight: 0.5)
 
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 10),
+            app.buttons["addMenu"].waitForExistence(timeout: 10),
             "an edge swipe should pop settings"
         )
     }
@@ -103,12 +103,15 @@ final class GestureUITests: XCTestCase {
     func testAQuietButtonAnswersOffItsLabel() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        let record = app.buttons["dashboardRecord"]
-        XCTAssertTrue(record.waitForExistence(timeout: 20))
-        record.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).tap()
+        // Settings' *Open Coaching* is a quiet button (the dashboard's own
+        // moved into the + menu).
+        app.buttons["Account"].tap()
+        let coaching = app.buttons["openCoaching"]
+        XCTAssertTrue(scrollTo(coaching, in: app), "Settings should offer Coaching")
+        coaching.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).tap()
 
         XCTAssertTrue(
-            app.buttons["Start recording"].waitForExistence(timeout: 10),
+            app.navigationBars["Coaching"].waitForExistence(timeout: 10),
             "a tap inside the button but off its label should still press it"
         )
     }

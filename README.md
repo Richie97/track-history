@@ -420,7 +420,7 @@ The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
 build; a Mac window is a large screen, so it gets the two-pane layout an iPad
 does. The **lap recorder is hidden there**: a Mac has Wi-Fi location and no GPS,
-so the dashboard's *Record laps* button is absent, the event page's *Add a
+so the + menu's *Record laps* item is absent, the event page's *Add a
 session* card says to record on the iPhone (the laps land on the event once the
 phone syncs), and the record route resolves to the event instead of the
 recorder. Everything else — the logbook, the garage, video import from Finder,
@@ -843,8 +843,8 @@ committed as `release/notes/<version>.txt` beforehand); after approval,
 
 ## Video / telemetry import
 
-**Import laps with no event picked (NS-57).** *Import laps* on the
-dashboard (`#/import`) takes a batch of files from any mix of tracks and days.
+**Import laps with no event picked (NS-57).** *Import laps* in the
+top bar's + menu (`#/import`) takes a batch of files from any mix of tracks and days.
 `public/js/import/locate.js` — pure, run in the browser — works out where each
 file was driven (`recordingPlace`: the centre of its best lap and that lap's
 length), matches it against the driver's own tracks and then the seeded catalog
@@ -863,8 +863,8 @@ form. The server's half is small: `track_catalog.lat` / `lon` (migration
 `GET /api/tracks` rows, taken from the newest session there that kept its
 anchor — never on a coach's view, a share page or an MCP tool. Importing from
 an event page is unchanged, except that a file certainly driven at another
-known track says so. The phones have the same review behind *Import laps* on
-their dashboards (and for a file shared into the app): `TrackLocate` in the
+known track says so. The phones have the same review behind *Import laps* in
+their dashboards' + menu (and for a file shared into the app): `TrackLocate` in the
 Kit and `:core` is `locate.js` under the same names, pinned by
 `contracts/logic/track-locate.json`. **A start/finish line is found too**, for
 the sources that need one (GoPro, a plain `.vbo`, a phone recording): `geo`

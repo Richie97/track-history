@@ -150,7 +150,7 @@ final class RecordAndSaveUITests: XCTestCase {
         app.buttons["Discard"].tap()  // the confirmation
 
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 15),
+            app.buttons["addMenu"].waitForExistence(timeout: 15),
             "discarding should land on the dashboard, not back on the recorder"
         )
         XCTAssertFalse(app.buttons["Start recording"].exists, "and not on a Start button")

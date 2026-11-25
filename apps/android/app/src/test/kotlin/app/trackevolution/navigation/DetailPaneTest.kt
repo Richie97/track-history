@@ -1,6 +1,7 @@
 package app.trackevolution.navigation
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.navigation.compose.rememberNavController
 import app.trackevolution.auth.ChecklistTemplateStore
@@ -59,7 +60,7 @@ class DetailPaneTest {
         }
         assertTrue(
             "the detail pane must not be a second dashboard",
-            compose.onAllNodesWithText("+ Add event").fetchSemanticsNodes().isEmpty(),
+            compose.onAllNodesWithTag("addMenu").fetchSemanticsNodes().isEmpty(),
         )
     }
 
@@ -68,7 +69,7 @@ class DetailPaneTest {
         showGraph(dashboardAsDetailPlaceholder = false)
 
         compose.waitUntil(10_000) {
-            compose.onAllNodesWithText("+ Add event").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithTag("addMenu").fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(
             "the empty state belongs to the detail pane only",
@@ -92,7 +93,7 @@ class DetailPaneTest {
         compose.waitUntil(10_000) {
             compose.onAllNodesWithText("Welcome to Track Evolution").fetchSemanticsNodes().isNotEmpty()
         }
-        assertTrue(compose.onAllNodesWithText("+ Add event").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Track days").fetchSemanticsNodes().isEmpty())
     }
 
     private fun showGraph(dashboardAsDetailPlaceholder: Boolean, events: String = ONE_EVENT) {

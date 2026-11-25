@@ -39,7 +39,7 @@ final class TwoPaneUITests: XCTestCase {
     func testTheDashboardStaysBesideTheDetailOnlyWhenThereIsRoom() throws {
         let app = try launchSignedIn(tier: .free)
 
-        let addEvent = app.buttons["+ Add event"]
+        let addEvent = app.buttons["addMenu"]
         XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard is the list pane")
 
         let card = app.buttons["trackCard"].firstMatch
@@ -89,7 +89,7 @@ final class TwoPaneUITests: XCTestCase {
         let app = try launchSignedIn(tier: .free)
 
         XCTAssertTrue(
-            app.buttons["+ Add event"].waitForExistence(timeout: 20),
+            app.buttons["addMenu"].waitForExistence(timeout: 20),
             "the dashboard is the list pane"
         )
 
@@ -138,15 +138,13 @@ final class TwoPaneUITests: XCTestCase {
     func testTheRecorderCanBeLeftAgainWhenItOwnsTheWindow() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        let addEvent = app.buttons["+ Add event"]
+        let addEvent = app.buttons["addMenu"]
         XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard is the list pane")
 
         let width = app.windows.firstMatch.frame.width
         try XCTSkipUnless(width >= 840, "at \(Int(width))pt the recorder is a push and the system draws the way back")
 
-        let record = app.buttons["dashboardRecord"]
-        XCTAssertTrue(record.waitForExistence(timeout: 20), "the dashboard offers the recorder when it is idle")
-        record.tap()
+        XCTAssertTrue(pickFromAddMenu(app, "dashboardRecord"), "the + menu offers the recorder when it is idle")
 
         let back = app.buttons["fullWindowBack"]
         XCTAssertTrue(back.waitForExistence(timeout: 20), "the recorder owns the window, so it carries its own way back")
@@ -169,7 +167,7 @@ final class TwoPaneUITests: XCTestCase {
     func testTheEventPagesRecorderCoversBothPanes() throws {
         let app = try launchSignedIn(tier: .pro)
 
-        let addEvent = app.buttons["+ Add event"]
+        let addEvent = app.buttons["addMenu"]
         XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard is the list pane")
 
         let width = app.windows.firstMatch.frame.width
@@ -354,9 +352,9 @@ final class TwoPaneUITests: XCTestCase {
             "this device's orientations do not straddle 840pt (\(Int(short))×\(Int(long))) — run it on an iPad mini"
         )
 
-        let addEvent = app.buttons["+ Add event"]
+        let addEvent = app.buttons["addMenu"]
         XCTAssertTrue(addEvent.waitForExistence(timeout: 20), "the dashboard should load")
-        addEvent.tap()
+        XCTAssertTrue(pickFromAddMenu(app, "addMenuEvent"), "the + menu should offer Add event")
 
         let club = app.textFields["formClub"]
         XCTAssertTrue(club.waitForExistence(timeout: 20), "the new-event form should open")
