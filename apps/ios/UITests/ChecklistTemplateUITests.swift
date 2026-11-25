@@ -58,7 +58,7 @@ final class ChecklistTemplateUITests: XCTestCase {
             "the added item should appear in the list"
         )
         XCTAssertTrue(
-            scrollTo(app.buttons["Reset to default"], in: app),
+            app.buttons["Reset to default"].waitForExistence(timeout: 10),
             "editing it makes it the user's own, which Reset to default undoes"
         )
         attach(app, named: "checklist-template-settings")
