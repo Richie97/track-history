@@ -158,10 +158,8 @@ fun CoachInviteScreen(
                                 color = colors.textStrong,
                             )
                             Body(
-                                "You'll see their events, sessions and laps with the channel graphs, their racing " +
-                                    "lines, their cars and modifications, and their driver profile — not their " +
-                                    "notes, costs, setup sheets or email. Either of you can end it at any time from " +
-                                    "the Coaching page.",
+                                "You'll see their events, laps, telemetry, cars and driver profile — not their notes, " +
+                                    "costs or setup sheets. Either of you can end it any time.",
                             )
                             Body(
                                 "Accepting shows $name your name and profile picture, and when you last looked at " +

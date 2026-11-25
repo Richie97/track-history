@@ -105,7 +105,7 @@ struct CompareLapsScreen: View {
                         .accessibilityIdentifier("shareCompare")
                     }
                     if pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
-                        Text("⚠️ These laps cover driven distances \(Int((pair.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
+                        Text("⚠️ These laps cover driven distances \(Int((pair.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line.")
                             .teStyle(.xs)
                             .foregroundStyle(Color(.textMuted))
                     }
@@ -113,7 +113,7 @@ struct CompareLapsScreen: View {
             } content: {
                 VStack(alignment: .leading, spacing: 14) {
                     if !phone { CompareHeadToHead(pair: pair) }
-                    Text("The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the videos there.")
+                    Text("Delta shows where time is gained or lost; the channels show why. Tap a chart to move the videos.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     LapChannelPanel(
@@ -136,7 +136,7 @@ struct CompareLapsScreen: View {
                     .teStyle(.h1)
                     .foregroundStyle(Color(.textStrong))
                 TEEmpty(
-                    "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the app.",
+                    "Comparing needs two laps with telemetry here — import or record a session.",
                     action: owner.isReadOnly ? nil : noTelemetryAction(model)
                 )
             }

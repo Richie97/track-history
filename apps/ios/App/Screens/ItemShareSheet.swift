@@ -26,8 +26,7 @@ enum ItemShareText {
             "Anyone with this link can see \(noun(kind)) — its laps, racing line, telemetry and video. "
                 + "Notes, costs and setup sheets stay private."
         case .lap:
-            "Anyone with this link can see this lap — its time, racing line, telemetry and video. "
-                + "The rest of the session, notes, costs and setup sheets stay private."
+            "Anyone with this link can see this lap — its time, racing line, telemetry and video. The rest of the session, notes, costs and setup sheets stay private."
         case .compare:
             "Anyone with this link can see these two laps compared — their times, telemetry and video. "
                 + "Nothing else in your logbook is shared."

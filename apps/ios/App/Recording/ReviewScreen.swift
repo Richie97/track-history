@@ -521,7 +521,7 @@ struct ReviewScreen: View {
         case .locked:
             ProUpsellCard(
                 title: "Save best-lap video — Pro",
-                blurb: "A clip of each session's fastest lap, kept with the lap and played on its page — for you and the coaches you've invited."
+                blurb: "A clip of each session's fastest lap, played on its lap page."
             )
         case .full, .on:
             TECard {

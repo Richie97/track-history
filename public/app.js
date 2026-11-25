@@ -14,16 +14,17 @@ import {
   LENGTH_MISMATCH_WARN, alignLapPair, comparableLaps, defaultComparePicks, lapMetrics,
   lengthMismatchRatio,
 } from "./js/compare-laps.js";
-import { bestNAvg, paceSlope, warmupLapCount } from "./js/lap-stats.js";
+import { bestNAvg } from "./js/lap-stats.js";
+import { lapStatItems, peakStatItems, sessionStatsHtml } from "./js/session-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
-import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
+import { gearRibbonSvg, ordinal, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import {
-  balanceHtml, balanceSummary, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
+  balanceHtml, balanceTendency, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
 } from "./js/balance.js";
 import {
-  healthHtml, healthSummary, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
+  healthHtml, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
 } from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
@@ -146,9 +147,8 @@ const ent = () =>
 // What a coach is told where the student's channels stop at the free half —
 // in place of the paywall, which is the student's to answer, not theirs.
 const studentFreeNote = () =>
-  `${esc(viewing?.name || "This driver")} is on the free plan, so you see their lap times, racing lines and the ` +
-  "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the rest " +
-  "of the analysis show here once they have Pro.";
+  `${esc(viewing?.name || "This driver")} is on the free plan, so you see lap times, racing lines and the ` +
+  "speed, throttle and brake traces. The rest shows once they have Pro.";
 
 // The same sentence for anyone opening a shared event or session (NS-48) —
 // a statement about the driver's plan, never an offer to the reader.
@@ -246,16 +246,13 @@ function proNoteHtml(text) {
 // the one sentence every free channel panel ends on. "Where the recording
 // carries them" because a GoPro clip has none of these for anyone.
 const PRO_CHANNELS_NOTE =
-  "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw traces, " +
-  "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a theoretical best, " +
-  "the car-health strip, and lap-vs-lap delta charts.";
+  "Pro adds every other channel the recording carries, sector splits, lap deltas, grip and car health.";
 
 // What a free account gets from an import — said the same way wherever the
 // importer is offered, because the event page and the new-event form used to
 // disagree about which traces were free.
 const IMPORT_FREE_NOTE =
-  "Importing is free — you get the lap times, the racing line, top speed, RPM and lateral G, and the " +
-  "per-lap speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
+  "Importing is free: lap times, the racing line, and speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
 
 // ---------- garage & setup-sheet renderers -----------------------------------
 
@@ -497,7 +494,7 @@ function setupHistoryHtml(setupRows, partsById) {
     })
     .join("");
   return `<h2>Setup vs. lap times</h2>
-    <div class="hint" style="margin:0 0 4px">Every setup sheet logged at this track, oldest first, with what changed between sheets. Best and consistency are the event's — decide for yourself what a change bought you.</div>
+    <div class="hint" style="margin:0 0 4px">Every setup sheet here, oldest first, with what changed. Best and consistency are the event's.</div>
     <div class="table-wrap"><table><thead><tr><th>Date</th><th>Conditions</th><th class="num">Best</th><th class="num">Consistency</th><th>Setup changes</th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
@@ -796,6 +793,16 @@ function shell(content) {
         <a class="brand" href="#/">${appLogoHtml()} <span class="brand-text">Track Evolution</span></a>
         ${sectionNavHtml()}
         <span class="spacer"></span>
+        <div class="user-menu add-menu">
+          <button class="add-trigger" id="add-trigger" aria-haspopup="menu" aria-expanded="false" aria-label="Add" title="Add">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 2.5v11M2.5 8h11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="menu" id="add-dropdown" hidden>
+            <a class="menu-item" href="#/new">Add event</a>
+            <a class="menu-item" href="#/import">Import laps</a>
+            <a class="menu-item" href="/get" target="_blank" rel="noopener">Record laps <span class="menu-note">in the phone app ↗</span></a>
+          </div>
+        </div>
         <div class="user-menu">
           <button class="user-trigger" id="user-trigger" aria-haspopup="menu" aria-expanded="false"
             aria-label="Account menu — ${esc(me?.name || me?.email || "")}">
@@ -840,13 +847,17 @@ function shell(content) {
   paintClipUploads();
   paintGarageBadge();
   refreshGarageBadge();
-  const trigger = document.getElementById("user-trigger");
-  const dropdown = document.getElementById("user-dropdown");
-  trigger.onclick = () => {
-    const open = dropdown.hidden;
-    dropdown.hidden = !open;
-    trigger.setAttribute("aria-expanded", String(open));
-  };
+  // The two top-bar menus: opening one closes the other.
+  for (const [triggerId, dropdownId] of TOPBAR_MENUS) {
+    const trigger = document.getElementById(triggerId);
+    const dropdown = document.getElementById(dropdownId);
+    trigger.onclick = () => {
+      const open = dropdown.hidden;
+      closeTopbarMenus();
+      dropdown.hidden = !open;
+      trigger.setAttribute("aria-expanded", String(open));
+    };
+  }
   document.getElementById("logout").onclick = async () => {
     if (pendingCount() && !confirm("You have offline changes that haven't synced yet — signing out discards them. Sign out anyway?")) return;
     if (clipUploads.active() && !confirm("Lap videos are still uploading — signing out stops them. Sign out anyway?")) return;
@@ -911,22 +922,30 @@ onSyncChange((_st, change) => {
   }
 });
 
-// Close the user dropdown on outside click or Escape (module-level: shell()
-// re-renders per route, so per-render listeners would accumulate).
-function closeUserMenu() {
-  const dropdown = document.getElementById("user-dropdown");
-  if (dropdown && !dropdown.hidden) {
-    dropdown.hidden = true;
-    document.getElementById("user-trigger")?.setAttribute("aria-expanded", "false");
+// The top bar's dropdowns — the + menu (add event / import / record) and the
+// account menu — closed on outside click, on picking an item, or on Escape
+// (module-level: shell() re-renders per route, so per-render listeners would
+// accumulate).
+const TOPBAR_MENUS = [
+  ["add-trigger", "add-dropdown"],
+  ["user-trigger", "user-dropdown"],
+];
+function closeTopbarMenus() {
+  for (const [triggerId, dropdownId] of TOPBAR_MENUS) {
+    const dropdown = document.getElementById(dropdownId);
+    if (dropdown && !dropdown.hidden) {
+      dropdown.hidden = true;
+      document.getElementById(triggerId)?.setAttribute("aria-expanded", "false");
+    }
   }
 }
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".user-menu")) closeUserMenu();
+  if (!e.target.closest(".user-menu") || e.target.closest("#add-dropdown .menu-item")) closeTopbarMenus();
   // The footer's "Cookies" link and Settings' "Cookie settings" (js/analytics.js).
   if (e.target.closest("[data-consent-open]")) openConsentBanner();
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeUserMenu();
+  if (e.key === "Escape") closeTopbarMenus();
 });
 
 // The web's plans, read once per page load beside the first /me and again
@@ -1019,11 +1038,11 @@ async function viewDashboard() {
       <div class="panel welcome">
         ${emptyHtml({
           title: "Welcome to Track Evolution",
-          body: "Your logbook starts with an event: the track, the date and the car. Then add its sessions — import a video or a logger file, type your lap times in, or record them with the Track Evolution app — and your bests and progress build from there.",
+          body: "Start with an event — the track, the date, the car. Then add laps: import a file, type them in, or record with the Track Evolution app.",
           action: { label: "Add your first event", href: "#/new" },
         })}
         <div class="welcome-guide">
-          <a href="#/import">Have files from a track day already? Import them — the track and the dates are found for you.</a>
+          <a href="#/import">Already have files? Import them — the track and dates are found for you.</a>
         </div>
         <div class="welcome-guide">
           <a href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">New to track days? Start here ↗</a>
@@ -1038,11 +1057,7 @@ async function viewDashboard() {
   const hasHistory = events.some((e) => !isUpcoming(e));
   const slug = state.me.share_slug || "";
   const view = shell(`
-    <div class="btn-row" style="margin-top:20px">
-      <a class="btn primary" href="#/new">+ Add event</a>
-      <a class="btn" href="#/import">Import laps</a>
-      ${hasHistory ? `<a class="btn" href="#/year">Year in review</a>` : ""}
-    </div>
+    ${hasHistory ? `<div class="btn-row" style="margin-top:20px"><a class="btn" href="#/year">Year in review</a></div>` : ""}
     ${showWrapped ? wrappedHeroHtml(wrapYear) : ""}
     ${feed ? commentsCardHtml(feed) : ""}
     ${heroEvent ? heroEventHtml(heroEvent) : ""}
@@ -1059,7 +1074,7 @@ async function viewDashboard() {
         })}
     ${hasHistory ? `<h2>Share your history</h2>
     <div class="panel share-panel">
-      <div class="hint" style="margin:0 0 10px">Publish a read-only page of your track history — bests, run groups and consistency (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.</div>
+      <div class="hint" style="margin:0 0 10px">A read-only page of your bests and history. Notes stay private.</div>
       <div class="btn-row">
         <span class="share-url">
           <span class="share-prefix">${esc(serverHost())}/share/</span>
@@ -1125,7 +1140,7 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   const you = lb.entries.find((en) => en.you);
   let yourNote = "";
   if (lb.opted_in && !you && viewerBestMs != null)
-    yourNote = "None of your laps here were timed by a device, so you aren't ranked yet. Record with the Track Evolution app or import telemetry to appear.";
+    yourNote = "Only device-timed laps rank. Record or import a lap here to appear.";
   else if (you && viewerBestMs != null && viewerBestMs < you.best_ms)
     yourNote = `Your best here (${fmtMs(viewerBestMs)}) was entered by hand and isn't ranked.`;
   // A row is openable when its owner published the lap itself (NS-35) — the
@@ -1151,13 +1166,13 @@ function leaderboardHtml(lb, viewerBestMs = null, trackId = null) {
   // driver is looking at exactly what it would publish.
   const shareControl = lb.opted_in
     ? lb.share_laps
-      ? `<div class="hint" style="margin:4px 0 0">Your ranked lap is open to other drivers here — its racing line and telemetry, and nothing else from your logbook. <button class="btn small" id="lb-unshare">Stop sharing my laps</button></div>`
-      : `<div class="hint" style="margin:4px 0 0">Your ranked lap is a time only. Sharing it lets other drivers ranked here open its racing line and telemetry — never your notes, your car, your setup or any other lap. <button class="btn small" id="lb-share">Share my ranked laps</button></div>`
+      ? `<div class="hint" style="margin:4px 0 0">Other drivers here can open your ranked lap — its racing line and telemetry only. <button class="btn small" id="lb-unshare">Stop sharing my laps</button></div>`
+      : `<div class="hint" style="margin:4px 0 0">Your ranked lap shows its time only. Sharing adds its racing line and telemetry — nothing else. <button class="btn small" id="lb-share">Share my ranked laps</button></div>`
     : "";
   const optControl = lb.opted_in
-    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards — your name and best device-timed lap per track are visible to other signed-in drivers. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
-    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
-  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps by Track Evolution drivers at this track. Laps recorded with the Track Evolution app or imported from telemetry count; hand-entered times don't.</div>
+    ? `<div class="hint" style="margin:8px 0 0">You're on the leaderboards, with your name and best device-timed lap. <button class="btn small" id="lb-leave">Leave leaderboards</button></div>`
+    : `<div class="hint" style="margin:8px 0 0">You're not on the leaderboards. Joining shares your name and best device-timed lap. <button class="btn small primary" id="lb-join">Join leaderboards</button></div>`;
+  return `<div class="hint" style="margin:0 0 4px">Best device-timed laps here. Hand-entered times don't count.</div>
     ${
       rows
         ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Driver</th><th class="num">Best</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table></div>`
@@ -1570,8 +1585,7 @@ function noTelemetryAction(events, trackName) {
 async function viewLapCompare(trackId, params) {
   destroyAllStages();
   if (!canViewChannels(ent())) return viewProGate(trackId, "Compare two laps",
-    "Any two laps at this track, head to head: the time delta as it builds through the lap, " +
-      "speed, throttle, brake and steering side by side, and sector splits.");
+    "Any two laps here, head to head: the time delta, the traces side by side and sector splits.");
   const allEvents = await api(`/events?track_id=${trackId}`);
   // Channel data lives on event details. The prefetcher warms these after any
   // dashboard visit, so this is mostly cache reads — and works offline.
@@ -1585,7 +1599,7 @@ async function viewLapCompare(trackId, params) {
     shell(`${backHtml}
       <h1>Compare two laps</h1>
       ${emptyHtml({
-        body: "Comparing laps needs two laps with telemetry at this track — import a session, or record laps with the Track Evolution app.",
+        body: "Comparing needs two laps with telemetry here — import or record a session.",
         action: readOnly() ? null : noTelemetryAction(allEvents, trackName),
       })}`);
     return;
@@ -1733,7 +1747,7 @@ function renderLapPair(sides, headHtml) {
     ${sectorsHtml}
     <div class="chart-card">
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
-      <div class="hint" style="margin:2px 0 6px">The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the playhead there.</div>
+      <div class="hint" style="margin:2px 0 6px">Delta shows where time is gained or lost; the channels show why. Tap a chart to move the playhead.</div>
       <div class="ch-graphs" id="cmp-charts">${chartsHtml}</div>
     </div>
     </div>
@@ -2001,7 +2015,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
   const noneHtml = pick
     ? ""
     : emptyHtml({
-        body: "You have no lap with telemetry at this track yet, so there's nothing to overlay. Import a session, or record laps with the Track Evolution app, and this page will put the two side by side.",
+        body: "No lap of yours with telemetry here yet. Import or record one to compare.",
         action: noTelemetryAction(myEvents, track?.name),
         compact: true,
       });
@@ -2020,7 +2034,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
       <div class="chart-title">Telemetry — shared driven-distance axis</div>
       ${
         pick && proOk
-          ? `<div class="hint" style="margin:2px 0 6px">The delta chart shows where you gain or lose against this lap; the channels below show why.</div>`
+          ? `<div class="hint" style="margin:2px 0 6px">Delta shows where you gain or lose against this lap; the channels show why.</div>`
           : ""
       }
       <div class="ch-graphs" id="lb-charts">${chartsHtml}</div>
@@ -2031,8 +2045,7 @@ async function viewLeaderboardLap(trackId, lapId, params) {
         ? ""
         : proPanelHtml(
             "The rest of this lap",
-            (pick ? "The delta chart that shows where you gain or lose against this lap, sector splits, and " : "Sector splits, lap-vs-lap deltas against your own laps, and ") +
-              "the steering, RPM, lateral G and yaw traces where the recording carries them."
+            "Lap deltas, sector splits and every other channel the recording carries."
           )
     }
   `);
@@ -2992,7 +3005,7 @@ function youtubeSettingsHtml() {
   const yt = state.me?.youtube;
   if (!yt?.available) return "";
   return `<h2>YouTube</h2>
-    <div class="hint" style="margin:0 0 4px">With Pro, upload a best-lap video to your YouTube channel from its lap. The upload runs on our server, so you can close the app while it goes.</div>
+    <div class="hint" style="margin:0 0 4px">With Pro, upload a lap video to your YouTube channel from its lap.</div>
     <div class="panel" id="yt-settings">
       <p style="margin:0 0 10px">${esc(youtubeAccountLine(yt))}</p>
       ${
@@ -3001,7 +3014,7 @@ function youtubeSettingsHtml() {
               <button class="btn small danger" type="button" id="yt-disconnect">Disconnect YouTube</button>
               <a class="btn small" href="${GOOGLE_PERMISSIONS_URL}" target="_blank" rel="noopener">Google account permissions ↗</a>
             </div>
-            <div class="hint" style="margin:8px 0 0">${YOUTUBE_DISCONNECT_NOTE} You can also remove Track Evolution's access from your Google account's permissions page.</div>`
+            <div class="hint" style="margin:8px 0 0">${YOUTUBE_DISCONNECT_NOTE}</div>`
           : `<p class="hint">${youtubeConnectHtml()}</p>
             <div class="btn-row"><a class="btn small" href="/youtube/connect?next=${encodeURIComponent("#/settings")}">${
               yt.account ? "Reconnect YouTube…" : "Connect YouTube…"
@@ -3126,42 +3139,25 @@ async function viewEvent(eventId) {
       const lapsHtml = s.channels?.laps?.length
         ? `<div data-channel-graphs="${s.id}"></div>`
         : `<div class="laps" data-plain-laps="${esc(s.id)}">${plainLapsHtml(s)}</div>`;
-      // Session analysis from the laps we already have: representative pace,
-      // how long it took to get up to speed, and whether pace faded late.
-      const stats = [];
-      const b3 = bestNAvg(lapsMs, 3);
-      if (b3 != null) stats.push(`best 3 avg <span class="t">${fmtMs(b3)}</span>`);
-      const warm = warmupLapCount(lapsMs);
-      if (warm != null) stats.push(warm === 1 ? "on pace from lap 1" : `up to speed by lap ${warm}`);
-      const slope = paceSlope(lapsMs);
-      if (slope != null)
-        stats.push(
-          `pace ${fmtDelta(slope)}/lap${slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""}`
-        );
+      // Session analysis as a strip of labelled figures (js/session-stats.js):
+      // representative pace and how long it took to get up to speed, from the
+      // laps alone — then what the channel data adds.
+      const stats = lapStatItems(lapsMs);
+      const ch = s.channels?.laps?.length ? s.channels : null;
       // Sector analysis (js/sectors.js): what stringing the session's best
       // sectors together would have been worth. The splits themselves are in
       // the channel panel below.
-      const sec = pro() && s.channels?.laps?.length ? sessionSectors(s.channels) : null;
+      const sec = pro() && ch ? sessionSectors(ch) : null;
       if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
-        stats.push(`theoretical best <span class="t">${fmtMs(sec.theoreticalBestMs)}</span>`);
-      // Shift points (js/gears.js): the typical upshift rpm across the
-      // session; the per-gear breakdown sits in the channel panel.
-      const sp = s.channels?.laps?.length ? shiftPoints(s.channels) : null;
-      if (sp) stats.push(`upshifts ≈ <span class="t">${fmtRpm(sp.medianRpm)}</span> rpm`);
-      // Where the car hit its limit (js/limits.js): ABS / traction / slip,
-      // counted as places on track across the session. The marks themselves
-      // are on the best-lap trace and shaded on the pedal traces.
-      const lim = s.channels?.laps?.length ? limitSummary(s.channels) : null;
-      if (lim) stats.push(esc(lim));
-      // Balance (js/balance.js): the corners whose rotation sits off this
-      // car's typical response, pooled across the session; the per-corner
-      // table and the scatter are on the panel's Grip tab.
-      const bal = s.channels?.laps?.length ? balanceSummary(s.channels) : null;
-      if (bal) stats.push(esc(bal));
-      // Car health (js/health.js): any slow reading past its watch line, and
-      // the fuel outlook; the strip itself is the panel's Car tab.
-      const car = s.channels?.laps?.length ? healthSummary(s.channels, usUnits()) : null;
-      if (car) stats.push(esc(car));
+        stats.push({ key: "theoretical", label: "Theoretical best", value: fmtMs(sec.theoreticalBestMs) });
+      // The session's top speed and peak cornering G.
+      if (ch) stats.push(...peakStatItems(ch, currentUnits()));
+      // Which way the car leaned, and in which corners (js/balance.js).
+      const bal = ch ? balanceTendency(ch) : null;
+      if (bal) stats.push({ key: "balance", label: "Balance", value: bal.value, ...(bal.note ? { note: bal.note } : {}) });
+      // Where the car hit its limit (js/limits.js), as a short sentence.
+      const lim = ch ? limitSummary(ch) : null;
+      if (lim) stats.push({ key: "limits", label: "Limits", value: lim, text: true });
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
@@ -3177,7 +3173,7 @@ async function viewEvent(eventId) {
           }
         </div>
         ${ro ? "" : `<div class="panel share-item" id="share-panel-${s.id}" data-share-panel="${s.id}" hidden></div>`}
-        ${stats.length ? `<div class="s-stats">${stats.join(" · ")}</div>` : ""}
+        ${sessionStatsHtml(stats, lapsMs)}
         ${s.notes ? `<div class="notes-block" data-session-notes="${s.id}">${esc(s.notes)}</div>` : ""}
         ${
           ro
@@ -3310,7 +3306,7 @@ async function viewEvent(eventId) {
       ${setupsAllowed ? setupDays.map(setupDayHtml).join("") : ""}
       ${
         setupsAllowed && !e.vehicle_id && garage.length
-          ? `<div class="hint" style="margin:6px 0 0">Tip: set this event's Car to one of your garage vehicles and setups will carry over between its events.</div>`
+          ? `<div class="hint" style="margin:6px 0 0">Tip: pick a garage car for this event and setups carry over between its events.</div>`
           : ""
       }
     </details>`;
@@ -3398,7 +3394,7 @@ async function viewEvent(eventId) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${
@@ -4182,7 +4178,7 @@ function catalogFieldHtml(id, pick, { hint = true } = {}) {
         placeholder="Corvette C7, MX-5 ND, 718 Cayman…">
       <div class="combo-list" id="${id}" role="listbox" hidden></div>
     </div>
-    ${hint ? `<div class="hint">Picking a car fills in the wheelbase and steering ratio the balance read-out uses — nothing else changes, and a car the catalog doesn't know is just typed in.</div>` : ""}
+    ${hint ? `<div class="hint">Picking a car fills in its wheelbase and steering ratio. Not listed? Just type the name.</div>` : ""}
   </div>`;
 }
 
@@ -4242,7 +4238,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
               value="${esc(existing?.track_name ?? presetTrack ?? "")}" placeholder="Virginia International Raceway (Full)">
             <div class="combo-list" id="track-combo-list" role="listbox" hidden></div>
           </div>
-          <div class="hint">Pick from your tracks and known US tracks, or type a new name — layouts time differently, so name them separately ("Virginia International Raceway (Full)" vs "(Patriot)") to keep PBs honest</div>
+          <div class="hint">Pick a track or type a new one. Name each layout separately — "(Full)" vs "(Patriot)".</div>
         </div>
         <div class="field"><label>Start date</label>
           <input name="start_date" type="date" required value="${esc(existing?.start_date ?? new Date().toISOString().slice(0, 10))}">
@@ -4252,7 +4248,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
         </div>
         <div class="field"><label>On-track hours (optional)</label>
           <input name="track_hours" type="number" min="0.5" max="200" step="0.5" value="${existing?.track_hours ?? ""}" placeholder="from laps, or 1h15m/day">
-          <div class="hint">Seat time for consumable wear tracking — leave blank to use your logged laps (with 3 or more), else 1h15m per day</div>
+          <div class="hint">For wear tracking. Blank uses your logged lap time, else 1h15m per day</div>
         </div>
         <div class="field"><label>Club / organizer</label>
           <input name="club" value="${esc(existing?.club ?? "")}" placeholder="VIR Club">
@@ -4293,13 +4289,13 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <input name="${field}" type="number" min="0" max="100000" step="0.01" inputmode="decimal" value="${centsToDollars(existing?.[field])}" placeholder="${esc(placeholder)}"></div>`
         ).join("")}
       </div>
-      <div class="field"><div class="hint">Rolled up per track, per car and in Year in review — where it prices the seconds you found. Private: never on your share page.</div></div>
+      <div class="field"><div class="hint">Private. Rolled up per track, per car and in Year in review.</div></div>
     </form>
     ${
       existing
         ? ""
         : `<h2>Add laps</h2>
-    <div class="hint" style="margin:-4px 0 10px">Optional — pull the laps out of a video or logger file, or type them in, and they're saved with the event. You can always add more from the event page.</div>
+    <div class="hint" style="margin:-4px 0 10px">Optional — import a file or type laps in. You can add more later.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,video/quicktime,.mp4,.mov,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
@@ -4308,7 +4304,7 @@ async function viewEventForm(eventId, presetTrack, presetCar) {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${
@@ -4472,7 +4468,7 @@ async function viewImport() {
   ]);
   const view = shell(`
     <h1>Import laps</h1>
-    <div class="hint" style="margin:-4px 0 12px">Drop the files from one track day or several. Each is matched to its track by where it was driven and grouped into events by date — you check the result before anything is saved.</div>
+    <div class="hint" style="margin:-4px 0 12px">Drop files from any mix of days. Each is matched to its track and grouped into events — nothing saves until you confirm.</div>
     <div class="pdr-dropzone" id="pdr-dropzone">
       <input type="file" id="pdr-files" accept="video/mp4,video/quicktime,.mp4,.mov,.vbo,.csv" multiple hidden>
       <div class="pdr-dropzone-inner">
@@ -4481,7 +4477,7 @@ async function viewImport() {
           <button class="btn" id="pdr-import" type="button">Import video / telemetry…</button>
           <span class="pdr-dropzone-hint">or drag &amp; drop <code>.mp4</code> / <code>.mov</code> / <code>.vbo</code> / <code>.csv</code> files here</span>
         </div>
-        <span class="hint" style="font-size:12px;color:var(--text-muted)">Reads lap times from Corvette &amp; Cadillac PDR, GoPro and AiM SmartyCam video, Racelogic VBO and Porsche Track Precision CSV telemetry — files never leave your computer, and neither does where they were recorded until you save</span>
+        <span class="hint" style="font-size:12px;color:var(--text-muted)">PDR, GoPro and SmartyCam video, VBO and Track Precision CSV. Files stay on your computer.</span>
       </div>
     </div>
     ${canViewChannels(state.entitlement) ? "" : proNoteHtml(IMPORT_FREE_NOTE)}
@@ -4527,9 +4523,9 @@ function subscriptionPanelHtml(notice = null) {
   const detail = !pro
     ? e?.source && e.source !== "legacy"
       ? endedText(e.source)
-      : "The logbook, your lap times, charts, sharing and telemetry import are free and stay that way. Pro adds the lap recorder, the channel graphs and sector splits inside an imported session, the garage's consumables, the setup notebook and year in review."
+      : "The logbook is free. Pro adds the lap recorder, full telemetry analysis, the garage, the setup notebook and year in review."
     : e.source === "legacy"
-      ? "You bought the app before it became a subscription, so Pro is yours for life. There is nothing to renew and nothing to cancel."
+      ? "You bought the app before subscriptions, so Pro is yours for life."
       : `${billedText(e.source) ?? ""}${e.auto_renew === false ? " Auto-renew is off — Pro runs until the date above." : ""}`;
   const legal = `<a href="${DOCS_URL}/docs/terms.html" target="_blank" rel="noopener">Terms of use</a> ·
     <a href="${DOCS_URL}/docs/privacy.html" target="_blank" rel="noopener">Privacy policy</a>`;
@@ -4549,21 +4545,17 @@ function subscriptionPanelHtml(notice = null) {
              .join("")}
          </div>
          ${trial ? `<div class="hint" style="margin:8px 0 0">${esc(trial)}</div>` : ""}
-         <div class="hint" style="margin:8px 0 0">Checkout is on Stripe's secure page; we never see your card.
-           Cancel or switch plans any time from <em>Manage billing</em> here. ${legal}</div>`
+         <div class="hint" style="margin:8px 0 0">Checkout is on Stripe — we never see your card. Cancel any time. ${legal}</div>`
       : "";
   const storeHint = pro
     ? ""
     : selling
       ? `<div class="hint" style="margin:10px 0 0">Or subscribe in the
            <a href="${APP_STORE_URL}" target="_blank" rel="noopener">iPhone</a> or
-           <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app — the subscription follows
-           this account, not the device.</div>`
-      : `<div class="hint" style="margin:10px 0 0">Subscriptions are sold in the phone apps —
-           ${PRO_PRICE}, covering all three apps and this site. Sign in there with this account
-           and Pro appears here within a minute.</div>`;
+           <a href="${PLAY_STORE_URL}" target="_blank" rel="noopener">Android</a> app.</div>`
+      : `<div class="hint" style="margin:10px 0 0">Sold in the phone apps — ${PRO_PRICE}. Sign in there with this account and Pro shows up here too.</div>`;
   const banner = notice?.ok
-    ? `<div class="success-banner" role="status">Welcome to Pro — it's on for this account in the web app and both phone apps.</div>`
+    ? `<div class="success-banner" role="status">Welcome to Pro — it's on everywhere you sign in.</div>`
     : notice?.error
       ? `<div class="error-banner" role="alert">${esc(notice.error)}</div>`
       : "";
@@ -4668,7 +4660,7 @@ async function viewSettings(params = new URLSearchParams()) {
     <h2>Subscription</h2>
     ${subscriptionPanelHtml(subNotice)}
     <h2>Units</h2>
-    <div class="hint" style="margin:0 0 4px">How speeds, distances, temperatures, tire pressures and fuel are shown and entered, on every device you sign in on. Nothing already logged changes — the same numbers are just converted.</div>
+    <div class="hint" style="margin:0 0 4px">Display only — nothing you've logged changes.</div>
     <div class="panel">
       <div class="btn-row" role="group" aria-label="Unit system" id="units-toggle">
         ${UNIT_SYSTEMS.map(
@@ -4678,18 +4670,13 @@ async function viewSettings(params = new URLSearchParams()) {
       </div>
       <div id="units-error"></div>
     </div>
-    <h2>Cars</h2>
-    <div class="panel">
-      <div class="hint" style="margin:0 0 10px">Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.</div>
-      <a class="btn small" href="#/garage">Open the Garage →</a>
-    </div>
     <h2>Coaching</h2>
     <div class="panel">
-      <div class="hint" style="margin:0 0 10px">Share your logbook read-only with an instructor or coach, fill in the driver profile they see, and open the logbooks of drivers you coach.</div>
+      <div class="hint" style="margin:0 0 10px">Share your logbook with a coach, or open your students'.</div>
       <a class="btn small" href="#/coaching">Open Coaching →</a>
     </div>
     <h2>Prep checklist</h2>
-    <div class="hint" style="margin:0 0 4px">The list an upcoming event starts from. Edit it here and every checklist you start from now on uses your version — checklists already on an event keep whatever is on them.</div>
+    <div class="hint" style="margin:0 0 4px">The list new events start from. Existing checklists don't change.</div>
     <div class="panel" id="tmpl-panel">
       ${template
         .map(
@@ -4706,9 +4693,6 @@ async function viewSettings(params = new URLSearchParams()) {
         <button class="btn small" id="tmpl-add">Add</button>
         ${isCustom ? `<button class="btn small" id="tmpl-reset">Reset to default</button>` : ""}
       </div>
-      <div class="hint" style="margin:8px 0 0">${
-        isCustom ? "This is your own list." : "This is the app's default — your first edit makes it yours."
-      }</div>
       <div id="tmpl-error"></div>
     </div>
     <h2>Leaderboards</h2>
@@ -4717,20 +4701,20 @@ async function viewSettings(params = new URLSearchParams()) {
         <input type="checkbox" id="lb-opt" ${state.me?.leaderboard_opt_in ? "checked" : ""}>
         Appear on per-track leaderboards
       </label>
-      <div class="hint" style="margin:8px 0 0">Opting in shares exactly two things with other signed-in drivers, per track: your name and your best device-timed lap (with its date). Only laps recorded with the Track Evolution app or imported from telemetry are ranked — hand-entered times stay in your logbook. Your events, notes, laps and garage stay private. Leaderboards exist only for tracks the app's catalog knows.</div>
+      <div class="hint" style="margin:8px 0 0">Shares your name and best device-timed lap at each track. Nothing else.</div>
       <label class="dry-toggle" style="display:block;margin-top:12px">
         <input type="checkbox" id="lb-share" ${state.me?.leaderboard_share_laps ? "checked" : ""} ${state.me?.leaderboard_opt_in ? "" : "disabled"}>
         Let other drivers open my ranked laps
       </label>
-      <div class="hint" style="margin:8px 0 0">A second, separate choice, off unless you turn it on. It publishes one lap per track — the ranked one already on the board — as its racing line and telemetry traces, so a driver ranked at the same track can compare corner for corner. It never publishes any other lap, your notes, your session labels, your car, the conditions you typed, your setup sheets or your garage. Leaving the leaderboards turns it off.</div>
+      <div class="hint" style="margin:8px 0 0">Also shares that lap's racing line and telemetry. No other lap, no notes.</div>
       <div id="lb-error"></div>
     </div>
     ${youtubeSettingsHtml()}
     <h2>AI assistants</h2>
-    <div class="hint" style="margin:0 0 4px">With Pro, you can connect Claude, ChatGPT or another AI assistant to your logbook and ask it about your laps, sessions and garage. It can read your data and can't change anything. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
+    <div class="hint" style="margin:0 0 4px">With Pro, connect Claude, ChatGPT or another assistant to your logbook. Read-only. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
     <h2>Your data</h2>
-    <div class="hint" style="margin:0 0 4px">Download a copy of everything you've put in the logbook — yours to keep, whatever your plan, including the telemetry, garage and setup sheets only Pro shows.</div>
+    <div class="hint" style="margin:0 0 4px">Download everything in your logbook, on any plan.</div>
     <div class="panel" id="export-panel">
       <div class="btn-row">
         ${EXPORT_FILES.map(
@@ -4740,7 +4724,7 @@ async function viewSettings(params = new URLSearchParams()) {
       <label class="dry-toggle" style="float:none;display:flex;margin-top:12px">
         <input type="checkbox" id="export-telemetry"> Include telemetry in the JSON
       </label>
-      <div class="hint" style="margin:6px 0 0">Telemetry makes the file much larger — about 1 MB per imported or recorded session. The CSVs open in any spreadsheet; the JSON holds everything, in the units the app stores. Best-lap videos are listed, not included — download each from its lap.</div>
+      <div class="hint" style="margin:6px 0 0">Telemetry adds about 1 MB per session. Lap videos aren't included — download each from its lap.</div>
       ${state.me?.clips ? `<div class="hint" style="margin:6px 0 0">${esc(clipStorageLine(state.me.clips))}</div>` : ""}
       <div id="export-status" role="status" aria-live="polite">${
         exportOffline() ? `<div class="hint" style="margin:8px 0 0">${EXPORT_OFFLINE}</div>` : ""
@@ -4748,7 +4732,7 @@ async function viewSettings(params = new URLSearchParams()) {
     </div>
     <h2>New to track days?</h2>
     <div class="panel">
-      <div class="hint" style="margin:0 0 10px">What a track day is, what you and the car need, where to find an event near you, and what happens on the day.</div>
+      <div class="hint" style="margin:0 0 10px">What to expect, what to bring and where to find an event.</div>
       <a class="btn small" href="${TRACK_DAYS_URL}" target="_blank" rel="noopener">Your first track day ↗</a>
     </div>
     <h2>About &amp; legal</h2>
@@ -4951,10 +4935,7 @@ async function viewSettings(params = new URLSearchParams()) {
 // What a free account is shown in place of the garage's Pro half, here and on
 // a car's page: locked in place, never simply missing.
 const GARAGE_PRO_WHAT =
-  "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
-  "your own track days — a wear projection from your measurements, reminders before the next " +
-  "event, and what the car has cost you: its parts and its track days. Your cars and what " +
-  "they've done stay free.";
+  "Hours on pads, tires, rotors and fluid, wear projections, reminders before an event, and what the car has cost.";
 
 async function viewGarage() {
   const pro = canUseGarage(state.entitlement);
@@ -5046,7 +5027,7 @@ async function viewGarage() {
   };
   let addPick = null;
   bindCatalogPicker(vehAdd.catalog, view.querySelector("#veh-add-catalog-list"), carCatalog, {
-    emptyText: "No car in the catalog matches that — add it by name, and set its wheelbase and steering ratio on its page.",
+    emptyText: "No match — add it by name.",
     onPick: (row) => {
       addPick = row;
       if (vehAdd.name.value.trim() === "") vehAdd.name.value = catalogCarName(row);
@@ -5222,7 +5203,7 @@ async function viewVehicle(vehicleId) {
     if (!p.equipped) return "";
     const min = (p.mounts ?? []).find((m) => m.removed_on == null)?.mounted_on ?? p.installed_on;
     return `<form class="btn-row equip-form" data-equip-form="${p.id}" hidden>
-      <span class="hint-inline" id="equip-note-${p.id}">Take it off the car? It moves to Spares with its history, and its wear stops until it goes back on.</span>
+      <span class="hint-inline" id="equip-note-${p.id}">Take it off the car? It moves to Spares and stops wearing.</span>
       <input name="on" type="date" required value="${today}" min="${esc(min)}" max="${today}" aria-label="Swap date">
       ${swapSelectHtml()}
       <button class="btn small primary">Take off</button>
@@ -5332,7 +5313,7 @@ async function viewVehicle(vehicleId) {
       <div class="hint" id="veh-measured" hidden></div>
       <div id="veh-asks"></div>
       <div class="hint" id="veh-source" ${initialPick ? "" : "hidden"}>${initialPick ? esc(initialPick.source) : ""}</div>
-      <div class="hint">Both are on the spec sheet or in the owner's manual. They let the balance read-out say how much understeer, rather than only which corner differs from the rest — leave them blank and it keeps the relative reading.</div>
+      <div class="hint">Optional, from the spec sheet. They sharpen the understeer / oversteer read-out.</div>
       <div id="veh-error"></div>
       <div class="btn-row">
         <button class="btn small primary">Save</button>
@@ -5417,12 +5398,12 @@ async function viewVehicle(vehicleId) {
     }
     ${logbookLineHtml()}
     <h2>On the car</h2>
-    <div class="hint" style="margin:0 0 4px">Wear accrues automatically from this car's logged events (the logged lap time on days with 3+ laps, else 1h15m per track day, unless an event says otherwise), but only while a part is equipped — flip the switch off to put a set on the shelf, and on again to swap it back. Log a quick pad or tread measurement between events and the projection switches from estimated to measured.</div>
-    ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below and Track Evolution will tell you when they're due." })}
+    <div class="hint" style="margin:0 0 4px">Wear accrues from this car's events while a part is equipped. Log a measurement and the projection goes from estimated to measured.</div>
+    ${active.map(partCard).join("") || emptyHtml({ body: "Nothing tracked yet — add pads, tires or fluid below." })}
     ${
       shelf.length
         ? `<h2>Spares</h2>
-    <div class="hint" style="margin:0 0 4px">Off the car but not retired — a second set of wheels, the street pads. Their hours are frozen until you equip them, which takes off whatever is in their place.</div>
+    <div class="hint" style="margin:0 0 4px">Off the car, not retired. Hours freeze until you equip them.</div>
     ${shelf.map(partCard).join("")}`
         : ""
     }
@@ -5685,7 +5666,7 @@ async function viewVehicle(vehicleId) {
   });
   view.querySelectorAll("[data-part-refresh]").forEach((btn) => {
     btn.onclick = async () => {
-      if (!confirm("Fresh set of the same part? This retires the current one now (keeping its history) and installs a new one with the same details — hours reset to zero. If you're at the track, the swap goes in after the last session logged; edit the new part to change when it went on, or its cost or compound."))
+      if (!confirm("Fresh set of the same part? This retires the current one, keeping its history, and installs a new one with the same details."))
         return;
       try {
         await api(`/parts/${btn.dataset.partRefresh}/refresh`, { method: "POST", body: {} });
@@ -5945,8 +5926,7 @@ async function viewYear(params) {
       <h1>Year in review</h1>
       ${proPanelHtml(
         "Year in review",
-        "Your season in one page: events, track days and laps logged, tracks visited, and how " +
-          "much time you found at each of them against every year before.",
+        "Your season on one page: events, laps, tracks, and the time you found at each.",
         { underHeading: true }
       )}
       <p class="sub">Season Wrapped is free: <a href="#/wrapped${params.get("y") ? `/${esc(params.get("y"))}` : ""}">see your season as a story →</a></p>
@@ -6122,10 +6102,8 @@ const dateOfMs = (ms) => fmtDate(new Date(ms).toISOString().slice(0, 10));
 // What a coach reads, as the Coaching page promises it before an invite is
 // made — keep it in step with COACH_ROUTES in src/lib/coaching.ts.
 const COACH_SHARES =
-  "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
-  "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
-  "notes, prep checklists, costs, setup sheets, parts or email. They can't change anything; they can leave " +
-  "comments on your sessions and laps, which only you and that coach see.";
+  "your events, laps, telemetry, lap videos, cars and driver profile. Never your notes, checklists, costs, " +
+  "setup sheets, parts or email. They can't change anything; their comments are seen only by you and them.";
 
 // Removing a coach stops new viewing at once, but a video URL already handed
 // out keeps playing for up to an hour, and any player can save the file (NS-45).
@@ -6225,15 +6203,14 @@ async function viewCoaching() {
           </div>`
         : proPanelHtml(
             "Share with a coach",
-            "Send an instructor or coach a link that gives them read-only access to your logbook — every " +
-              "session, the channel graphs and your racing lines — so they can prepare before the next track day."
+            "Send a coach a link for read-only access to your logbook: every session, its telemetry and racing lines."
           )
     }
     <h3 style="margin:18px 0 6px">Coaches who can see your logbook</h3>
     <div class="panel" id="coaches-panel">${coachesHtml}</div>
     <div class="hint" style="margin:6px 0 0">${esc(COACH_VIDEO_REVOKE)}</div>
     <h2>Driver profile</h2>
-    <div class="hint" style="margin:0 0 4px">What your coaches see about you — your experience, your gear and what you want to work on. Only you and the coaches you've invited can see it.</div>
+    <div class="hint" style="margin:0 0 4px">What your coaches see about you. Only you and they can see it.</div>
     ${profileCardHtml(me.profile, { empty: `<div class="panel">${emptyHtml({ body: "Not filled in yet.", compact: true })}</div>` })}
     <div class="btn-row"><a class="btn small" href="#/profile">${me.profile ? "Edit profile" : "Fill in your profile"}</a></div>
     <div id="coaching-error"></div>
@@ -6347,7 +6324,7 @@ async function viewProfile() {
   const view = shell(`
     <p style="margin:22px 0 0"><a class="backlink" href="#/coaching">← Coaching</a></p>
     <h1>Driver profile</h1>
-    <p class="sub">What the coaches you've invited see about you. Only you and them — it's never on your share page or the leaderboards. There's no birth date or emergency contact here on purpose: tell your instructor those at the track.</p>
+    <p class="sub">Only you and your coaches see this. No birth date or emergency contact here — tell your instructor at the track.</p>
     <form class="panel" id="profile-form">
       ${PROFILE_GROUPS.map(
         (g) => `<h3>${esc(g.title)}</h3>
@@ -6461,7 +6438,7 @@ async function viewAcceptInvite() {
     <h1>Coaching invite</h1>
     <div class="panel">
       <p><strong>${esc(name)}</strong> wants to share their Track Evolution logbook with you, read-only.</p>
-      <p class="hint">You'll see their events, sessions and laps with the channel graphs, their racing lines, their cars and modifications, and their driver profile — not their notes, costs, setup sheets or email. Either of you can end it at any time from the Coaching page.</p>
+      <p class="hint">You'll see their events, laps, telemetry, cars and driver profile — not their notes, costs or setup sheets. Either of you can end it any time.</p>
       <p class="hint">Accepting shows ${esc(name)} your name and profile picture, and when you last looked at their logbook.</p>
       <div class="btn-row">
         <button class="btn primary" id="invite-accept">Accept</button>

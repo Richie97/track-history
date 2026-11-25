@@ -122,10 +122,11 @@ fun BalanceScatter(
     val readable = remember(channels) { Balance.balanceLaps(channels) }
     if (readable.isEmpty()) return
     val sign = remember(channels) { Balance.yawSign(channels) }
-    val refGain = remember(channels) { Balance.referenceGain(channels, sign) }
+    val ref = remember(channels) { Balance.balanceReference(channels, sign) }
+    val refGain = ref?.refGain
     val sb = remember(channels) { Balance.sessionBalance(channels) }
     val lapPoints = remember(channels, sign) {
-        readable.map { it.chIdx to Balance.balancePoints(it.entry, sign) }
+        readable.map { it.chIdx to Balance.balancePoints(it.entry, sign, ref?.k ?: 0.0) }
     }
     val colors = TrackTheme.colors
     val measurer = rememberTextMeasurer()
@@ -176,8 +177,7 @@ fun BalanceScatter(
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Balance", style = TrackTheme.typography.xxs, color = colors.textMuted)
             Text(
-                "How much the car rotated for the steering it was given. Steering the car doesn't " +
-                    "answer is understeer; rotation it wasn't asked for is oversteer.",
+                "Rotation against steering. Below the line is understeer, above it oversteer.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
             )
@@ -213,14 +213,9 @@ fun BalanceScatter(
                 )
             }
             Text(
-                "Corners are stretches of sustained cornering force " +
-                    "(${"%.2f".format(Corners.CORNER_MIN_G)} G or more) counted from the start/finish " +
-                    "line, so the T-numbers are this app's, not the circuit's. Each reading is how far " +
-                    "the corner's rotation sits from this car's typical response over the whole session " +
-                    "— the dashed line — because the exact version needs the wheelbase and steering " +
-                    "ratio — the garage stores them, but this reading doesn't use them yet. That makes " +
-                    "it relative: a car that pushes in every corner reads neutral in every corner, and " +
-                    "what shows up is the corner that behaves differently from the rest.",
+                "Corners are numbered from the start/finish line (${"%.2f".format(Corners.CORNER_MIN_G)} G or more), " +
+                    "not by the circuit's map. Readings are relative to this car's typical response at that speed — the " +
+                    "dashed line — so a car that pushes everywhere reads neutral in every corner.",
                 style = TrackTheme.typography.xxs,
                 color = colors.textFaint,
             )
@@ -312,7 +307,7 @@ private fun DrawScope.drawPlot(
         )
     }
 
-    // The reference: this car's typical response, clipped to the plot.
+    // The reference: this car's response with its speed term divided out, clipped to the plot.
     if (refGain != null && refGain > 0) {
         val xEnd = min(xMax, yMax / refGain)
         drawLine(

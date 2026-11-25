@@ -386,8 +386,7 @@ fun LapDetailScreen(
             if (channels == null && trace == null) {
                 item("empty") {
                     TEEmpty(
-                        "No telemetry for this lap. Import a session, or record laps with the app, " +
-                            "and its racing line and traces land here.",
+                        "No telemetry for this lap. Import or record a session to see its racing line and traces.",
                         action = onImport?.let { TEEmptyAction("Import a session", it) },
                     )
                 }

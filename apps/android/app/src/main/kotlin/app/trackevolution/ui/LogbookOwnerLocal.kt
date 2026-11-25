@@ -18,9 +18,8 @@ val LocalLogbookOwner = staticCompositionLocalOf<LogbookOwner> { LogbookOwner.Me
  * `public/app.js`.
  */
 fun studentFreeNote(name: String?): String =
-    "${name ?: "This driver"} is on the free plan, so you see their lap times, racing lines and the " +
-        "speed, throttle and brake traces. Steering, RPM, lateral G, sector splits, the friction circle and the " +
-        "rest of the analysis show here once they have Pro."
+    "${name ?: "This driver"} is on the free plan, so you see lap times, racing lines and the " +
+        "speed, throttle and brake traces. The rest shows once they have Pro."
 
 /**
  * What the channel panel says where the free half ends on a shared event or

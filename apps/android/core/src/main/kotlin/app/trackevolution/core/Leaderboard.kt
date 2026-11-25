@@ -22,8 +22,7 @@ public object Leaderboard {
         val you = leaderboard.entries.firstOrNull { it.you }
         return when {
             leaderboard.optedIn && you == null ->
-                "None of your laps here were timed by a device, so you aren't ranked yet. " +
-                    "Record with the app or import telemetry to appear."
+                "Only device-timed laps rank. Record or import a lap here to appear."
             you != null && logbookBest < you.bestMs ->
                 "Your best here (${LapTime.fmtMs(logbookBest)}) was entered by hand and isn't ranked."
             else -> null

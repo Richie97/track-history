@@ -125,15 +125,14 @@
   <article class="docs-content">
     <h1>Garage &amp; setup notebook</h1>
     <p class="lede">
-      The paper notebook and the parts spreadsheet, folded into your logbook:
-      track what's on the car and what it's set to, and let your logged events
-      tell you <strong>when consumables will need replacing</strong> and what a
-      setup change did to your times.
+      Track what's on the car and what it's set to. Your logged events then
+      tell you <strong>when consumables will need replacing</strong> and what
+      a setup change did to your times.
     </p>
 
     <div class="callout">
-      Keeping your cars — every vehicle, its notes, the default that fills in
-      new events, and each car's track days and best laps — is free.
+      Keeping your cars is free: every vehicle, its notes, the default that
+      fills in new events, and each car's track days and best laps.
       <strong>Consumable wear tracking, what the car has cost and the setup
       notebook are part of Track Evolution Pro</strong> ($1.99/month or
       $19.99/year, one subscription across the iPhone, Android and web apps).
@@ -142,245 +141,255 @@
 
     <h2 id="garage">Vehicles and their garage pages</h2>
     <p>
-      Your garage has its own page: on the web, the <strong>Garage</strong>
-      link beside <strong>Events</strong> at the top of every page. It shows a
-      card for each car — how many track days it has done and where it was
-      last out — and an <strong>+ Add car</strong> card that adds one, picked
-      from the catalog or typed in. In the iPhone, iPad and Android apps it
-      is the <strong>Garage</strong> tab, beside <strong>Events</strong>. When an
-      event's Car field matches a garage vehicle by name, the event links to
-      that vehicle — that link is what lets parts accrue wear and setups carry
-      over between events. Each vehicle gets a garage page with its track
-      days, where it was last out and next going, a <strong>Best laps</strong>
-      button that opens its best lap at each track, and an
-      <strong>Edit car</strong> button for its name,
-      modifications and notes — and, with Pro, its track hours, consumables
-      and spend. A vehicle can also carry a
-      <strong>target hot tire pressure</strong> — the pressure you want the
-      tires to reach on track — which the setup notebook's pressure loop
-      (below) aims at; set it from <em>Edit car</em> or straight from an
-      imported session's Car tab.
+      Open the garage from the <strong>Garage</strong> link beside
+      <strong>Events</strong> at the top of every page on the web, or the
+      <strong>Garage</strong> tab in the iPhone, iPad and Android apps. It
+      shows a card for each car, with its track days and where it was last
+      out. <strong>+ Add car</strong> adds one, picked from the catalog or
+      typed in.
     </p>
     <p>
-      <em>Edit car</em> also takes two numbers off the car's spec sheet:
-      its <strong>wheelbase</strong> (in millimetres) and its
-      <strong>steering ratio</strong> (16.25 for "16.25:1"). They are what the
-      balance read-out on an imported session needs to say <em>how much</em>
-      a corner understeers, rather than only which corner behaves differently
-      from the rest. Both are optional — leave them blank and the read-out
-      keeps its relative reading — and both are in the owner's manual or the
-      manufacturer's technical data. For the cars a track day usually sees,
-      Track Evolution keeps a catalog of these figures, one entry per
-      generation, and you never have to know them: the vehicle form has a
-      <strong>Find your car in the catalog</strong> field — type a few letters
-      ("c7", "corvette", "mx-5 nd") and pick your generation from the list,
-      which shows the years so seven Corvettes don't read as one. Picking fills
-      in both numbers and, if the car has no name yet, names it; a car you
-      already named keeps its name. The numbers stay editable underneath, with
-      a line saying where the catalog got them. If you had already typed a
-      number, a pick asks before replacing it — each number separately, so a
-      ratio you corrected to what your aftermarket rack really is survives.
-      Picking a different car swaps the catalog's numbers for the new car's,
-      and clearing the pick keeps the numbers as yours. A steering ratio is
-      only ever filled in where the manufacturer quotes a single figure — a
-      variable-ratio rack is left for you to decide, never guessed. The
-      catalog is small and cached, so searching it works offline; saving the
-      car, like every garage change, needs a connection.
+      When an event's Car field matches a garage vehicle by name, the event
+      links to that vehicle. That link is what lets parts accrue wear and
+      setups carry over between events.
+    </p>
+    <p>Each car's page shows:</p>
+    <ul>
+      <li>its track days, where it was last out and where it goes next;</li>
+      <li><strong>Best laps</strong>, its best lap at each track;</li>
+      <li><strong>Edit car</strong>, for its name, modifications, notes and
+        <strong>target hot tire pressure</strong> (the pressure you want the
+        tires to reach on track, which the <a href="#setups">pressure
+        loop</a> aims at and an imported session's Car tab can also
+        set);</li>
+      <li>with Pro, its track hours, consumables and spend.</li>
+    </ul>
+
+    <h3>Wheelbase and steering ratio</h3>
+    <p>
+      <em>Edit car</em> takes two optional numbers from the car's spec sheet:
+      its <strong>wheelbase</strong> (in millimeters) and its
+      <strong>steering ratio</strong> (16.25 for "16.25:1"). With them, the
+      balance read-out on an imported session says <em>how much</em> a corner
+      understeers. Without them it says only which corners behave differently
+      from the rest. Both are in the owner's manual or the manufacturer's
+      technical data.
     </p>
     <p>
-      For a car the catalog doesn't cover — or to check a number you typed —
-      Track Evolution can <strong>measure the steering ratio from your own
-      laps</strong>. Once the car has a wheelbase and a few imported sessions
-      that recorded steering angle and yaw rate (a Corvette or Cadillac PDR
-      recording does), a line appears under the steering-ratio field: <em>"Measured from
-      6 sessions: 15.8:1"</em>, with a <strong>Use this</strong> button that
-      fills the field in. The number comes from how much the car rotated for
-      the steering it was given across a range of speeds, which is the same
-      physics the balance read-out runs on, pooled across your most recent
-      sessions so one damp day doesn't set it. If the field already holds a
-      number, the same line becomes the sanity check — <em>"— matches"</em>,
-      or <em>"— your 12:1 is well off this; check the units"</em> — and a car
-      whose rack changes ratio with speed says so rather than pretending to
-      one figure. When there is nothing to measure from yet, the line simply
-      isn't there.
+      For the cars a track day usually sees, a catalog holds both figures,
+      one entry per generation. In <strong>Find your car in the
+      catalog</strong>, type a few letters ("c7", "corvette", "mx-5 nd") and
+      pick your generation; the list shows the years.
+    </p>
+    <ul>
+      <li>A pick fills in both numbers, and the name if the car has none.
+        The numbers stay editable, with a line saying where the catalog got
+        them.</li>
+      <li>A number you had already typed is replaced only after asking,
+        each number separately.</li>
+      <li>Picking a different car swaps in its numbers. Clearing the pick
+        keeps the numbers as yours.</li>
+      <li>A variable-ratio rack gets no steering ratio; that one is left for
+        you to decide.</li>
+      <li>Searching the catalog works offline. Saving the car, like every
+        garage change, needs a connection.</li>
+    </ul>
+    <p>
+      Track Evolution can also <strong>measure the steering ratio from your
+      own laps</strong>, pooled across your most recent sessions. It needs a
+      wheelbase and a few imported sessions that recorded steering angle and
+      yaw rate (a Corvette or Cadillac PDR recording does). A line then
+      appears under the steering-ratio field:
+    </p>
+    <ul>
+      <li><strong>Field empty</strong> — <em>"Measured from 6 sessions:
+        15.8:1"</em>, with a <strong>Use this</strong> button that fills it
+        in.</li>
+      <li><strong>Field filled</strong> — a check on your number:
+        <em>"— matches"</em>, or <em>"— your 12:1 is well off this; check the
+        units"</em>.</li>
+    </ul>
+    <p>
+      For a rack whose ratio changes with speed, the line says so.
     </p>
 
     <h2 id="hours">Track hours — the wear clock</h2>
     <p>
-      Everything wear-related runs on <strong>on-track hours</strong>, counted
-      automatically from your events: <strong>1 hour 15 minutes per track day</strong>
-      by default — about four 20-minute sessions of green-flag laps, a typical
-      HPDE day. If a day ran long or short, set the exact hours on the event's edit
-      form ("On-track hours") and that event uses your number instead. Once an
-      event has <strong>three or more logged laps</strong> — recorded, imported
-      or typed in — its hours are the total of those lap times instead of the
-      estimate, whether that comes out more or less than 1h15m a day. With
-      only one or two laps logged (a best lap, say), the 1h15m estimate
-      stands.
+      All wear runs on <strong>on-track hours</strong>, counted from your
+      events. An event's hours are the first of these that applies:
     </p>
+    <ol>
+      <li>The <strong>On-track hours</strong> you set on the event's edit
+        form.</li>
+      <li>The total of its lap times, once the event has <strong>three or
+        more logged laps</strong> (recorded, imported or typed in).</li>
+      <li><strong>1 hour 15 minutes per track day</strong>: about four
+        20-minute sessions of green-flag laps, a typical HPDE day.</li>
+    </ol>
     <p>
-      Hours are an estimate. When you import video from a car whose own data
-      recorder logs the odometer — a Corvette's or Cadillac's Performance Data Recorder —
-      the car page also shows <strong>what the odometer said</strong> at your
-      last recorded session, and each consumable shows how far the car went
-      between the first and last recorded sessions it was fitted for, right
-      under its hours. Read it as a floor, not a total: sessions imported
-      without that video, or typed in by hand, carry no reading, so distance
-      you didn't record isn't counted. If a reading comes in lower than an
-      earlier one — a borrowed car's day logged under this one, say — it is
-      set aside as another car's rather than subtracted. Wear projections
-      still run on hours; the odometer sits beside them as a check.
+      Video imported from a Corvette's or Cadillac's Performance Data
+      Recorder also carries the car's odometer. The car page then shows
+      <strong>what the odometer said</strong> at your last recorded session,
+      and each consumable shows, under its hours, how far the car went
+      between the first and last recorded sessions it was fitted for. Read
+      that distance as a floor: sessions without that video carry no
+      reading. A reading lower than an earlier one is set aside as another
+      car's. Wear projections run on hours only.
     </p>
 
     <h2 id="parts">Consumables and wear projections</h2>
     <p>
-      Add parts — brake pads, tires, rotors, brake fluid, oil — to a vehicle
-      with their cost, an optional size, and optionally an install date and an
-      expected life in track hours. Leave the install date blank and a part
-      that's on the car went on today. Tires can be one entry for a full set, or
-      two — <strong>front tires</strong> and <strong>rear tires</strong> — for
-      a staggered car, so each axle keeps its own size, wear and replacement
-      date. From then on wear accrues by itself as you log events. Each part
-      shows a wear bar and a projection of what's left, from the best
-      information available:
+      Add parts to a vehicle: brake pads, tires, rotors, brake fluid, oil.
+      Each takes a cost and, optionally, a size, an install date and an
+      expected life in track hours. A part on the car with no install date
+      went on today. Tires can be one entry for a full set, or two —
+      <strong>front tires</strong> and <strong>rear tires</strong> — for a
+      staggered car.
+    </p>
+    <p>
+      Wear then accrues as you log events. Each part shows a wear bar and a
+      projection of what's left:
     </p>
     <ul>
-      <li><strong>Measured</strong> — log a quick pad-thickness or tread-depth
-        measurement between events (two or more), and the app fits your actual
-        wear rate per track hour and projects when you'll hit the replace-at
-        value. This is the number to trust.</li>
-      <li><strong>Expected life</strong> — with no measurements, remaining life
-        is expected hours minus accrued hours. When you retire a set and add
-        its replacement, the replacement's expected life defaults to what the
-        old set actually lasted.</li>
+      <li><strong>Measured</strong> — log two or more pad-thickness or
+        tread-depth measurements between events, and the app fits your
+        actual wear rate per track hour and projects when you'll hit the
+        replace-at value. This is the number to trust.</li>
+      <li><strong>Expected life</strong> — with no measurements, remaining
+        life is expected hours minus accrued hours.</li>
     </ul>
     <p>
-      When you swap a worn set for a fresh one of the same thing, use the
-      part's <strong>Refresh</strong> button: it retires the current set (its
-      history and measurements stay in the retired list) and starts a new one
-      with the same details, hours reset to zero. The new set's expected life
-      is recalibrated from what your retired sets actually lasted. If the new
-      set differs — different compound, different price — refresh anyway and
-      tweak it with Edit.
+      Tires also count <strong>heat cycles</strong>, one per event day. For
+      what to measure and how a wear rate is worked out, see
+      <a href="./consumables.html">tracking brake pads, tires and fluids on
+      track</a>.
+    </p>
+
+    <h3>Replacing a set</h3>
+    <p>
+      A part's <strong>Refresh</strong> button retires the current set and
+      starts a new one with the same details and zero hours. The new set's
+      expected life defaults to what your retired sets actually lasted. If
+      the new set differs (compound, price), change it with Edit afterwards.
     </p>
     <p>
-      For what to measure on each part and how a wear rate is worked out,
-      see <a href="./consumables.html">tracking brake pads, tires and
-      fluids on track</a>.
+      Retired parts have <strong>Refresh</strong> too, for another set of
+      something you've run before: a new set with the same name, size, cost
+      and replace-at value. Pick the install date and whether it goes
+      straight on the car; anything it takes off moves to Spares.
     </p>
     <p>
-      Retired parts have a <strong>Refresh</strong> button too, for buying
-      another set of something you've run before: pick the install date and
-      whether it goes straight on the car, and a new set with the same name,
-      size, cost and replace-at value is added with hours at zero. The retired
-      set keeps its history, and anything the new set takes off moves to
-      Spares.
+      Retired parts keep their history: measurements, hours lived, cost, and
+      cost per track hour.
     </p>
+
     <h3 id="equipped">On the car, or on the shelf</h3>
     <p>
-      Every part has an <strong>Equipped</strong> switch. Turn it off and the
-      part moves to <strong>Spares</strong> — still yours, not retired — and
-      stops accruing wear. Turn a spare back on and it goes back on the car,
-      taking off whatever is in its place: the other set of tires, the other
-      pads. A full set of tires swaps out a front and a rear pair and the
-      other way round; a front pair leaves the rears alone. The switch asks
-      for the date of the swap (today unless you did it earlier) and says
-      what it will take off before it does.
+      Every part has an <strong>Equipped</strong> switch, on the web and in
+      the iPhone and Android apps:
+    </p>
+    <ul>
+      <li><strong>On</strong> — the part is on the car and accrues
+        wear.</li>
+      <li><strong>Off</strong> — it moves to <strong>Spares</strong>: still
+        yours, not retired, accruing no wear.</li>
+    </ul>
+    <p>
+      Equipping a part takes off whatever is in its place: the other set of
+      tires, the other pads. A full set of tires swaps out a front and a rear
+      pair, and the other way round; a front pair leaves the rears alone. The
+      switch asks for the date of the swap (today unless you did it earlier)
+      and says what it will take off before it does. Adding a new part
+      equipped works the same way.
     </p>
     <p>
-      So a second set of wheels, rain tires, or street pads can come and go
-      as often as you swap them, and each part's hours, heat cycles and
-      recorded miles count only the days it was actually on the car. Adding a
-      new part equipped takes off the one it replaces the same way — untick
-      Equipped to add a spare straight to the shelf, with no install date
-      needed: a spare that hasn't been on the car yet shows the day it was
-      added instead. The switch, sizes and
-      Spares work the same in the web garage and in the iPhone and Android
-      apps.
+      Each part's hours, heat cycles and recorded miles count only the days
+      it was on the car. To add a spare, untick Equipped; it needs no install
+      date, and shows the day it was added until it has been on the car.
     </p>
+
     <h3 id="mid-day-swaps">Swaps in the middle of a day</h3>
     <p>
-      Equipping a part is one tap, and it knows when you're at the track. If
-      today is one of that car's track days, the swap goes in
-      <strong>after the last session logged so far</strong>: the part that came
-      off keeps the sessions before it, and the part that went on gets every
-      session after — including ones you import that evening. The day's hours
-      are shared between the two in proportion to the laps in their sessions,
-      instead of counted for both. Refresh and adding a part equipped work the
-      same way; on a day that isn't a track day, a swap simply happens that
-      day.
+      On one of that car's track days, a swap goes in <strong>after the last
+      session logged so far</strong>. The part that came off keeps the
+      sessions before it. The part that went on gets every session after,
+      including ones you import that evening. The day's hours are shared
+      between the two in proportion to the laps in their sessions. On any
+      other day, the swap takes that day's date.
     </p>
     <p>
-      Recorded it late, or swapped before the first session? Open the part's
-      <strong>Edit</strong> form and change when it went on the car — the date
-      and <strong>when in the day</strong> (<em>Start of the day</em>, or
-      <em>After Session 2</em>, say). The part it replaced moves with it, so the
-      two never overlap. Taking a part off without a replacement still asks
-      for the date and the moment first.
+      To correct a swap, open the part's <strong>Edit</strong> form and
+      change when it went on the car: the date and <strong>when in the
+      day</strong> (<em>Start of the day</em>, or <em>After Session 2</em>,
+      say). The part it replaced moves with it. Taking a part off without a
+      replacement asks for the date and the moment too.
     </p>
-    <p>
-      Parts due (or nearly due) for replacement surface as a
-      <strong>maintenance-due strip</strong> at the top of the Garage and of
-      the car's own page, and your next event names the most urgent part on
-      the car you're taking — before the event, not after it. Tires
-      also count <strong>heat cycles</strong> (one per event day), and retired
-      parts keep their history: hours lived, cost, and cost per track hour.
-    </p>
-    <p>
-      The car's page also totals what it has cost: every part ever fitted,
-      retired sets included, plus whatever its past track days cost if you
-      enter that on your events (see <a href="./data-model.html#costs">what a
-      day cost</a>). Both are shown on the <strong>Spent</strong> tile, with the
-      split underneath.
-    </p>
-    <p>
-      Your season's <a href="./index.html#wrapped">Wrapped</a> names a
-      <strong>favorite tire</strong> (Pro) from the same records: the set of
-      tires (a full set, or a front or rear pair) with the most track days on
-      it that year, counting the events on its car while it was equipped — the
-      same days its wear is counted from. Ties go to the one with more track hours. An event only
-      counts toward a car when its car field matches a car in your garage.
-    </p>
+
+    <h3>What's due, and what the car has cost</h3>
+    <ul>
+      <li>Parts due (or nearly due) for replacement appear in a
+        <strong>maintenance-due strip</strong> at the top of the Garage and
+        of the car's page. Your next event names the most urgent part on the
+        car you're taking.</li>
+      <li>The car's <strong>Spent</strong> tile totals every part ever
+        fitted, retired sets included, plus what its past track days cost if
+        you enter that on your events (see
+        <a href="./data-model.html#costs">what a day cost</a>), with the
+        split underneath.</li>
+      <li>Your season's <a href="./index.html#wrapped">Wrapped</a> names a
+        <strong>favorite tire</strong> (Pro): the full set, or front or rear
+        pair, with the most track days that year while it was equipped. Ties
+        go to the one with more track hours.</li>
+    </ul>
 
     <h2 id="setups">The setup notebook</h2>
     <p>
       Every event carries one <strong>setup sheet per day</strong>: tire
       pressures (cold and hot, all four corners), camber, toe, caster, damper
       clicks, sway-bar settings, fuel, and which pad and tire sets were on the
-      car. Sheets <strong>copy forward</strong> — a new sheet pre-fills from
-      your previous day (or the car's last event), so you only edit what
-      changed. Values that changed from the previous day are highlighted.
-      The notebook is on the event page on the web and in the iPhone, iPad
-      and Android apps, so a sheet can be filled in at the car between
-      sessions — with no signal, it saves and syncs once you're back online.
-      It starts folded shut, showing just how many day sheets it holds, so
-      the sessions stay near the top; tap it to open it.
+      car.
     </p>
+    <ul>
+      <li>Sheets <strong>copy forward</strong>: a new sheet pre-fills from
+        your previous day, or the car's last event, and values that changed
+        from the previous day are highlighted.</li>
+      <li>The notebook is on the event page on the web and in the iPhone,
+        iPad and Android apps. With no signal, a sheet saves and syncs once
+        you're back online.</li>
+      <li>It starts folded shut, showing how many day sheets it holds. Tap
+        it to open it.</li>
+    </ul>
+
+    <h3>The pressure loop</h3>
     <p>
-      The sheet's cold pressures also close a loop with
-      <a href="./telemetry-import.html">telemetry import</a>: a PDR
-      recording knows the hot pressures the tires actually reached, so an
-      imported session's <strong>Car</strong> tab lines up the cold pressures
-      you set, the hot pressures the import measured and your car's target
-      hot pressure, and says what cold pressure to start from next time —
-      "LF ran 27.0 cold → 31.3 hot; start from 25.5". One button records the
-      hot pressures on the day's sheet, along with a <em>next time</em> note
-      that copies forward into your next sheet; on a multi-day event another
-      opens the next day's sheet with the suggested cold pressures already in
-      place. In the phone apps the loop sits right under the setup notebook on
-      the event page, reading the latest session that recorded tire pressures.
-      New to setting pressures for the track? See
-      <a href="./tire-pressures.html">track-day tire pressures</a>.
+      A PDR recording knows the hot pressures the tires reached (see
+      <a href="./telemetry-import.html">telemetry import</a>). An imported
+      session's <strong>Car</strong> tab lines up the cold pressures on your
+      sheet, the measured hot pressures and your car's target hot pressure,
+      and says what cold pressure to start from next time: "LF ran 27.0 cold
+      → 31.3 hot; start from 25.5".
+    </p>
+    <ul>
+      <li>One button records the hot pressures on the day's sheet, with a
+        <em>next time</em> note that copies forward into your next
+        sheet.</li>
+      <li>On a multi-day event, another opens the next day's sheet with the
+        suggested cold pressures filled in.</li>
+    </ul>
+    <p>
+      In the phone apps the loop sits under the setup notebook on the event
+      page and reads the latest session that recorded tire pressures. For
+      choosing pressures, see <a href="./tire-pressures.html">track-day tire
+      pressures</a>.
     </p>
 
     <h2 id="correlation">Setup vs. lap times</h2>
     <p>
-      Each track page ends with a <strong>Setup vs. lap times</strong> table:
+      On the web, each track page ends with a <strong>Setup vs. lap times</strong> table:
       every sheet you've logged at that track in date order, what changed
-      between sheets, and the event's best time and consistency alongside.
-      The app deliberately doesn't claim causation — conditions, traffic and
-      driver all move lap times — but it does the recall perfectly, which is
-      the part a paper notebook is bad at.
+      between sheets, and the event's best time and consistency. It shows
+      what changed, not what caused a time: conditions, traffic and the
+      driver all move lap times.
       <a href="./setup-notebook.html">Keeping a setup notebook</a> covers
       what to record and how to test a change.
     </p>
@@ -388,8 +397,7 @@
     <h2 id="privacy">Private by design</h2>
     <p>
       Garage data — parts, wear, spend, and every setup sheet — is
-      <strong>never included in share pages</strong>. Share your pace;
-      your damper clicks stay yours.
+      <strong>never included in share pages</strong>.
     </p>
 
     <nav class="docs-pager">

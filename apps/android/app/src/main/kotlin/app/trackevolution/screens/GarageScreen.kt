@@ -65,10 +65,7 @@ import app.trackevolution.ui.theme.TrackTheme
  * car's page — the web's `GARAGE_PRO_WHAT`, word for word.
  */
 internal const val GARAGE_PRO_WHAT =
-    "Pads, tires, rotors and fluid, each with the hours it has actually done — accrued from " +
-        "your own track days — a wear projection from your measurements, reminders before the next " +
-        "event, and what the car has cost you: its parts and its track days. Your cars and what " +
-        "they've done stay free."
+    "Hours on pads, tires, rotors and fluid, wear projections, reminders before an event, and what the car has cost."
 
 /** One cell of the garage grid: a car, or the **+ Add car** tile that ends it. */
 private sealed interface GarageTile {

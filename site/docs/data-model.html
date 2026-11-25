@@ -126,83 +126,74 @@
     <h1>Data model &amp; stats</h1>
     <p class="lede">
       Your logbook mirrors the shape of a season:
-      <strong>tracks → events → sessions → laps</strong>. Everything below is
-      derived from that, with a couple of deliberate rules worth knowing.
+      <strong>tracks → events → sessions → laps</strong>. Every stat is derived
+      from that, by the rules below.
     </p>
 
     <h2 id="model">The hierarchy</h2>
     <ul>
-      <li><strong>Track</strong> — identified by name, matched
-        case-insensitively. Put the layout in the name (e.g. "Virginia
-        International Raceway (Full)" vs. "(Patriot)") — a layout change is a
-        different track for record-keeping, so best times and goals never mix
-        across layouts.</li>
-      <li><strong>Event</strong> — a day (or weekend) at a track, with notes and an
-        optional manual best time. An event dated in the future shows in the
-        dashboard's upcoming section with a countdown and
-        <a href="#prep">prep checklist</a>; it
-        only starts counting toward your event/track-day totals and per-track
-        stats once its start date arrives.</li>
-      <li><strong>Session</strong> — one run group / stint within an event,
-        with an optional name and its own notes — what you changed, what the
-        instructor said, the lap you lost in traffic. Imported sessions can also carry the best lap's racing line and
-        per-lap channel data (speed, RPM, lateral G), shown as the channel
-        graphs on the event page. A session saved with a GPS trace also
-        remembers where on Earth that line is, so <em>Open on a map</em> — on
-        the web, iPhone, iPad and Android — lays it over satellite imagery of
-        the circuit: drag, pinch and rotate, and tap or click the line to read
-        the speed there.
-        A session saved before that was kept borrows its place from a newer
-        session of yours at the same track — the map says when a position is
-        estimated this way — and one with nothing to borrow from opens as the
-        line on its own.</li>
-      <li><strong>Lap</strong> — a single lap time, entered and shown as
+      <li><strong>Track</strong>: identified by name, matched
+        case-insensitively. Put the layout in the name ("Virginia International
+        Raceway (Full)" vs. "(Patriot)"): a different layout is a different
+        track, so best times and goals never mix.</li>
+      <li><strong>Event</strong>: a day (or weekend) at a track, with notes and
+        an optional manual best time. A future event shows in the dashboard's
+        upcoming section with a countdown and
+        <a href="#prep">prep checklist</a>, and counts toward your totals and
+        per-track stats once its start date arrives.</li>
+      <li><strong>Session</strong>: one run group or stint within an event,
+        with an optional name and its own notes. Imported sessions can also
+        carry the best lap's racing line and per-lap channel data (speed, RPM,
+        lateral G), shown as the channel graphs on the event page.</li>
+      <li><strong>Lap</strong>: a single lap time, entered and shown as
         <code>m:ss.fff</code> and stored to the millisecond.</li>
     </ul>
+    <p>
+      A session saved with a GPS trace remembers where its racing line is.
+      <em>Open on a map</em> (web, iPhone, iPad and Android) lays it over
+      satellite imagery of the circuit: drag, pinch and rotate, and tap or
+      click the line to read the speed there. An older session with no saved
+      position borrows one from a newer session of yours at the same track,
+      and the map says when a position is estimated. With nothing to borrow
+      from, the line opens on its own.
+    </p>
 
     <h2 id="prep">Prep checklist</h2>
     <p>
-      An event dated in the future carries a prep checklist — tick items off as
-      you pack, and the dashboard's countdown card shows how far through you are.
+      A future event carries a prep checklist. Tick items off as you pack, and
+      the dashboard's countdown card shows how far through you are.
     </p>
     <p>
-      The list a new checklist starts from is <strong>yours</strong>. Open
-      Settings (the account button) → <strong>Prep checklist</strong> to add,
-      remove and reorder items; the app ships a default to start you off, and
-      your first edit makes the list your own. It is saved to your account, so
-      the phone and the browser offer the same list.
-    </p>
-    <p>
-      Editing that list never changes a checklist you have already started on an
-      event. Those are a copy taken at the time, so nothing you have already
-      ticked off gets untidied by a later edit.
-    </p>
-    <p>
-      Not sure what belongs on the list? See the
+      New checklists start from your own list, which begins as the app's
+      default. Open Settings (the account button) → <strong>Prep
+      checklist</strong> to add, remove and reorder items. The list is saved
+      to your account, so the phone and the browser offer the same one.
+      Editing it never changes a checklist already started on an event. For what belongs
+      on it, see the
       <a href="./prep-checklist.html">track-day prep checklist</a>.
     </p>
 
     <h2 id="best">Best time</h2>
     <p>
       An event's best time is
-      <code>MIN(best logged lap, manual best)</code>. The manual field exists
-      because spreadsheet-era events often only recorded a single best time — you
-      can import those as-is and attach full lap data later, either via the seed
-      data or pasted into the UI. Imported per-session bests appear as one-lap
-      sessions.
+      <code>MIN(best logged lap, manual best)</code>. The manual field is for
+      events where you only recorded a single best time; you can attach full
+      lap data later. Imported per-session bests appear as one-lap sessions.
     </p>
 
     <h2 id="consistency">Consistency</h2>
     <p>
       Consistency is the <strong>coefficient of variation</strong> (standard
-      deviation ÷ mean) of an event's <strong>clean laps</strong> — those within 7%
-      of their own session's best — shown once an event has three of them. That
-      leaves out out-laps, cool-down laps and laps lost in heavy traffic, which say
-      nothing about how consistently you drove, and judges a wet session against its
-      own best rather than a dry one. Every lap still counts toward your lap count
-      and on-track hours. Lower is more consistent. Per-session analysis also
-      derives best-N averages, a pace slope over the stint, and warmup-lap
-      detection. For what the number means and how to use it, see
+      deviation ÷ mean) of an event's <strong>clean laps</strong>: those within
+      7% of their own session's best. It is shown once an event has three of
+      them, and lower is more consistent. The rule leaves out out-laps,
+      cool-down laps and laps lost in heavy traffic, and judges a wet session
+      against its own best. Every lap still counts toward your lap count and
+      on-track hours.
+    </p>
+    <p>
+      Per-session analysis also derives best-N averages, a pace slope over the
+      stint, and warmup-lap detection. For how to use the number, see
       <a href="./lap-consistency.html">lap time consistency and your
       theoretical best</a>.
     </p>
@@ -210,217 +201,243 @@
     <h2 id="sectors">Sectors and the theoretical best</h2>
     <p>
       Sessions with telemetry (an imported video or logger file, or laps
-      recorded with the phone) get <strong>sector splits</strong> with no setup:
-      each lap is cut into three equal slices of its own driven distance and
-      the time in each slice is read off the lap's speed trace, so every lap's
-      three splits add up to exactly its lap time. The best of each sector
-      across the session summed together is the <strong>theoretical best
-      lap</strong> — shown beside your actual best when it's quicker. The gap
-      between the two is what stringing your best sectors into one lap would
-      have been worth. Sectors are fractions of each lap's own length rather
-      than fixed points on the track, which keeps the same corner in the same
-      sector even when laps differ a little in driven distance.
+      recorded with the phone) get <strong>sector splits</strong> with no
+      setup. Each lap is cut into three equal slices of its own driven
+      distance, and its three splits add up to exactly its lap time. Because
+      sectors are fractions of each lap's own length, the same corner stays in
+      the same sector when laps differ a little in driven distance.
+    </p>
+    <p>
+      The session's best time in each sector, summed, is the
+      <strong>theoretical best lap</strong>, shown beside your actual best when
+      it's quicker.
     </p>
 
     <h2 id="conditions">Conditions</h2>
     <p>
-      Lap times across a day are confounded by air temperature — a morning
-      session and an afternoon session are not really comparable, and a
-      progress chart that plots them side by side invites the wrong
-      conclusion. So the track page's <strong>best lap per event</strong>
-      chart carries a faint <strong>shaded band</strong> behind it, one panel
-      per event, deepening with the air temperature, with a key underneath.
-      A hot weekend looks like a hot weekend. Each session's header also shows
-      the <strong>temperature that session was driven in</strong>, and the
-      track's <strong>elevation change</strong> sits on its summary line.
+      The track page's <strong>best lap per event</strong> chart carries a
+      faint <strong>shaded band</strong> behind it: one panel per event,
+      deepening with the air temperature, with a key underneath. Each session's header shows the <strong>temperature
+      that session was driven in</strong>, and the track's <strong>elevation
+      change</strong> sits on its summary line.
     </p>
-    <p>
-      Where a video import recorded the outside air temperature, that is what
-      you see — as a range when the day warmed up between sessions. Where it
-      didn't, the temperature you typed on the event is used instead. The two
-      never overwrite each other, and the band works either way, so a logbook
-      with no telemetry in it still gets one. An event with no temperature at
-      all simply isn't shaded, and the band is left off entirely when there is
-      nothing to compare — two events at much the same temperature are not a
-      story.
-    </p>
+    <ul>
+      <li>Where a video import recorded the outside air temperature, that is
+        what you see, as a range when the day warmed up between sessions.
+        Otherwise the temperature you typed on the event is used. The two never
+        overwrite each other.</li>
+      <li>An event with no temperature isn't shaded.</li>
+      <li>The band is left off when there is nothing to compare, such as two
+        events at much the same temperature.</li>
+    </ul>
 
     <h2 id="hours">On-track hours</h2>
     <p>
-      Each event also carries an <strong>on-track hours</strong> figure — the
-      total of its logged lap times once it has three or more laps, otherwise an
-      hour and a quarter per track day, and overridable on the event's edit form. It
-      doesn't affect any lap stats; it's the wear clock behind the garage's
-      consumable tracking. See
+      Each event carries an <strong>on-track hours</strong> figure: the total
+      of its logged lap times once it has three or more laps, otherwise an hour
+      and a quarter per track day. You can override it on the event's edit
+      form. It doesn't affect any lap stats; it drives the garage's consumable
+      wear tracking. See
       <a href="./garage.html">Garage &amp; setup notebook</a>.
     </p>
 
     <h2 id="costs">What a day cost</h2>
     <p>
-      An event can carry what it cost — <strong>entry fee, fuel, travel &amp;
+      An event can carry what it cost: <strong>entry fee, fuel, travel &amp;
       lodging and misc</strong>, each optional, entered in dollars on the
-      event's form. Leave a line blank and it is simply unknown: an event with
-      nothing entered has no cost at all rather than a cost of zero, so it drops
-      out of every roll-up instead of dragging an average down. The event page
-      shows the total with its breakdown.
+      event's form (on the phones, behind <em>What it cost</em>). A blank line
+      is unknown, not zero: an event with nothing entered drops out of every
+      roll-up. The event page shows the total with its breakdown.
     </p>
     <p>
-      Entering costs is free. Rolling them up is part of Track Evolution Pro,
-      in three places, counting past events only. The track page
-      says what that track has cost you; a car's garage page adds its track
-      days to what its parts cost; and <strong>year in review</strong> totals
-      the season, breaks it down by line item and answers the off-season
-      question — for every track where the year's best beat every year before,
-      what those seconds cost per second found, with the cheapest seconds of
-      the year called out. A track-year that spent money and got slower has no
-      price per second; it has a note in the diary.
+      Entering costs is free. Rolling them up is part of Track Evolution Pro
+      and counts past events only:
     </p>
+    <ul>
+      <li>The track page says what that track has cost you.</li>
+      <li>A car's garage page adds its track days to what its parts cost.</li>
+      <li><strong>Year in review</strong> totals the season by line item. For
+        every track where the year's best beat every year before, it gives the
+        cost per second found and calls out the year's cheapest seconds. A
+        track-year that got slower has no price per second.</li>
+    </ul>
     <p>
-      Costs are private. They never appear on your share page, and nothing
-      about them reaches a leaderboard. You can enter them on the web and in
-      the iPhone and Android apps — on the phones they sit behind
-      <em>What it cost</em> on the event form, so the entry fee can go in the
-      day you book. For what to budget for, see
+      Costs are private: they never appear on your share page or a leaderboard.
+      For what to budget for, see
       <a href="./track-day-cost.html">what a track day costs</a>.
     </p>
 
     <h2 id="sharing">Share pages</h2>
     <p>
       You can publish your logbook read-only under a slug you choose
-      (<code>trackevolution.app/share/&lt;your-slug&gt;</code>). The share page
-      shows stats and times but <strong>strips notes, your email, what your
-      days cost, and per-lap data</strong> — it's the only part of your logbook
-      visible without signing in. Pasting the link into a chat previews with your name, event
-      count and headline bests; the preview uses only what the share page
-      itself shows.
+      (<code>trackevolution.app/share/&lt;your-slug&gt;</code>).
     </p>
+    <ul>
+      <li><strong>Shows:</strong> stats and times.</li>
+      <li><strong>Never shows:</strong> notes, your email, what your days cost,
+        or per-lap data.</li>
+      <li>Its link preview carries your name, event count and headline bests:
+        only what the page itself shows.</li>
+    </ul>
     <p>
       Once you have a share page, each season's <strong>Wrapped</strong> gets
-      one too, at <code>trackevolution.app/share/&lt;your-slug&gt;/wrapped/2026</code>:
-      the same story you see, minus the Pro cards — no favorite tire, no top
-      speed, nothing from your garage or your telemetry. Everything on it
-      (track days, laps, most driven, fastest lap, the time you found, the
-      hottest day) is already on your share page; track miles are just your
-      laps times each track's length. Its link preview shows your season's
-      headline numbers, and turning off your share page turns it off too.
+      one too, at
+      <code>trackevolution.app/share/&lt;your-slug&gt;/wrapped/2026</code>.
     </p>
+    <ul>
+      <li><strong>Shows:</strong> the same story you see (track days, laps,
+        most driven, fastest lap, the time you found, the hottest day), all of
+        it already on your share page. Track miles are your laps times each
+        track's length.</li>
+      <li><strong>Never shows:</strong> the Pro cards. No favorite tire, no top
+        speed, nothing from your garage or your telemetry.</li>
+      <li>Its link preview shows your season's headline numbers, and turning
+        off your share page turns it off too.</li>
+    </ul>
 
     <h3 id="sharing-one">Sharing one day or one session</h3>
     <p>
       Separately from your share page, any event or session can have a link of
       its own (<code>trackevolution.app/share/e/…</code> for a day,
       <code>/share/s/…</code> for a session). It opens without signing in and
-      shows that item alone — the lap times, the best-lap racing line, the
-      recorded conditions, the telemetry and the best-lap video — and
-      <strong>never your notes, the prep checklist, what the day cost, your
-      setup sheets or your garage</strong>. A session's link shows only that
-      session: its best lap, lap count and consistency are worked out from it,
-      not from the rest of the day.
+      shows that item alone.
     </p>
-    <p>
-      What the telemetry shows follows <em>your</em> plan, not the viewer's:
-      with Pro, the whole analysis panel and your best-lap video; on the free
-      plan, the speed, throttle and brake traces and no video. Each item has
-      one link — sharing it again gives the same link — and <strong>Stop
-      sharing</strong> turns it off at once. Deleting the event or session
-      turns it off too.
-    </p>
+    <ul>
+      <li><strong>Shows:</strong> the lap times, the best-lap racing line, the
+        recorded conditions, the telemetry and the best-lap video.</li>
+      <li><strong>Never shows:</strong> your notes, the prep checklist, what
+        the day cost, your setup sheets or your garage.</li>
+      <li>A session's link shows only that session. Its best lap, lap count and
+        consistency are worked out from it, not from the rest of the day.</li>
+      <li>What the telemetry shows follows <em>your</em> plan, not the
+        viewer's: with Pro, the whole analysis panel and your best-lap video;
+        on the free plan, the speed, throttle and brake traces and no
+        video.</li>
+      <li>Each item has one link; sharing it again gives the same link.
+        <strong>Stop sharing</strong> turns it off at once, and so does
+        deleting the event or session.</li>
+    </ul>
     <p id="sharing-lap">
       A single <strong>lap</strong> can have a link as well
       (<code>/share/l/…</code>), and so can <strong>two laps compared</strong>
-      (<code>/share/c/…</code>). A lap's link shows that lap and nothing else
-      of its session: its time, its telemetry, its video, and the racing line
-      when it is the session's best lap — the line that is kept is the best
-      lap's. A comparison shows the two laps head to head, with the time
-      delta, sector splits and traces side by side; the laps can be from
-      different days at the same track, and nothing else from either day
-      comes with them. The comparison is a Pro view, so on the free plan the
-      link shows the two lap times.
+      (<code>/share/c/…</code>).
     </p>
+    <ul>
+      <li>A lap's link shows that lap and nothing else of its session: its
+        time, its telemetry, its video, and the racing line when it is the
+        session's best lap.</li>
+      <li>A comparison shows the two laps head to head, with the time delta,
+        sector splits and traces side by side. The laps can be from different
+        days at the same track, and nothing else from either day comes with
+        them.</li>
+      <li>The comparison is a Pro view, so on the free plan the link shows the
+        two lap times.</li>
+    </ul>
 
     <h2 id="coaching">Coaches</h2>
     <p>
       A coach you invite reads your logbook signed in as themselves, never as
-      you, and only ever reads it. They see your events, sessions, laps and
-      telemetry — the channel panel as far as <em>your</em> plan includes it,
-      whatever their own plan is — your racing lines and conditions, your
-      cars and their modifications, your driver profile, and your name and
-      picture. They <strong>never see your email, notes, prep checklists,
-      what your days cost, setup sheets, garage parts or wear</strong>, your
-      leaderboards or your Wrapped. Removing a coach ends their access on
-      their next page load, and deleting either account ends it too.
+      you, and only ever reads it.
     </p>
+    <ul>
+      <li><strong>They see:</strong> your events, sessions, laps and telemetry
+        (the channel panel as far as <em>your</em> plan includes it, whatever
+        their own plan is), your racing lines and conditions, your cars and
+        their modifications, your driver profile, and your name and
+        picture.</li>
+      <li><strong>They never see:</strong> your email, notes, prep checklists,
+        what your days cost, setup sheets, garage parts or wear, your
+        leaderboards or your Wrapped.</li>
+      <li>Removing a coach ends their access on their next page load, and
+        deleting either account ends it too.</li>
+    </ul>
     <p>
-      A coach can leave <strong>comments</strong> on a session, on a lap, or
-      at a marked place on a lap, and you can reply. Each coach has their own
-      conversation with you: one coach never sees another's comments, or that
-      you have another coach. Comments are not part of your share pages or
-      shared links, and an AI assistant you connect doesn't read them. You
-      can delete any comment in your logbook; a coach can edit or delete only
-      their own. If you remove a coach their comments stay with you and the
-      conversation closes, and deleting either account deletes the comments
-      that account wrote or received.
+      A coach can leave <strong>comments</strong> on a session, on a lap, or at
+      a marked place on a lap, and you can reply.
     </p>
+    <ul>
+      <li>Each coach has their own conversation with you. One coach never sees
+        another's comments, or that you have another coach.</li>
+      <li>Comments are not part of your share pages or shared links, and an AI
+        assistant you connect doesn't read them.</li>
+      <li>You can delete any comment in your logbook; a coach can edit or
+        delete only their own.</li>
+      <li>If you remove a coach, their comments stay with you and the
+        conversation closes. Deleting either account deletes the comments that
+        account wrote or received.</li>
+    </ul>
 
     <h2 id="leaderboards">Leaderboards</h2>
     <p>
-      Every track the app's catalog knows has a per-track leaderboard of
-      Track Evolution drivers' best laps, behind the <em>Leaderboard</em>
-      button on the track page — there before you're on it, and before your
-      first event there. It is <strong>strictly opt-in</strong> (Settings →
-      Leaderboards, or the join button on the leaderboard), and joining shares
-      exactly two things per track: your display name and your best
-      device-timed lap, with its date. Your events, notes, laps, garage and
-      setup sheets stay private, and leaving removes you from every
-      leaderboard immediately. Leaderboards never mix layouts — the full
-      course and a short configuration are separate tracks.
+      Every track in the app's catalog has a leaderboard of drivers' best laps,
+      behind the <em>Leaderboard</em> button on the track page. You can see it
+      before you join, and before your first event there. Leaderboards never
+      mix layouts.
     </p>
+    <ul>
+      <li><strong>Strictly opt-in.</strong> Join in Settings → Leaderboards, or
+        with the join button on the leaderboard.</li>
+      <li><strong>Joining shares</strong> exactly two things per track: your
+        display name and your best device-timed lap, with its date.</li>
+      <li><strong>Stays private:</strong> your events, notes, laps, garage and
+        setup sheets.</li>
+      <li>Leaving removes you from every leaderboard immediately.</li>
+    </ul>
     <p>
-      <strong>Only laps the app timed are ranked</strong> — laps recorded
-      with the phone's GPS or imported from telemetry (GoPro, Corvette or Cadillac PDR,
-      VBO, Track Precision CSV). Times you type in, and the manual "best time" on an event, stay in
-      your logbook and count toward your own bests and progress chart, but
-      never reach a leaderboard. If your logbook best at a track is faster
-      than your leaderboard row, that is why, and the leaderboard says so.
+      <strong>Only laps the app timed are ranked</strong>: laps recorded with
+      the phone's GPS or imported from telemetry (GoPro, Corvette or Cadillac
+      PDR, AiM SmartyCam, VBO, Track Precision CSV). Times you type in, and the manual "best
+      time" on an event, count toward your own bests and progress chart but
+      never reach a leaderboard, so your logbook best can be faster than your
+      leaderboard row. The leaderboard says so.
     </p>
     <p>
       <strong>Opening a lap</strong> is a second, separate choice, off unless
       you turn it on (Settings → Leaderboards → <em>Let other drivers open my
-      ranked laps</em>, or the button on the leaderboard). With it on, a driver
-      ranked at the same track can tap your row and see that lap — its racing
-      line and its speed, throttle, brake and steering traces — next to their
-      own best there, corner for corner. It publishes <em>one</em> lap per
-      track, the ranked one already on the board: never another lap, never the
-      session it came from, and never your notes, session labels, car,
-      conditions, setup sheets or garage. Leaving the leaderboards turns it
-      off, and turning it off closes those laps straight away. Seeing another
-      driver's traces needs Pro; their line and their times don't.
+      ranked laps</em>, or the button on the leaderboard).
     </p>
+    <ul>
+      <li>With it on, a driver ranked at the same track can tap your row and
+        see that lap (its racing line and its speed, throttle, brake and
+        steering traces) next to their own best there.</li>
+      <li>It publishes <em>one</em> lap per track, the ranked one already on
+        the board. Never another lap, the session it came from, or your notes,
+        session labels, car, conditions, setup sheets or garage.</li>
+      <li>Leaving the leaderboards turns it off, and turning it off closes
+        those laps straight away.</li>
+      <li>Seeing another driver's traces needs Pro; their line and their times
+        don't.</li>
+    </ul>
     <p>
       <strong>Each track also has a public page</strong> at
       <a href="https://trackevolution.app/tracks">trackevolution.app/tracks</a>,
-      readable without an account: the track's length, how many drivers are on
-      its leaderboard, and their best laps as times alone. It never shows a
-      name, a date or a car, so nobody can tell from it whose a time is, and
-      leaving the leaderboards takes your time off it.
+      readable without an account.
     </p>
+    <ul>
+      <li><strong>Shows:</strong> the track's length, how many drivers are on
+        its leaderboard, and their best laps as times alone.</li>
+      <li><strong>Never shows:</strong> a name, a date or a car, so nobody can
+        tell whose a time is.</li>
+      <li>Leaving the leaderboards takes your time off it.</li>
+    </ul>
 
     <h2 id="privacy">Privacy posture</h2>
     <ul>
-      <li>Your logbook is private to your account (Google or Apple sign-in) —
-        every account gets its own separate, empty logbook.</li>
-      <li>Telemetry and video parsing is entirely client-side — recordings are
-        never uploaded. The one exception is a lap video you choose to save
-        with Pro — the best lap, or every lap of a PDR session: only those
-        laps, visible to you and the coaches you invite.</li>
-      <li>Share pages are opt-in and strip notes, your email, and per-lap data
-        — and never carry a best-lap video.</li>
+      <li>Your logbook is private to your account (Google or Apple sign-in).
+        Every account gets its own separate, empty logbook.</li>
+      <li>Telemetry and video are read on your device and never uploaded,
+        except a lap video you choose to save with Pro (the best lap, or every
+        lap of a PDR session): only those laps, visible to you, the coaches
+        you invite, and anyone you send a shared event, session or lap link.
+        A video you upload to YouTube is as public as you set it there.</li>
+      <li>Share pages are opt-in, strip notes, your email and per-lap data, and
+        never carry a best-lap video.</li>
       <li>Leaderboards are opt-in and carry only your name and best lap per
         track. The public track pages show those best laps as times, with no
         name.</li>
     </ul>
     <p>
-      The full details — what's collected, retention, deletion — are in the
+      What's collected, retention and deletion are in the
       <a href="./privacy.html">privacy policy</a>.
     </p>
 

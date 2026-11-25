@@ -28,16 +28,25 @@ import kotlinx.serialization.Serializable
  * nothing happening, and this view exists to settle that argument with the car's
  * own numbers.
  *
- * The rigorous version is the bicycle model: expected yaw rate = v·δ/L, with δ
- * the *road-wheel* angle (steering-wheel angle ÷ steering ratio) and L the
- * wheelbase. Neither the ratio nor the wheelbase is stored, and the ratio is
- * non-linear with lock on some cars, so v1 is deliberately **relative**: the
- * session's own median yaw-per-degree-per-metre-per-second over every cornering
- * sample is taken as this car's typical response ([referenceGain], which absorbs
- * 1/(L·ratio)), and each corner is read against it. The consequence is stated
- * wherever the figures are shown: a car that pushes in every corner reads
- * neutral in every corner. What the view does find is the corner that behaves
- * differently from the rest — which is the one worth taking to the setup sheet.
+ * The rigorous version is the bicycle model: yaw rate = v·δ / (L·(1 + K·v²)),
+ * with δ the *road-wheel* angle (steering-wheel angle ÷ steering ratio), L the
+ * wheelbase and K the car's understeer gradient. Neither the ratio nor the
+ * wheelbase is stored, so the reading is deliberately **relative**: this
+ * session's own response is the reference and each corner is read against it.
+ * The consequence is stated wherever the figures are shown: a car that pushes
+ * in every corner reads neutral in every corner. What the view does find is the
+ * corner that behaves differently from the rest — which is the one worth taking
+ * to the setup sheet.
+ *
+ * **The reference is the car's response *at that speed*.** v1 took one number —
+ * the session's median yaw gain ([referenceGain]) — for every corner, and since
+ * any car rotates less per degree of steering the faster it goes, every fast
+ * corner read understeer and every slow one oversteer. The reference is now
+ * [balanceReference]: the low-speed gain and K that [steeringFit] measures, so a
+ * sample is read against refGain / (1 + K·v²). A session the fit can't describe
+ * — or one it fits with a negative K, which is slow corners pushing and fast
+ * ones loose rather than a car — falls back to the median with K = 0. See the
+ * header of `public/js/balance.js`.
  *
  * Two data facts shape everything here, and this port inherits both. The sign
  * conventions of `yaw` and `steering` are the recorder's, not ours, and nothing
@@ -134,8 +143,9 @@ public object Balance {
     }
 
     /**
-     * This car's typical response today: the median yaw gain over every usable
-     * sample of every readable lap. Null when there is none.
+     * The median yaw gain over every usable sample of every readable lap: the
+     * speed-blind reference [balanceReference] falls back to. Null when there
+     * is none.
      */
     public fun referenceGain(channels: SessionChannels?, sign: Double = yawSign(channels)): Double? {
         val gains = ArrayList<Double>()
@@ -148,8 +158,28 @@ public object Balance {
     }
 
     /**
+     * This car's response today, as the two numbers a sample is read against:
+     * the reference gain at a speed v is `refGain / (1 + K·v²)` (v in m/s).
+     */
+    @Serializable
+    public data class Reference(val refGain: Double, @SerialName("K") val k: Double)
+
+    /**
+     * From [steeringFit] when it describes the session (r² at least
+     * [MIN_FIT_R2] and K not negative); otherwise the median gain with K = 0.
+     * Null when there is nothing to measure.
+     */
+    public fun balanceReference(channels: SessionChannels?, sign: Double = yawSign(channels)): Reference? {
+        val fit = steeringFit(channels)
+        if (fit != null && fit.r2 >= MIN_FIT_R2 && fit.k >= 0) return Reference(refGain = fit.gain0, k = fit.k)
+        val refGain = referenceGain(channels, sign) ?: return null
+        return Reference(refGain = refGain, k = 0.0)
+    }
+
+    /**
      * One scatter point: [steer] the steering angle as stored, [rot] the aligned
-     * yaw rate ÷ speed (°/m — the curvature the car actually took) and [speed]
+     * yaw rate ÷ speed (°/m — the curvature the car actually took) with the
+     * reference's speed term divided out (× (1 + K·v²)) and [speed]
      * in km/h. [usable] is false for a sample that plots but doesn't count
      * toward a reading.
      */
@@ -165,8 +195,9 @@ public object Balance {
     /**
      * One lap as scatter points — one per grid sample carrying all three
      * channels. A stationary sample has no rotation per metre and is skipped.
+     * [gradient] is the reference's K; 0 leaves the rotation as driven.
      */
-    public fun balancePoints(entry: LapChannels?, sign: Double = 1.0): List<Point> {
+    public fun balancePoints(entry: LapChannels?, sign: Double = 1.0, gradient: Double = 0.0): List<Point> {
         if (entry == null || !hasBalanceData(entry)) return emptyList()
         val out = ArrayList<Point>()
         for (k in 0 until usableLength(entry)) {
@@ -176,7 +207,7 @@ public object Balance {
                 Point(
                     k = k,
                     steer = entry.steering!![k],
-                    rot = (entry.yaw!![k] * sign) / v,
+                    rot = ((entry.yaw!![k] * sign) / v) * (1 + gradient * v * v),
                     speed = entry.speed!![k],
                     usable = usableAt(entry, k),
                 ),
@@ -187,7 +218,7 @@ public object Balance {
 
     /**
      * How one lap took one corner: the sum over its usable samples of the
-     * rotation the steering asked for ([expected], |refGain·v·δ|) and the
+     * rotation the steering asked for ([expected], |refGain·v·δ / (1 + K·v²)|) and the
      * rotation the car delivered projected onto it ([actual]), their [ratio],
      * and [pct] = (ratio − 1)·100 — negative is understeer. Sums rather than a
      * mean of per-sample ratios, so a barely-steering sample can't blow the
@@ -213,13 +244,15 @@ public object Balance {
 
     /**
      * Null when the corner holds no usable sample of this lap, the reference
-     * isn't positive, or the lap can't be read.
+     * isn't positive, or the lap can't be read. [refGain] and [gradient] (K) are the
+     * reference's; K = 0 is one gain at every speed.
      */
     public fun cornerBalance(
         entry: LapChannels?,
         corner: Corners.Corner,
         refGain: Double,
         sign: Double = 1.0,
+        gradient: Double = 0.0,
     ): Reading? {
         if (entry == null || !hasBalanceData(entry) || refGain <= 0) return null
         var expected = 0.0
@@ -229,7 +262,8 @@ public object Balance {
         var k = corner.k0
         while (k <= corner.k1 && k < n) {
             if (usableAt(entry, k)) {
-                val e = refGain * entry.speed!![k] * KPH_TO_MPS * entry.steering!![k]
+                val v = entry.speed!![k] * KPH_TO_MPS
+                val e = (refGain * v * entry.steering!![k]) / (1 + gradient * v * v)
                 expected += abs(e)
                 // JavaScript's Math.sign: 0 for a zero expectation, which
                 // contributes nothing rather than flipping the projection.
@@ -284,6 +318,7 @@ public object Balance {
     public data class SessionBalance(
         val sign: Double,
         val refGain: Double,
+        val k: Double,
         val corners: List<CornerBalance>,
     )
 
@@ -297,8 +332,10 @@ public object Balance {
         val corners = Corners.sessionCorners(channels)
         if (corners.isEmpty()) return null
         val sign = yawSign(channels)
-        val refGain = referenceGain(channels, sign)
-        if (refGain == null || refGain <= 0) return null
+        val ref = balanceReference(channels, sign)
+        if (ref == null || ref.refGain <= 0) return null
+        val refGain = ref.refGain
+        val gradient = ref.k
         val rows = ArrayList<CornerBalance>()
         for (c in corners) {
             val perLap = ArrayList<LapReading>()
@@ -306,7 +343,7 @@ public object Balance {
             var actual = 0.0
             var samples = 0
             for (lap in laps) {
-                val cb = cornerBalance(lap.entry, c, refGain, sign) ?: continue
+                val cb = cornerBalance(lap.entry, c, refGain, sign, gradient) ?: continue
                 perLap.add(
                     LapReading(
                         chIdx = lap.chIdx,
@@ -324,7 +361,7 @@ public object Balance {
             if (perLap.isEmpty()) continue
             rows.add(CornerBalance(corner = c, laps = perLap, all = withPct(expected, actual, samples)))
         }
-        return if (rows.isEmpty()) null else SessionBalance(sign = sign, refGain = refGain, corners = rows)
+        return if (rows.isEmpty()) null else SessionBalance(sign = sign, refGain = refGain, k = gradient, corners = rows)
     }
 
     /**
@@ -354,6 +391,32 @@ public object Balance {
         if (us.isNotEmpty()) parts.add("understeer in ${namedOrCounted(us)}")
         if (os.isNotEmpty()) parts.add("oversteer in ${namedOrCounted(os)}")
         return if (parts.isEmpty()) "balance neutral" else parts.joinToString(" and ")
+    }
+
+    /**
+     * The session's balance as a stats tile: one word for which way the car
+     * leaned and, as the note, the corners behind it.
+     */
+    @Serializable
+    public data class Tendency(val value: String, val note: String? = null)
+
+    /**
+     * "Understeer", "Oversteer", "Mixed" when corners sit off the reference on
+     * both sides ("T6 under, T3 over"), "Neutral" (no note) when none does — the
+     * same pooled readings and threshold as [balanceSummary]. Null when the
+     * session can't be read.
+     */
+    public fun balanceTendency(channels: SessionChannels?): Tendency? {
+        val sb = sessionBalance(channels) ?: return null
+        val us = sb.corners.filter { it.all.pct <= -NEUTRAL_PCT }
+        val os = sb.corners.filter { it.all.pct >= NEUTRAL_PCT }
+        return when {
+            us.isNotEmpty() && os.isNotEmpty() ->
+                Tendency("Mixed", "${namedOrCounted(us)} under, ${namedOrCounted(os)} over")
+            us.isNotEmpty() -> Tendency("Understeer", namedOrCounted(us))
+            os.isNotEmpty() -> Tendency("Oversteer", namedOrCounted(os))
+            else -> Tendency("Neutral", null)
+        }
     }
 
     // ---- Steering ratio and understeer gradient, measured (#223) -----------------

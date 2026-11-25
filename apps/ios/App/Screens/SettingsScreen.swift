@@ -99,7 +99,7 @@ struct SettingsScreen: View {
                 .teStyle(.sm)
                 .tint(Color(.accent))
                 .accessibilityIdentifier("clipsOverCellular")
-                Text("Off, a best-lap video waits for Wi-Fi — usually until you're home from the track.")
+                Text("Off, lap videos wait for Wi-Fi.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
                 if let line = LapClips.clipStorageLine(auth.me?.user.clips) {
@@ -186,7 +186,7 @@ struct SettingsScreen: View {
             TESectionHeader("Coaching")
             TECard {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Share your logbook with an instructor or coach, read-only — or read the logbooks of the drivers you coach. Your driver profile is there too.")
+                    Text("Share your logbook with a coach, or open your students'.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                     // Coach comments waiting to be read (NS-52), both roles.
@@ -206,24 +206,10 @@ struct SettingsScreen: View {
                 }
             }
 
-            TESectionHeader("Cars")
-            TECard {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Your cars live in the Garage now — add one there, set the default for new events, and open it to see what it has done.")
-                        .teStyle(.sm)
-                        .foregroundStyle(Color(.textMuted))
-                    Button("Open the Garage") {
-                        router.tab = .garage
-                    }
-                    .buttonStyle(TEButtonStyle(kind: .quiet))
-                    .accessibilityIdentifier("openGarage")
-                }
-            }
-
             TESectionHeader("New to track days?")
             TECard {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("What a track day is, what you and the car need, where to find an event near you, and what happens on the day.")
+                    Text("What to expect, what to bring and where to find an event.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                     // In the app's own web view (`TrackDaysGuideScreen`), not
@@ -407,8 +393,7 @@ struct SettingsScreen: View {
 
     private func subscriptionDetail(_ entitlement: Entitlement?) -> String {
         guard Entitlement.isPro(entitlement) else {
-            return "Free is the logbook. Pro adds the GPS lap recorder, video telemetry import, "
-                + "channel graphs and garage wear tracking — on every device you sign in on."
+            return "The logbook is free. Pro adds the lap recorder, full telemetry analysis, the garage and the setup notebook."
         }
         switch entitlement?.source {
         case .legacy: return "You bought the app before subscriptions — Pro is yours for life."
@@ -460,7 +445,7 @@ struct SettingsScreen: View {
         @Bindable var model = model
         return TECard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("The list an upcoming event starts from. Checklists already on an event keep whatever is on them.")
+                Text("The list new events start from. Existing checklists don't change.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
 
@@ -518,12 +503,6 @@ struct SettingsScreen: View {
                         .accessibilityIdentifier("addChecklistTemplateItem")
                 }
 
-                Text(auth.hasCustomChecklistTemplate
-                    ? "This is your own list."
-                    : "This is the app's default — your first edit makes it yours.")
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textFaint))
-
                 if auth.hasCustomChecklistTemplate {
                     Button("Reset to default") {
                         Task { await model.resetChecklistTemplate() }
@@ -558,13 +537,7 @@ struct SettingsScreen: View {
                 .teStyle(.body)
                 .foregroundStyle(Color(.textBody))
                 .tint(Color(.accent))
-                Text("""
-                    Opting in shares exactly two things with other signed-in drivers, per track: your \
-                    name and your best device-timed lap (with its date). Only laps recorded with the app \
-                    or imported from telemetry are ranked — hand-entered times stay in your logbook. Your \
-                    events, notes, laps and garage stay private. Leaderboards exist only for tracks the \
-                    app's catalog knows.
-                    """)
+                Text("Shares your name and best device-timed lap at each track. Nothing else.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 Divider().overlay(Color(.borderHairline))
@@ -579,13 +552,7 @@ struct SettingsScreen: View {
                 .foregroundStyle(Color(.textBody))
                 .tint(Color(.accent))
                 .disabled(!model.leaderboardOptIn)
-                Text("""
-                    A second, separate choice, off unless you turn it on. It publishes one lap per track \
-                    — the ranked one already on the board — as its racing line and telemetry traces, so a \
-                    driver ranked at the same track can compare corner for corner. It never publishes any \
-                    other lap, your notes, your session labels, your car, the conditions you typed, your \
-                    setup sheets or your garage. Leaving the leaderboards turns it off.
-                    """)
+                Text("Also shares that lap's racing line and telemetry. No other lap, no notes.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textFaint))
                 if let error = model.leaderboardError {
@@ -601,10 +568,7 @@ struct SettingsScreen: View {
         @Bindable var model = model
         return TECard {
             VStack(alignment: .leading, spacing: 12) {
-                Text("""
-                    Publish a read-only page of your track history — bests, run groups and consistency \
-                    (notes stay private). Handy for HPDE run-group placement. Anyone with the link can view it.
-                    """)
+                Text("A read-only page of your bests and history. Notes stay private.")
                     .teStyle(.sm)
                     .foregroundStyle(Color(.textMuted))
 

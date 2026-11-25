@@ -211,51 +211,59 @@ extension Session {
     var lapTimesMs: [Int] { laps.map(\.timeMs) }
     var bestLapMs: Int? { lapTimesMs.min() }
 
-    /// The analysis line under a session header: representative pace, how long it
-    /// took to get up to speed, and whether pace faded. Same wording and thresholds
-    /// as `viewEvent` in `public/app.js`. `units` is the account's system, for
-    /// the health figures the line quotes.
-    func statsSummary(units: UnitSystem) -> String? {
+    /// The stats strip under a session header — `lapStatItems` in
+    /// `public/js/session-stats.js` plus what the channel data adds, the same
+    /// items under the same labels as the web's and Android's. `units` is the
+    /// account's system, for the top speed.
+    func statItems(units: UnitSystem) -> [SessionStat] {
         let laps = lapTimesMs
-        var parts: [String] = []
+        var items: [SessionStat] = []
         if let best3 = LapStats.bestNAvg(laps, 3) {
-            parts.append("best 3 avg \(LapTime.fmtMs(best3))")
+            items.append(SessionStat(key: "best3", label: "Best 3 avg", value: LapTime.fmtMs(best3)))
         }
         if let warm = LapStats.warmupLapCount(laps) {
-            parts.append(warm == 1 ? "on pace from lap 1" : "up to speed by lap \(warm)")
-        }
-        if let slope = LapStats.paceSlope(laps) {
-            let trend = slope > 150 ? " — fading (tires? heat?)" : slope < -150 ? " — still improving" : ""
-            parts.append("pace \(LapTime.fmtDelta(Int(slope.rounded())))/lap\(trend)")
+            items.append(SessionStat(key: "warmup", label: "Up to speed", value: "Lap \(warm)"))
         }
         // Sector analysis (`Sectors`): what stringing the session's best sectors
-        // together would have been worth. The splits themselves are in the
-        // channel-graphs sheet.
+        // together would have been worth. The splits themselves are in the panel.
         if let channels, let sec = Sectors.sessionSectors(channels), sec.laps.count >= 2, sec.gapMs > 0 {
-            parts.append("theoretical best \(LapTime.fmtMs(sec.theoreticalBestMs))")
+            items.append(SessionStat(key: "theoretical", label: "Theoretical best", value: LapTime.fmtMs(sec.theoreticalBestMs)))
         }
-        // Shift points (`Gears`, #187): the typical upshift rpm across the
-        // session; the per-gear breakdown sits in the channel panel's Traces tab.
-        if let channels, let sp = Gears.shiftPoints(channels) {
-            parts.append("upshifts ≈ \(Gears.fmtRpm(Double(sp.medianRpm))) rpm")
+        // The session's top speed and peak cornering G — `peakStatItems` on the
+        // web: the highest of each lap's `CompareLaps.lapMetrics`.
+        if let channels {
+            let metrics = channels.laps.map(CompareLaps.lapMetrics)
+            if let top = metrics.compactMap(\.topSpeedKph).max() {
+                items.append(SessionStat(key: "topSpeed", label: "Top speed", value: Units.fmtSpeedKph(top, units)))
+            }
+            if let maxG = metrics.compactMap(\.maxLatG).max() {
+                items.append(SessionStat(key: "maxG", label: "Max G", value: String(format: "%.2f G", maxG)))
+            }
         }
-        // Where the car hit its limit (`Limits`, #188), counted as places on
-        // track across the session. The marks themselves are on the best-lap
-        // trace and shaded on the pedal traces.
+        // Which way the car leaned, and in which corners (`Balance`, #189).
+        if let channels, let balance = Balance.balanceTendency(channels) {
+            items.append(SessionStat(key: "balance", label: "Balance", value: balance.value, note: balance.note))
+        }
+        // Where the car hit its limit (`Limits`, #188), as a short sentence.
         if let channels, let limits = Limits.limitSummary(channels) {
-            parts.append(limits)
+            items.append(SessionStat(key: "limits", label: "Limits", value: limits, text: true))
         }
-        // The corners whose rotation sits off this car's typical response
-        // (`Balance`, #189), pooled across the session; the per-corner table and
-        // the scatter are on the channel panel's Grip tab.
-        if let channels, let balance = Balance.balanceSummary(channels) {
-            parts.append(balance)
-        }
-        // What the car was doing (`Health`, #190): any figure past its line and
-        // the fuel outlook; the cards themselves are on the panel's Car tab.
-        if let channels, let health = Health.healthSummary(channels, Health.Units(units)) {
-            parts.append(health)
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return items
     }
+}
+
+/// One cell of a session's stats strip: a small label over a figure — or, with
+/// `text`, over a short sentence ("ABS in 3 places").
+struct SessionStat: Identifiable, Equatable {
+    enum Tone { case warn, good }
+
+    let key: String
+    let label: String
+    let value: String
+    var note: String?
+    var tone: Tone?
+    var text = false
+
+    var id: String { key }
+    var spoken: String { [label, value, note].compactMap { $0 }.joined(separator: ", ") }
 }

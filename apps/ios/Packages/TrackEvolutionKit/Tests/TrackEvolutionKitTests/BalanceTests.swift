@@ -310,6 +310,167 @@ struct BalanceTests {
         #expect(Balance.steeringFit(session(still)) == nil)
     }
 
+    // MARK: - balanceReference: the response at that speed
+
+    /// A lap of two corners *from* the bicycle model: a slow one (80 km/h,
+    /// k 2–13) and a fast one (200 km/h, k 18–29). The model answers the
+    /// steering exactly in both, so both are neutral for this car — but it
+    /// rotates far less per degree at 200 than at 80.
+    private func twoSpeedLap(n: Int = 1, _ scaleAt: (Int) -> Double = { _ in 1 }) -> LapChannels {
+        var speed: [Double] = [], steering: [Double] = [], latG: [Double] = [], yaw: [Double] = []
+        for k in 0..<32 {
+            let slow = k >= 2 && k <= 13, fast = k >= 18 && k <= 29
+            let kph: Double = fast ? 200 : 80
+            let v = kph / 3.6
+            let deg: Double = slow ? 60 : (fast ? -20 : 0)
+            speed.append(kph)
+            steering.append(deg)
+            latG.append(slow || fast ? 0.9 : 0)
+            yaw.append(((v * (deg / 16.25)) / (2.71 * (1 + 0.0014 * v * v))) * scaleAt(k))
+        }
+        return LapChannels(n: n, timeMs: 100_000, speed: speed, latG: latG, steering: steering, yaw: yaw)
+    }
+
+    @Test func theReferenceIsTheFitWhenTheSessionFits() throws {
+        let ref = try #require(Balance.balanceReference(session(bicycleLap())))
+        #expect(abs(ref.refGain - 1 / (16.25 * 2.71)) < 1e-9)
+        #expect(abs(ref.K - 0.0014) < 1e-9)
+    }
+
+    @Test func theReferenceFallsBackToTheMedianWithNoSpeedTerm() throws {
+        // One speed all session: nothing to fit a slope to.
+        #expect(Balance.steeringFit(channels) == nil)
+        #expect(Balance.balanceReference(channels) == Balance.Reference(refGain: try #require(Balance.referenceGain(channels)), K: 0))
+        // A fit that explains too little of the yaw.
+        let noisy = session(bicycleLap(noise: { Double(($0 * 7) % 5 - 2) * 12 }))
+        #expect(try #require(Balance.steeringFit(noisy)).r2 < Balance.MIN_FIT_R2)
+        #expect(Balance.balanceReference(noisy) == Balance.Reference(refGain: try #require(Balance.referenceGain(noisy)), K: 0))
+        // A negative gradient: slow corners pushing and fast ones loose is
+        // balance, not the car.
+        let loose = session(bicycleLap(K: -0.0003, kphTo: 150))
+        let fit = try #require(Balance.steeringFit(loose))
+        #expect(fit.r2 >= Balance.MIN_FIT_R2 && fit.K < 0)
+        #expect(Balance.balanceReference(loose) == Balance.Reference(refGain: try #require(Balance.referenceGain(loose)), K: 0))
+        #expect(Balance.balanceReference(SessionChannels(v: 1, dStepM: 20, laps: [LapChannels(n: 1, timeMs: 0, speed: [1])])) == nil)
+        #expect(Balance.balanceReference(nil) == nil)
+    }
+
+    @Test func readsAFastCornerAndASlowOneBothNeutral() throws {
+        let one = session(twoSpeedLap())
+        let sb = try #require(Balance.sessionBalance(one))
+        #expect(abs(sb.K - 0.0014) < 1e-9)
+        #expect(sb.corners.map(\.corner.n) == [1, 2])
+        #expect(abs(sb.corners[0].all.pct) < 1e-6)
+        #expect(abs(sb.corners[1].all.pct) < 1e-6)
+        #expect(Balance.balanceSummary(one) == "balance neutral")
+        // One gain for every speed cannot: it calls the fast corner understeer
+        // and the slow one oversteer.
+        let corners = Corners.sessionCorners(one)
+        let blind = try #require(Balance.referenceGain(one))
+        #expect(try #require(Balance.cornerBalance(one.laps[0], corners[0], blind)).pct > Balance.NEUTRAL_PCT)
+        #expect(try #require(Balance.cornerBalance(one.laps[0], corners[1], blind)).pct < -Balance.NEUTRAL_PCT)
+        // The points plot with the speed term divided out, so the reference is one line.
+        for p in Balance.balancePoints(one.laps[0], 1, sb.K) where p.usable {
+            #expect(abs(p.rot - sb.refGain * p.steer) < 1e-9)
+        }
+    }
+
+    @Test func stillFindsTheLapThatPushedInTheFastCorner() throws {
+        let pushed = session(twoSpeedLap(), twoSpeedLap(n: 2) { $0 >= 18 ? 0.7 : 1 })
+        let fast = try #require(Balance.sessionBalance(pushed)).corners[1]
+        #expect(fast.laps[1].pct < -Balance.NEUTRAL_PCT)
+        #expect(fast.laps[1].pct < fast.laps[0].pct - 20)
+    }
+
+    private struct ReferenceFixture: Decodable {
+        struct Input: Decodable {
+            struct Block: Decodable { let sessions: [String: SessionChannels] }
+            let reference: Block
+        }
+        struct Expected: Decodable {
+            struct Block: Decodable {
+                let references: [String: Balance.Reference?]
+                let twoSpeedSession: SessionFixture
+                let twoSpeedSummary: String
+                let blindReadings: [Balance.Reading]
+                let pushedSession: SessionFixture
+                let pushedSummary: String
+                let pushedPoints: [Balance.Point]
+            }
+            let reference: Block
+        }
+        struct SessionFixture: Decodable {
+            struct Corner: Decodable {
+                let n: Int
+                let laps: [Balance.LapReading]
+                let all: Balance.Reading
+            }
+            let refGain: Double
+            let K: Double
+            let corners: [Corner]
+        }
+        let input: Input
+        let expected: Expected
+    }
+
+    /// The speed-aware reference, pinned by the JS implementation's own output.
+    @Test func matchesTheJavaScriptReferenceOnASharedFixture() throws {
+        let url = RepoRoot.path("contracts/logic/balance.json")
+        let fixture = try JSONDecoder().decode(ReferenceFixture.self, from: try Data(contentsOf: url))
+        let sessions = fixture.input.reference.sessions
+        let want = fixture.expected.reference
+
+        #expect(want.references.count == 6)
+        for (name, expected) in want.references {
+            let got = Balance.balanceReference(try #require(sessions[name]))
+            guard let expected else {
+                #expect(got == nil, "\(name) has no reference")
+                continue
+            }
+            let ref = try #require(got, "\(name) has a reference")
+            #expect(abs(ref.refGain - expected.refGain) < 1e-9, "\(name) refGain")
+            #expect(abs(ref.K - expected.K) < 1e-9, "\(name) K")
+        }
+        // The three fallbacks read against the median, with no speed term.
+        for name in ["constantSpeed", "poorFit", "negativeGradient"] {
+            #expect(want.references[name]??.K == 0, "\(name) falls back")
+        }
+
+        func expectSession(_ name: String, _ w: ReferenceFixture.SessionFixture) throws {
+            let got = try #require(Balance.sessionBalance(try #require(sessions[name])))
+            #expect(abs(got.refGain - w.refGain) < 1e-9, "\(name) refGain")
+            #expect(abs(got.K - w.K) < 1e-9, "\(name) K")
+            #expect(got.corners.map(\.corner.n) == w.corners.map(\.n), "\(name) corners")
+            for (i, row) in got.corners.enumerated() {
+                #expect(row.laps.map(\.chIdx) == w.corners[i].laps.map(\.chIdx))
+                for (j, lap) in row.laps.enumerated() {
+                    #expect(abs(lap.pct - w.corners[i].laps[j].pct) < 1e-6, "\(name) corner \(i) lap \(j) pct")
+                }
+                #expect(abs(row.all.pct - w.corners[i].all.pct) < 1e-6, "\(name) corner \(i) pooled pct")
+            }
+        }
+        try expectSession("twoSpeed", want.twoSpeedSession)
+        try expectSession("pushed", want.pushedSession)
+        #expect(Balance.balanceSummary(try #require(sessions["twoSpeed"])) == want.twoSpeedSummary)
+        #expect(Balance.balanceSummary(try #require(sessions["pushed"])) == want.pushedSummary)
+
+        let twoSpeed = try #require(sessions["twoSpeed"])
+        let blind = try #require(Balance.referenceGain(twoSpeed))
+        for (i, c) in Corners.sessionCorners(twoSpeed).enumerated() {
+            let got = try #require(Balance.cornerBalance(twoSpeed.laps[0], c, blind))
+            #expect(abs(got.pct - want.blindReadings[i].pct) < 1e-6, "blind reading \(i)")
+        }
+
+        let pushed = try #require(sessions["pushed"])
+        let ref = try #require(Balance.balanceReference(pushed))
+        let points = Balance.balancePoints(pushed.laps[1], 1, ref.K)
+        #expect(points.count == want.pushedPoints.count)
+        for (i, w) in want.pushedPoints.enumerated() where i < points.count {
+            #expect(abs(points[i].rot - w.rot) < 1e-9, "pushed point \(i) rot")
+            #expect(points[i].usable == w.usable)
+        }
+    }
+
     @Test func poolsSessionsIntoOneRatioGivenTheWheelbase() throws {
         let fitA = try #require(Balance.steeringFit(session(bicycleLap())))
         let fitB = Balance.Fit(gain0: fitA.gain0 * 1.1, K: 0.0014, samples: 30, r2: 0.95)
@@ -449,6 +610,11 @@ struct BalanceTests {
             let labels: [String]
             let formatted: [String]
             let summary: String
+            let tendency: Balance.Tendency
+            let neutralTendency: Balance.Tendency
+            let manyTendency: Balance.Tendency
+            let fewTendency: Balance.Tendency
+            let noDataTendency: Balance.Tendency?
             let neutralSummary: String
             let manySummary: String
             let fewSummary: String
@@ -553,6 +719,16 @@ struct BalanceTests {
         #expect(
             Balance.balanceSummary(SessionChannels(v: 1, dStepM: 20, laps: [input.fewLap])) == want.fewSummary
         )
+        // The stats tile: the same readings as one word and its corners.
+        #expect(Balance.balanceTendency(input.channels) == want.tendency)
+        #expect(want.tendency == Balance.Tendency(value: "Understeer", note: "T2"))
+        #expect(Balance.balanceTendency(SessionChannels(v: 1, dStepM: 20, laps: [lapA])) == want.neutralTendency)
+        #expect(want.neutralTendency == Balance.Tendency(value: "Neutral"))
+        #expect(Balance.balanceTendency(SessionChannels(v: 1, dStepM: 20, laps: [input.manyLap])) == want.manyTendency)
+        #expect(Balance.balanceTendency(SessionChannels(v: 1, dStepM: 20, laps: [input.fewLap])) == want.fewTendency)
+        #expect(want.fewTendency.value == "Mixed")
+        #expect(want.noDataTendency == nil)
+        #expect(Balance.balanceTendency(SessionChannels(v: 1, dStepM: 20, laps: [LapChannels(n: 1, timeMs: 1000, speed: [100])])) == nil)
         #expect(want.noData == nil && want.noYaw == nil)
         // The third fixture lap has cornering force but no yaw.
         #expect(

@@ -85,11 +85,7 @@ fun PaywallSheet(
             Text("TRACK EVOLUTION PRO", style = type.eyebrow, color = colors.accentInk)
             Text("Turn lap times into analysis", style = type.h1, color = colors.textStrong)
             Text(
-                "The logbook is free — tracks, events, sessions, lap times, best laps, progress " +
-                    "charts, sharing and leaderboards, with no limit, and lap times out of Corvette " +
-                    "PDR and GoPro video. Pro is the analysis: the GPS lap recorder with live timing, " +
-                    "the per-lap channel graphs and sector splits inside those same videos, and the " +
-                    "garage's consumable wear tracking.",
+                "The logbook is free. Pro adds the lap recorder, full telemetry analysis, the garage and the setup notebook.",
                 style = type.sm,
                 color = colors.textMuted,
             )
@@ -154,9 +150,7 @@ fun PaywallSheet(
             }
 
             Text(
-                "Renews automatically until cancelled in Google Play; cancel any time and keep Pro to " +
-                    "the end of the period. A lapse never touches your logbook — every lap you've " +
-                    "recorded or entered stays, and nothing you save is ever rejected.",
+                "Renews until cancelled in Google Play. A lapse never touches your logbook.",
                 style = type.xs,
                 color = colors.textFaint,
             )

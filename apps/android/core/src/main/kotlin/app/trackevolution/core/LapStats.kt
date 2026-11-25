@@ -108,7 +108,7 @@ public object LapStats {
         return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 
-    private const val FADING_MS_PER_LAP = 150.0
+    public const val FADING_MS_PER_LAP: Double = 150.0
 
     /**
      * An event's consistency (NS-42): the coefficient of variation (population

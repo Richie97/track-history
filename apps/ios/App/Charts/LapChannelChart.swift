@@ -70,11 +70,7 @@ struct LapChannelChart: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text(
-                    "Laps on a shared axis, by distance or by time — tap laps to compare (up to 3), tap a chart to mark that place on every chart"
-                        + (mapTrace != nil || onCursor != nil ? " and the track map." : ".")
-                        + (pro ? " With 2+ laps selected, the delta chart on Traces shows where time is gained or lost vs the fastest; the other tabs show why." : "")
-                )
+                Text("Tap up to 3 laps to compare. Tap a chart to mark that place everywhere.")
                 .teStyle(.xs)
                 .foregroundStyle(Color(.textFaint))
                 LapChannelPanel(
@@ -437,9 +433,7 @@ struct LapChannelPanel: View {
                 // spread across all four.
                 ProUpsellCard(
                     title: "The rest of the recording is Pro",
-                    blurb: "Pro unlocks the rest of the recording where it carries them: steering, RPM, lateral G and yaw traces, "
-                    + "the gear ribbon and shift points, ABS and wheelspin marks on the map, sector splits with a "
-                    + "theoretical best, the car-health strip, and lap-vs-lap delta charts."
+                    blurb: "Pro adds every other channel the recording carries, sector splits, lap deltas, grip and car health."
                 )
             }
         }

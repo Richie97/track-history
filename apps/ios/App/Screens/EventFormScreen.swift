@@ -111,11 +111,7 @@ struct EventFormScreen: View {
                 VStack(alignment: .leading, spacing: 16) {
                     TEField(
                         label: "Track",
-                        hint: """
-                            Pick from your tracks and known US tracks, or type a new name — layouts time \
-                            differently, so name them separately ("Virginia International Raceway (Full)" \
-                            vs "(Patriot)") to keep PBs honest
-                            """
+                        hint: "Pick a track or type a new one. Name each layout separately — \"(Full)\" vs \"(Patriot)\"."
                     ) {
                         SuggestingField(
                             placeholder: "Virginia International Raceway (Full)",
@@ -146,7 +142,7 @@ struct EventFormScreen: View {
 
                     TEField(
                         label: "On-track hours (optional)",
-                        hint: "Seat time for consumable wear tracking — leave blank to use your logged laps (with 3 or more), else 1h15m per day"
+                        hint: "For wear tracking. Blank uses your logged lap time, else 1h15m per day"
                     ) {
                         TextField("from laps, or 1h15m/day", text: $model.trackHours)
                             .teInput()
@@ -302,7 +298,7 @@ struct EventFormScreen: View {
                     Text("Import a video")
                         .teStyle(.h3)
                         .foregroundStyle(Color(.textStrong))
-                    Text("PDR, GoPro and AiM SmartyCam clips, .vbo logs and Track Precision .csv exports carry telemetry. Pick one from Files or Photos and the laps come out of it — the file stays on this device.")
+                    Text("PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textMuted))
                     Button("Import video") {

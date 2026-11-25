@@ -15,7 +15,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -119,7 +124,19 @@ fun DashboardScreen(
     val commentFeed by CommentsBadge.feed.collectAsState()
 
     Column(modifier = modifier) {
-        DashboardTopBar(onOpenSettings = onOpenSettings)
+        // The one way to add anything — the web's top-bar + and iOS's toolbar
+        // menu. Recording is offered only while the recorder is idle (#108).
+        DashboardTopBar(
+            onOpenSettings = onOpenSettings,
+            onNewEvent = onNewEvent,
+            onImport = onImport,
+            onRecord = if (recorderIdle) {
+                { onRecord(model.todaysEvent?.id) }
+            } else {
+                null
+            },
+            recordDescription = recordLabel(model.todaysEvent),
+        )
 
         TELoadable(state = model.state, onRetry = model::load, modifier = Modifier.weight(1f)) {
             LazyColumn(
@@ -144,60 +161,6 @@ fun DashboardScreen(
                         )
                     }
                     return@LazyColumn
-                }
-
-                item("actions") {
-                    // A FlowRow: three buttons don't fit one line on a narrow
-                    // phone or in the list pane.
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Button(
-                            onClick = onNewEvent,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = colors.accent,
-                                contentColor = colors.accentContrast,
-                            ),
-                        ) {
-                            Text("+ Add event", style = TrackTheme.typography.bodyStrong)
-                        }
-
-                        // The recorder's second door (#108). On the web the only
-                        // way in is an event page, which means navigating into an
-                        // event while suiting up — the wrong friction in a paddock.
-                        if (recorderIdle) {
-                            val target = model.todaysEvent
-                            OutlinedButton(
-                                onClick = { onRecord(target?.id) },
-                                border = BorderStroke(1.dp, colors.borderHairline),
-                                colors = ButtonDefaults.outlinedButtonColors(
-                                    containerColor = colors.surfaceCard,
-                                    contentColor = colors.textStrong,
-                                ),
-                                modifier = Modifier.semantics {
-                                    testTag = "dashboardRecord"
-                                    contentDescription = recordLabel(target)
-                                },
-                            ) {
-                                Text("Record laps", style = TrackTheme.typography.bodyStrong)
-                            }
-                        }
-
-                        // Import with no event picked (NS-57) — the web's
-                        // dashboard button, under the same name.
-                        OutlinedButton(
-                            onClick = onImport,
-                            border = BorderStroke(1.dp, colors.borderHairline),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = colors.surfaceCard,
-                                contentColor = colors.textStrong,
-                            ),
-                            modifier = Modifier.semantics { testTag = "dashboardImport" },
-                        ) {
-                            Text("Import laps", style = TrackTheme.typography.bodyStrong)
-                        }
-                    }
                 }
 
                 // Season Wrapped's reveal (NS-36): 1 Nov – 31 Jan, for a year this
@@ -290,9 +253,7 @@ internal const val TRACK_DAYS_GUIDE_LINK = "New to track days? Start here"
 
 /** The welcome card's sentence — iOS's `welcomeText` for a phone, verbatim. */
 internal const val WELCOME_TEXT =
-    "Your logbook starts with an event: the track, the date and the car. Then add its sessions — " +
-        "record them on track, import a video or a logger file, or type your lap times in — " +
-        "and your bests and progress build from there."
+    "Start with an event — the track, the date, the car. Then add laps: record them on track, import a file, or type them in."
 
 /**
  * The first-run card (#344) — the web's `.panel.welcome`, plus the recorder
@@ -409,8 +370,17 @@ internal fun recordLabel(event: Event?): String =
  * first fetch is still in flight or has failed.
  */
 @Composable
-private fun DashboardTopBar(onOpenSettings: () -> Unit) {
+private fun DashboardTopBar(
+    onOpenSettings: () -> Unit,
+    onNewEvent: () -> Unit,
+    onImport: () -> Unit,
+    /** Null while the recorder is busy: the item is not drawn. */
+    onRecord: (() -> Unit)?,
+    /** Where a recording will be filed — the screen reader's only route to it. */
+    recordDescription: String,
+) {
     val colors = TrackTheme.colors
+    var adding by rememberSaveable { mutableStateOf(false) }
     Column {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
@@ -426,6 +396,49 @@ private fun DashboardTopBar(onOpenSettings: () -> Unit) {
                     .weight(1f)
                     .semantics { heading() },
             )
+            Box {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable(role = Role.Button) { adding = true }
+                        .semantics {
+                            testTag = "addMenu"
+                            contentDescription = "Add"
+                        },
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(32.dp).clip(CircleShape).background(colors.accent),
+                    ) {
+                        Text("+", style = TrackTheme.typography.h3, color = colors.accentContrast)
+                    }
+                }
+                DropdownMenu(
+                    expanded = adding,
+                    onDismissRequest = { adding = false },
+                    containerColor = colors.surfaceRaised,
+                ) {
+                    @Composable
+                    fun item(label: String, tag: String, description: String? = null, onClick: () -> Unit) {
+                        DropdownMenuItem(
+                            text = { Text(label, style = TrackTheme.typography.body, color = colors.textStrong) },
+                            onClick = {
+                                adding = false
+                                onClick()
+                            },
+                            modifier = Modifier.semantics {
+                                testTag = tag
+                                description?.let { contentDescription = it }
+                            },
+                        )
+                    }
+                    item("Add event", "addMenuEvent", onClick = onNewEvent)
+                    item("Import laps", "dashboardImport", onClick = onImport)
+                    onRecord?.let { item("Record laps", "dashboardRecord", recordDescription, it) }
+                }
+            }
             TextButton(onClick = onOpenSettings) {
                 Text("Settings", style = TrackTheme.typography.sm, color = colors.textMuted)
             }

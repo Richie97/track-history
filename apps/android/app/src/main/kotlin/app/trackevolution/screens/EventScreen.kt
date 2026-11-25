@@ -62,6 +62,7 @@ import app.trackevolution.ui.LocalUnitSystem
 import app.trackevolution.ui.PaneWidth
 import app.trackevolution.ui.fmtCount
 import app.trackevolution.ui.TEConfirmDialog
+import app.trackevolution.ui.SessionStatsStrip
 import app.trackevolution.ui.TEEmpty
 import app.trackevolution.ui.TEErrorBanner
 import app.trackevolution.ui.TELoadable
@@ -733,14 +734,11 @@ private fun SessionCard(
             }
         }
 
-        session.statsSummary(LocalUnitSystem.current)?.let {
-            Text(
-                it,
-                style = TrackTheme.typography.xs,
-                color = colors.textMuted,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-        }
+        SessionStatsStrip(
+            items = session.statItems(LocalUnitSystem.current),
+            laps = session.lapTimesMs,
+            modifier = Modifier.padding(top = 8.dp),
+        )
 
         session.notes?.takeIf { it.isNotBlank() }?.let {
             Text(
@@ -929,10 +927,7 @@ private fun AddSessionCard(
             color = colors.textStrong,
         )
         Text(
-            "Corvette or Cadillac PDR clips, GoPro or AiM SmartyCam clips, or a .vbo or Track Precision .csv log, already on this " +
-                "device — laps, " +
-                "racing line and channel graphs come out of the telemetry. The file is read " +
-                "in place, never copied or uploaded.",
+            "PDR, GoPro and SmartyCam video, .vbo logs and Track Precision .csv. The file stays on this device.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(vertical = 6.dp),

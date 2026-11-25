@@ -163,11 +163,7 @@ struct SharedItemScreen: View {
     private func sessionCard(_ item: SharedItem, _ session: Session) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             sessionHeader(session)
-            if let stats = session.statsSummary(units: auth.units) {
-                Text(stats)
-                    .teStyle(.xs)
-                    .foregroundStyle(Color(.textMuted))
-            }
+            SessionStatsStrip(items: session.statItems(units: auth.units), laps: session.lapTimesMs)
             channelButton(session)
             TECard(padding: 14) {
                 VStack(spacing: 8) {
@@ -420,7 +416,7 @@ struct SharedCompareScreen: View {
             } content: {
                 VStack(alignment: .leading, spacing: 14) {
                     if !phone { CompareHeadToHead(pair: pair) }
-                    Text("The delta chart shows where time is gained or lost vs the faster lap; the channels below show why. Tap a chart to move the videos there.")
+                    Text("Delta shows where time is gained or lost; the channels show why. Tap a chart to move the videos.")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                     LapChannelPanel(
@@ -472,7 +468,7 @@ struct SharedCompareScreen: View {
                 }
             }
             if mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
-                Text("⚠️ These laps cover driven distances \(Int((mismatch * 100).rounded()))% apart — likely a different layout or start/finish line, so the distance alignment may be off.")
+                Text("⚠️ These laps cover driven distances \(Int((mismatch * 100).rounded()))% apart — likely a different layout or start/finish line.")
                     .teStyle(.xs)
                     .foregroundStyle(Color(.textMuted))
             }

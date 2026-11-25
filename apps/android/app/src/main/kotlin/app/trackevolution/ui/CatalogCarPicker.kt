@@ -34,8 +34,8 @@ import app.trackevolution.ui.theme.TrackTheme
  * opened from: the vehicle form has the two number fields to fall back on, the
  * add-car form has only a name.
  */
-const val CATALOG_NO_MATCH_TYPE_IN = "No car in the catalog matches that — close this and type the wheelbase and steering ratio in yourself."
-const val CATALOG_NO_MATCH_BY_NAME = "No car in the catalog matches that — close this and add it by name; its wheelbase and steering ratio can go in on its page."
+const val CATALOG_NO_MATCH_TYPE_IN = "No match — close this and type the wheelbase and steering ratio in."
+const val CATALOG_NO_MATCH_BY_NAME = "No match — close this and add it by name."
 
 /**
  * The car-catalog picker (#222): one searchable list over `GET /api/car-catalog`,
@@ -76,8 +76,7 @@ fun CatalogCarPicker(
                     modifier = Modifier.fillMaxWidth().focusRequester(focus).testTag("catalogSearch"),
                 )
                 Text(
-                    "Picking a car fills in the wheelbase and steering ratio the balance read-out " +
-                        "uses — nothing else changes.",
+                    "Picking a car fills in its wheelbase and steering ratio.",
                     style = type.xxs,
                     color = colors.textFaint,
                 )

@@ -58,9 +58,7 @@ import app.trackevolution.core.model.Coaching as CoachingData
  * `src/lib/coaching.ts`.
  */
 private const val COACH_SHARES =
-    "your events, sessions and laps with the full channel panel (as far as your plan includes it), your " +
-        "racing lines, your best-lap videos, the conditions, your cars and their modifications, and your driver profile. Never your " +
-        "notes, prep checklists, costs, setup sheets, parts or email — and they can't change anything."
+    "your events, laps, telemetry, lap videos, cars and driver profile. Never your notes, checklists, costs, setup sheets, parts or email — and they can't change anything."
 
 /**
  * Under the coaches list (NS-45): removing a coach stops new viewing at once,
@@ -298,9 +296,7 @@ fun CoachingScreen(
                 } else {
                     TEProLocked(
                         title = "Share with a coach",
-                        blurb = "Send an instructor or coach a link that gives them read-only access to your " +
-                            "logbook — every session, the channel graphs and your racing lines — so they can " +
-                            "prepare before the next track day.",
+                        blurb = "Send a coach a link for read-only access to your logbook: every session, its telemetry and racing lines.",
                         onSubscribe = onRequirePro,
                     )
                 }
@@ -340,8 +336,7 @@ fun CoachingScreen(
             item("profile-header") { TESectionHeader("Driver profile") }
             item("profile-hint") {
                 Text(
-                    "What your coaches see about you — your experience, your gear and what you want to work " +
-                        "on. Only you and the coaches you've invited can see it.",
+                    "What your coaches see about you. Only you and they can see it.",
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
                 )
@@ -415,8 +410,7 @@ private fun InviteCard(model: CoachingModel, coaching: CoachingData, at: Long, o
                 // For handing it over in the paddock: the coach scans the screen.
                 QrCode(invite.url)
                 Text(
-                    "Send this to your coach. It works once, ${CoachingText.inviteExpiryText(invite.expiresAt, at)}, " +
-                        "and can't be shown again — make a new one if it gets lost.",
+                    "Send this to your coach. It works once, ${CoachingText.inviteExpiryText(invite.expiresAt, at)}, and can't be shown again.",
                     style = TrackTheme.typography.xs,
                     color = colors.textMuted,
                 )

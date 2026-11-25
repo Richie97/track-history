@@ -420,7 +420,7 @@ The iOS app is also offered on **Apple silicon Macs**, as a *Designed for iPad*
 app from the same App Store listing — one bundle, one subscription, no separate
 build; a Mac window is a large screen, so it gets the two-pane layout an iPad
 does. The **lap recorder is hidden there**: a Mac has Wi-Fi location and no GPS,
-so the dashboard's *Record laps* button is absent, the event page's *Add a
+so the + menu's *Record laps* item is absent, the event page's *Add a
 session* card says to record on the iPhone (the laps land on the event once the
 phone syncs), and the record route resolves to the event instead of the
 recorder. Everything else — the logbook, the garage, video import from Finder,
@@ -843,8 +843,8 @@ committed as `release/notes/<version>.txt` beforehand); after approval,
 
 ## Video / telemetry import
 
-**Import laps with no event picked (NS-57).** *Import laps* on the
-dashboard (`#/import`) takes a batch of files from any mix of tracks and days.
+**Import laps with no event picked (NS-57).** *Import laps* in the
+top bar's + menu (`#/import`) takes a batch of files from any mix of tracks and days.
 `public/js/import/locate.js` — pure, run in the browser — works out where each
 file was driven (`recordingPlace`: the centre of its best lap and that lap's
 length), matches it against the driver's own tracks and then the seeded catalog
@@ -863,8 +863,8 @@ form. The server's half is small: `track_catalog.lat` / `lon` (migration
 `GET /api/tracks` rows, taken from the newest session there that kept its
 anchor — never on a coach's view, a share page or an MCP tool. Importing from
 an event page is unchanged, except that a file certainly driven at another
-known track says so. The phones have the same review behind *Import laps* on
-their dashboards (and for a file shared into the app): `TrackLocate` in the
+known track says so. The phones have the same review behind *Import laps* in
+their dashboards' + menu (and for a file shared into the app): `TrackLocate` in the
 Kit and `:core` is `locate.js` under the same names, pinned by
 `contracts/logic/track-locate.json`. **A start/finish line is found too**, for
 the sources that need one (GoPro, a plain `.vbo`, a phone recording): `geo`
@@ -1017,8 +1017,7 @@ this one" at a glance. Beside it the panel tabulates the session's
 **shift points**: upshift RPM per gear (earliest / typical / latest across
 the laps, read at the last grid sample before the step, so ≈ one 20 m point
 low), with a factual note when a gear is taken to the top of the rev range
-seen that day or shifted out of markedly earlier than another, and the
-typical upshift RPM joins the session's stats line (`public/js/gears.js`,
+seen that day or shifted out of markedly earlier than another (`public/js/gears.js`,
 ported to the iOS Kit and Android `:core` as `Gears` and pinned for both by
 `contracts/logic/gears.json`). The same imports' `wheelSlip`
 and ABS/traction/stability `flags` answer a question that is spatial rather
@@ -1092,18 +1091,16 @@ table** segments the lap into corners — stretches of sustained lateral load
 numbered T1… from the start/finish line, so the numbers are the app's rather
 than the circuit's — and gives each corner's reading per highlighted lap and
 pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
-oversteer 9%"* is a sentence a driver can take to the setup sheet, and the
-corners that sit off the reference join the session's stats line
-("understeer in T1, T4 and oversteer in T10"). Hovering a point or a corner row
+oversteer 9%"* is a sentence a driver can take to the setup sheet, and the session's stats strip
+carries it as one word with its corners (`balanceTendency`: "Understeer · T5",
+"Mixed", "Neutral"). Hovering a point or a corner row
 marks the distance on the other charts and rings the place on the best-lap
 track map, and tapping a corner row does the same on a touchscreen. The
 `yaw` trace itself also draws on the Grip tab as the honest baseline.
 **The reading is deliberately relative.** The rigorous version is the bicycle
 model — expected yaw = v·δ/L — which needs the wheelbase and the steering
 ratio, neither of which is stored (and the ratio is non-linear with lock on
-some cars), so v1 takes the session's own median yaw-per-degree-per-speed
-over every cornering sample as this car's typical response and reads each
-corner against it. The same channels can *measure* the missing number, though
+some cars), so the session's own response is the reference and each corner is read against it. That response is taken *at the corner's speed*: any car rotates less per degree of steering the faster it goes, so against one gain for every speed (the session median, which v1 used) every fast corner read understeer and every slow one oversteer — on real footage the readings tracked corner speed almost exactly. `balanceReference` therefore uses the low-speed gain and understeer gradient that `steeringFit` (below) measures, reading a sample against refGain / (1 + K·v²), and falls back to the median only for a session the fit can't describe (too few samples, one speed, a poor fit, or a negative gradient — which is slow corners pushing and fast ones loose, and must stay visible). The limit this leaves is stated with the figures: balance that worsens steadily with speed is the car's gradient, and reads neutral. The same channels can *measure* the missing number, though
 (#223): with the understeer term in, the steady-state gain is
 1/(ratio·L·(1 + K·v²)), so `steeringFit` in `balance.js` fits that model over
 a session's usable samples — solved as v·δ against yaw and v²·yaw rather than
@@ -1179,8 +1176,7 @@ using the garage's own wear vocabulary (`low` approaching, `due` past it) so
 there is no second colour scale. Two derived figures ride with it: the
 **cross-corner tire spread** per lap — LF−RF and LR−RR, and front minus rear
 — for temperatures and pressures, which is camber and balance evidence, and
-**fuel burn**, the median drop per lap and the laps left at that rate, which
-also joins the session's stats line beside any figure past its line. A
+**fuel burn**, the median drop per lap and the laps left at that rate. A
 session of hand-entered laps stores no scalars and shows no strip. Every
 client displays °F and psi like the rest of the logbook; the module keeps the
 stored units (°C, kPa) underneath, so the fixture pins numbers rather than a

@@ -108,7 +108,7 @@
           {
             "@type": "HowToStep",
             "position": 2,
-            "text": "Open the event in the Track Evolution app, tap Import video and pick the file from Files."
+            "text": "Open the event in the Track Evolution app, tap Import video (Import video or VBO… on Android), which takes data files too, and pick the file from Files."
           },
           {
             "@type": "HowToStep",
@@ -189,10 +189,10 @@
     <h1>How to get lap times from a VBO file</h1>
     <p class="lede">
       VBO (<code>.vbo</code>) is the file a Racelogic VBOX writes, and most
-      lap-timer apps can export it too: RaceChrono, TrackAddict and Harry's
-      LapTimer among them. Track Evolution reads a VBO file on your own
-      computer or phone and turns it into a session with lap times, a racing
-      line and whatever car data the file logged.
+      lap-timer apps can export it, RaceChrono, TrackAddict and Harry's
+      LapTimer among them. Track Evolution turns a VBO file into a session
+      with lap times, a racing line and whatever car data the file logged.
+      The file is read on your own computer or phone.
     </p>
 
     <h2 id="need">What you need</h2>
@@ -202,11 +202,10 @@
           <li>From a <strong>Racelogic VBOX</strong>: the files on its SD
             card.</li>
           <li>From <strong>RaceChrono, TrackAddict or Harry's
-            LapTimer</strong>: export the session from the app in VBO
-            format.</li>
+            LapTimer</strong>: export the session in VBO format.</li>
           <li>From <strong>Porsche Track Precision</strong>: see
-            <a href="./porsche-track-precision-export.html">Porsche Track
-            Precision</a>, which has its own page.</li>
+            <a href="./porsche-track-precision-export.html">its own
+            page</a>.</li>
         </ul>
       </li>
       <li>A free Track Evolution account, on the web at
@@ -233,24 +232,23 @@
       <li>Save the <code>.vbo</code> file to Files on the phone. A
         lap-timer app's export can go straight there.</li>
       <li>Open the event in the Track Evolution app, tap
-        <strong>Import video</strong> and pick the file from Files.</li>
+        <strong>Import video</strong> (<strong>Import video or VBO…</strong> on Android),
+        which takes data files too, and pick the file from Files.</li>
       <li>Tap the start/finish line if the review asks for it, check the
         laps, and save.</li>
     </ol>
 
     <h2 id="laps">Where the lap times come from</h2>
     <p>
-      A VBO file is a list of GPS positions, and it may also name a
-      start/finish line. When it does, laps are timed on that line with
+      When the file names a start/finish line, laps are timed on it with
       nothing to set. When it doesn't, you pick the line on the map of the
       track you drove. See
       <a href="./telemetry-import.html#line-picker">the start/finish line
       picker</a>.
     </p>
     <p>
-      Either way a lap is timed between the positions either side of the
-      line, so the times carry a <code>~</code>. How close they are depends
-      on how often the device recorded: a 10&nbsp;Hz or faster logger puts
+      A lap is timed between the GPS positions either side of the line, so
+      the times carry a <code>~</code>. A 10&nbsp;Hz or faster logger puts
       each lap within a tenth or two of a second.
     </p>
 
@@ -258,10 +256,10 @@
     <ul>
       <li><strong>Lap times</strong> for every full lap, and the session's
         best.</li>
-      <li><strong>Your racing line</strong> for the best lap, drawn as a
-        track map.</li>
-      <li><strong>A speed graph for every lap</strong>, laid over each
-        other by distance around the track.</li>
+      <li><strong>Your racing line</strong> for the best lap, as a track
+        map.</li>
+      <li><strong>A speed graph for every lap</strong>, overlaid by distance
+        around the track.</li>
       <li><strong>Car data, when the file logged it</strong>: RPM,
         throttle, brake, steering, cornering and braking force, gear and
         tire pressures. A logger wired to the car, or a lap-timer app with
@@ -270,46 +268,42 @@
     </ul>
 
     <h2 id="free-pro">What is free and what is Pro</h2>
+    <ul>
+      <li><strong>Free</strong>, with no limit on files: importing, the lap
+        times, the racing line, and the speed graph for every lap, with throttle and brake
+        where the file logged them.</li>
+      <li><strong><a href="./#subscription">Track Evolution Pro</a></strong>
+        ($1.99 a month or $19.99 a year):
+        the other graphs, sector splits and a theoretical best lap, and
+        lap-against-lap time deltas.</li>
+    </ul>
     <p>
-      Importing is <strong>free</strong>, with no limit on files: the lap times, the racing line, and the speed, throttle and brake
-      graphs for every lap.
-      <a href="./#subscription">Track Evolution Pro</a> ($1.99 a month or
-      $19.99 a year, one subscription across the web, iPhone and Android)
-      adds the other graphs, sector splits and a theoretical best lap, and
-      lap-against-lap time deltas.
-    </p>
-    <p>
-      A VBO file has no video in it, so there is no best-lap video to save.
+      A VBO file has no video, so there is no best-lap video to save.
     </p>
 
     <h2 id="trouble">If it doesn't work</h2>
     <ul>
       <li><strong>"VBO file contains no usable GPS data".</strong> The
-        device had no GPS position while it recorded. Give it a clear view
-        of the sky and a few minutes to find a position before the next
-        session.</li>
+        device had no GPS position while it recorded. Next time, give it a
+        clear view of the sky and a few minutes before the session.</li>
       <li><strong>"Not a valid VBO file" or "VBO file is missing
         time/lat/long columns".</strong> The export isn't in VBO format, or
         left out position. Export again and choose VBO.</li>
-      <li><strong>"No laps cross the picked line".</strong> Click a different
-        spot, on a part of the track the car drove on every lap.</li>
+      <li><strong>"No laps cross the picked line".</strong> Click a part of
+        the track the car drove on every lap.</li>
       <li><strong>No throttle or brake graph.</strong> The file didn't log
-        them. Only speed comes from GPS; the rest needs data from the
-        car.</li>
+        them. Only speed comes from GPS.</li>
     </ul>
 
     <h2 id="related">Related</h2>
     <p>
-      If your timer can't export VBO, lap times can always be typed into a
-      session by hand. <a href="./phone-gps-lap-timing.html">Phone GPS versus
-      a dedicated lap timer</a> compares the devices, and
+      If your timer can't export VBO, type the lap times into a session by
+      hand. <a href="./phone-gps-lap-timing.html">Phone GPS versus a
+      dedicated lap timer</a> compares the devices, and
       <a href="./brake-throttle-traces.html">how to read brake and throttle
       traces</a> covers the graphs.
-    </p>
-    <p>
-      <a href="./telemetry-import.html">Telemetry import</a> is the overview:
-      every supported source side by side, the start/finish line picker, and
-      what the channel graphs show once a session is in.
+      <a href="./telemetry-import.html">Telemetry import</a> covers every
+      supported source and what the graphs show.
     </p>
 
     <nav class="docs-pager">

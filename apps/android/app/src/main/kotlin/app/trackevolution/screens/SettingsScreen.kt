@@ -86,8 +86,6 @@ fun SettingsScreen(
     onThemeChange: (ThemeChoice) -> Unit,
     serverUrl: String,
     onOpenLink: (String) -> Unit,
-    /** Settings' cars row: the Garage tab (NS-37). */
-    onOpenGarage: () -> Unit,
     onShare: (String) -> Unit,
     onSignOut: () -> Unit,
     /** The account's tier, as the server last said it (NS-32). */
@@ -151,8 +149,6 @@ fun SettingsScreen(
                 ChecklistTemplateCard(model, checklistTemplate, hasCustomChecklistTemplate)
             }
 
-            item("cars-header") { TESectionHeader("Cars") }
-            item("cars") { CarsCard(onOpenGarage) }
 
             item("lap-videos-header") { TESectionHeader("Lap videos") }
             item("lap-videos") { LapVideosCard(LapClips.clipStorageLine(model.user?.clips)) }
@@ -306,18 +302,16 @@ private fun SubscriptionCard(
 /** The line under the summary: where the tier came from, or what Pro would add. */
 private fun entitlementDetail(entitlement: Entitlement): String = when {
     entitlement.source == Entitlement.Source.LEGACY ->
-        "Pro (legacy) — you bought Track Evolution before subscriptions, so Pro is yours for life."
+        "You bought the app before subscriptions — Pro is yours for life."
     Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.GOOGLE ->
         "Subscribed through Google Play. Renewal and cancellation are handled there."
     Entitlement.isPro(entitlement) && entitlement.source == Entitlement.Source.APPLE ->
         "Subscribed through the App Store. Manage it from your iPhone's Settings, or the link below."
     Entitlement.isPro(entitlement) -> "Track Evolution Pro."
     entitlement.source != null ->
-        "Your subscription has ended. The logbook is yours for free; Pro brings back the recorder, " +
-            "telemetry import, channel graphs and garage consumables."
+        "Your subscription has ended. The logbook stays free; nothing was deleted."
     else ->
-        "The logbook is free. Pro adds the GPS lap recorder, telemetry import, channel graphs " +
-            "and garage consumables — $1.99 a month or $19.99 a year."
+        "The logbook is free. Pro adds the lap recorder, full telemetry analysis, the garage and the setup notebook."
 }
 
 @Composable
@@ -359,9 +353,7 @@ private fun UnitsCard(model: SettingsModel) {
     TrackCard(Modifier.fillMaxWidth()) {
         TEField(
             "Unit system",
-            hint = "How speeds, distances and temperatures are shown and entered, on every " +
-                "device you sign in on. Nothing already logged changes — the same numbers are " +
-                "just converted.",
+            hint = "Display only — nothing you've logged changes.",
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Units.UNIT_SYSTEMS.forEach { option ->
@@ -420,11 +412,7 @@ private fun LeaderboardOptInCard(model: SettingsModel) {
             )
         }
         Text(
-            "Opting in shares exactly two things with other signed-in drivers, per track: " +
-                "your name and your best device-timed lap (with its date). Only laps recorded with " +
-                "the app or imported from telemetry are ranked — hand-entered times stay in your " +
-                "logbook. Your events, notes, laps and garage stay private. Leaderboards exist only " +
-                "for tracks the app's catalog knows.",
+            "Shares your name and best device-timed lap at each track. Nothing else.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
             modifier = Modifier.padding(top = 6.dp),
@@ -450,11 +438,7 @@ private fun LeaderboardOptInCard(model: SettingsModel) {
             )
         }
         Text(
-            "A second, separate choice, off unless you turn it on. It publishes one lap per track " +
-                "— the ranked one already on the board — as its racing line and telemetry traces, so a " +
-                "driver ranked at the same track can compare corner for corner. It never publishes any " +
-                "other lap, your notes, your session labels, your car, the conditions you typed, your " +
-                "setup sheets or your garage. Leaving the leaderboards turns it off.",
+            "Also shares that lap's racing line and telemetry. No other lap, no notes.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
             modifier = Modifier.padding(top = 6.dp),
@@ -476,9 +460,7 @@ private fun ShareCard(
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
-            "Publish a read-only page of your track history — bests, run groups and consistency " +
-                "(notes stay private). Handy for HPDE run-group placement. Anyone with the link " +
-                "can view it.",
+            "A read-only page of your bests and history. Notes stay private.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = Modifier.padding(bottom = 10.dp),
@@ -554,8 +536,7 @@ private fun ChecklistTemplateCard(
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
-            "The list an upcoming event starts from. Checklists already on an event keep " +
-                "whatever is on them.",
+            "The list new events start from. Existing checklists don't change.",
             style = TrackTheme.typography.xs,
             color = colors.textMuted,
             modifier = Modifier.padding(bottom = 8.dp),
@@ -603,16 +584,6 @@ private fun ChecklistTemplateCard(
                 Text("Add", style = TrackTheme.typography.sm, color = colors.accentInk)
             }
         }
-        Text(
-            if (isCustom) {
-                "This is your own list."
-            } else {
-                "This is the app's default — your first edit makes it yours."
-            },
-            style = TrackTheme.typography.xs,
-            color = colors.textFaint,
-            modifier = Modifier.padding(top = 4.dp),
-        )
         if (isCustom) {
             TextButton(onClick = model::resetChecklistTemplate) {
                 Text("Reset to default", style = TrackTheme.typography.sm, color = colors.textMuted)
@@ -622,11 +593,6 @@ private fun ChecklistTemplateCard(
     }
 }
 
-/**
- * Where the cars went (NS-37): one row to the Garage tab. A car is managed in
- * one place — its own page, reached from the Garage — so this screen no longer
- * lists, adds, renames or deletes them.
- */
 /**
  * Best-lap videos (NS-45): the cellular switch — off by default, so a clip
  * saved at the track uploads on Wi-Fi at home — and the storage line,
@@ -660,7 +626,7 @@ private fun LapVideosCard(storageLine: String?) {
             Text("Upload lap videos over cellular", style = TrackTheme.typography.body, color = colors.textBody)
         }
         Text(
-            "Off, a best-lap video waits for Wi-Fi — about 150 MB each, so usually until you're home.",
+            "Off, lap videos wait for Wi-Fi.",
             style = TrackTheme.typography.xs,
             color = colors.textFaint,
             modifier = Modifier.padding(top = 6.dp),
@@ -676,36 +642,6 @@ private fun LapVideosCard(storageLine: String?) {
     }
 }
 
-@Composable
-private fun CarsCard(onOpenGarage: () -> Unit) {
-    val colors = TrackTheme.colors
-    TrackCard(Modifier.fillMaxWidth()) {
-        Text(
-            "Your cars live in the Garage now — add one there, set the default for new events, " +
-                "and open it to see what it has done.",
-            style = TrackTheme.typography.sm,
-            color = colors.textMuted,
-            modifier = Modifier.padding(bottom = 6.dp),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenGarage)
-                .padding(vertical = 8.dp)
-                .testTag("openGarage"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                "Cars are in the Garage",
-                style = TrackTheme.typography.bodyStrong,
-                color = colors.accentInk,
-                modifier = Modifier.weight(1f),
-            )
-            Text("›", style = TrackTheme.typography.body, color = colors.textFaint)
-        }
-    }
-}
-
 /**
  * Share with a coach (NS-38) — its own page, since it has three lists and a
  * form behind it; the web's Settings carries the same one row.
@@ -715,8 +651,7 @@ private fun CoachingCard(onOpenCoaching: () -> Unit, unread: Int = 0) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
-            "Share your logbook read-only with an instructor or coach, fill in the driver profile they " +
-                "see, and open the logbooks of drivers you coach.",
+            "Share your logbook with a coach, or open your students'.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = Modifier.padding(bottom = 6.dp),
@@ -762,8 +697,7 @@ private fun TrackDaysCard(onOpenGuide: () -> Unit) {
     val colors = TrackTheme.colors
     TrackCard(Modifier.fillMaxWidth()) {
         Text(
-            "What a track day is, what you and the car need, where to find an event near you, " +
-                "and what happens on the day.",
+            "What to expect, what to bring and where to find an event.",
             style = TrackTheme.typography.sm,
             color = colors.textMuted,
             modifier = Modifier.padding(bottom = 6.dp),

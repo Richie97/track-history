@@ -26,11 +26,11 @@ enum PickerFailure: Error, Equatable, Sendable {
     var message: String {
         switch self {
         case .notDownloaded(let name):
-            "\(name) isn't downloaded to this device. Open it in Photos or Files once to download it, then try again — importing it here would pull down the whole video."
+            "\(name) isn't downloaded to this device. Open it in Photos or Files once, then try again."
         case .notFileBacked(let name):
-            "\(name) is an edited or slow-motion clip, which iOS stores as a recipe rather than a file. Export the original, or pick it from Files instead."
+            "\(name) is an edited or slow-motion clip. Export the original, or pick it from Files."
         case .photoAccessDenied:
-            "Track Evolution needs access to your photo library to read a clip's telemetry. You can grant it in Settings → Privacy → Photos."
+            "Allow photo access in Settings → Privacy → Photos to read a clip's telemetry."
         }
     }
 }

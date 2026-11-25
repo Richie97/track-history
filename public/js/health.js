@@ -507,7 +507,7 @@ export function tyreSpreadHtml(channels, lit, labelFor, units = "us") {
   return kinds
     .map(
       ({ label, def, rows }) => `<div class="health-spread">
-      <div class="sec-head">${esc(label)} <span class="hint">— left minus right on each axle, and front minus rear; positive is left / front ${def.unit === "°C" ? "hotter" : "higher"}. The left-right numbers are camber evidence, front-rear is balance.</span></div>
+      <div class="sec-head">${esc(label)} <span class="hint">— left minus right, and front minus rear; positive is left / front ${def.unit === "°C" ? "hotter" : "higher"}.</span></div>
       <div class="table-wrap"><table>
         <thead><tr><th>Lap</th><th class="num">LF − RF</th><th class="num">LR − RR</th><th class="num">Front − rear</th></tr></thead>
         <tbody>${rows
@@ -607,7 +607,7 @@ export function pressureLoopHtml(ctx, labelFor) {
         }.</span>`
     : "";
   return `<div class="health-loop">
-    <div class="sec-head">Tire pressures vs your setup sheet ${daySel}<span class="hint">— cold from the sheet, hot from the import (the highest end-of-lap reading), and the cold pressure to start from next time to land on target.</span></div>
+    <div class="sec-head">Tire pressures vs your setup sheet ${daySel}<span class="hint">— cold from the sheet, hot from the session, and the cold to start from next time.</span></div>
     <div class="table-wrap"><table>
       <thead><tr><th></th><th class="num">Cold (sheet)</th><th class="num">Hot (import)</th><th class="num">Target hot</th><th class="num">Next cold</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -664,7 +664,7 @@ export function healthHtml(channels, lit, labelFor, { units = "us", loopHtml = "
   const cards = healthCardsHtml(channels, lit, units);
   if (!cards) return "";
   return `<div class="ch-health">
-    <div class="sec-head">Car health <span class="hint">— the slow readings, one figure per lap by each one's own rule: a peak, a minimum, or the value as the lap ended. Shaded where a figure approaches or passes a line worth watching.</span></div>
+    <div class="sec-head">Car health <span class="hint">— one figure per lap. Shaded where a reading nears or passes its watch line.</span></div>
     ${cards}
     ${fuelHtml(channels)}
     ${tyreSpreadHtml(channels, lit, labelFor, units)}
