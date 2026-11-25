@@ -15,16 +15,16 @@ import {
   lengthMismatchRatio,
 } from "./js/compare-laps.js";
 import { bestNAvg } from "./js/lap-stats.js";
-import { lapStatItems, sessionStatsHtml } from "./js/session-stats.js";
+import { lapStatItems, peakStatItems, sessionStatsHtml } from "./js/session-stats.js";
 import { sectorTableHtml, sessionSectors } from "./js/sectors.js";
-import { fmtRpm, gearRibbonSvg, ordinal, shiftPoints, shiftTableHtml } from "./js/gears.js";
+import { gearRibbonSvg, ordinal, shiftTableHtml } from "./js/gears.js";
 import { LIMIT_KINDS, activeLimitLabels, kindDef, limitGlyphSvg, limitMarkers, limitSummary } from "./js/limits.js";
 import { bindGripCircle, gripCircleHtml } from "./js/grip.js";
 import {
-  balanceHtml, balanceSummary, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
+  balanceHtml, balanceTendency, bindBalance, estimateSteeringRatio, measuredRatioLine, measuredRatioValue, ratioAgrees,
 } from "./js/balance.js";
 import {
-  healthHtml, healthSummary, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
+  healthHtml, nextDaySheet, nextTimeNote, pressureLoop, pressureLoopHtml, recordHotSheet,
 } from "./js/health.js";
 import {
   ambientText, bandLabel, conditionsBand, conditionsChipHtml, conditionsLegendHtml,
@@ -3140,8 +3140,8 @@ async function viewEvent(eventId) {
         ? `<div data-channel-graphs="${s.id}"></div>`
         : `<div class="laps" data-plain-laps="${esc(s.id)}">${plainLapsHtml(s)}</div>`;
       // Session analysis as a strip of labelled figures (js/session-stats.js):
-      // representative pace, how long it took to get up to speed and whether
-      // pace faded, from the laps alone — then what the channel data adds.
+      // representative pace and how long it took to get up to speed, from the
+      // laps alone — then what the channel data adds.
       const stats = lapStatItems(lapsMs);
       const ch = s.channels?.laps?.length ? s.channels : null;
       // Sector analysis (js/sectors.js): what stringing the session's best
@@ -3150,19 +3150,14 @@ async function viewEvent(eventId) {
       const sec = pro() && ch ? sessionSectors(ch) : null;
       if (sec && sec.laps.length >= 2 && sec.gapMs > 0)
         stats.push({ key: "theoretical", label: "Theoretical best", value: fmtMs(sec.theoreticalBestMs) });
-      // Shift points (js/gears.js): the typical upshift rpm across the session.
-      const sp = ch ? shiftPoints(ch) : null;
-      if (sp) stats.push({ key: "upshifts", label: "Upshifts", value: `${fmtRpm(sp.medianRpm)} rpm` });
-      // Where the car hit its limit (js/limits.js), the corners whose rotation
-      // sits off this car's typical response (js/balance.js) and any slow
-      // reading past its watch line (js/health.js) — each a short sentence.
+      // The session's top speed and peak cornering G.
+      if (ch) stats.push(...peakStatItems(ch, currentUnits()));
+      // Which way the car leaned, and in which corners (js/balance.js).
+      const bal = ch ? balanceTendency(ch) : null;
+      if (bal) stats.push({ key: "balance", label: "Balance", value: bal.value, ...(bal.note ? { note: bal.note } : {}) });
+      // Where the car hit its limit (js/limits.js), as a short sentence.
       const lim = ch ? limitSummary(ch) : null;
       if (lim) stats.push({ key: "limits", label: "Limits", value: lim, text: true });
-      const bal = ch ? balanceSummary(ch) : null;
-      if (bal) stats.push({ key: "balance", label: "Balance", value: bal, text: true });
-      const car = ch ? healthSummary(ch, usUnits()) : null;
-      // healthSummary leads with "car: " for the old one-line sentence; the label says it here.
-      if (car) stats.push({ key: "car", label: "Car", value: car.replace(/^car:\s*/i, ""), text: true });
       return `<div class="session">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>

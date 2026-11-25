@@ -214,7 +214,7 @@ extension Session {
     /// The stats strip under a session header — `lapStatItems` in
     /// `public/js/session-stats.js` plus what the channel data adds, the same
     /// items under the same labels as the web's and Android's. `units` is the
-    /// account's system, for the health figures.
+    /// account's system, for the top speed.
     func statItems(units: UnitSystem) -> [SessionStat] {
         let laps = lapTimesMs
         var items: [SessionStat] = []
@@ -224,38 +224,29 @@ extension Session {
         if let warm = LapStats.warmupLapCount(laps) {
             items.append(SessionStat(key: "warmup", label: "Up to speed", value: "Lap \(warm)"))
         }
-        if let slope = LapStats.paceSlope(laps) {
-            // A tenth and a half per lap either way is drift, not a story.
-            let trend: (String, SessionStat.Tone)? =
-                slope > SessionStat.FADING_MS_PER_LAP ? ("fading", .warn)
-                : slope < -SessionStat.FADING_MS_PER_LAP ? ("improving", .good) : nil
-            items.append(SessionStat(
-                key: "pace", label: "Pace", value: "\(LapTime.fmtDelta(Int(slope.rounded())))/lap",
-                note: trend?.0, tone: trend?.1
-            ))
-        }
         // Sector analysis (`Sectors`): what stringing the session's best sectors
         // together would have been worth. The splits themselves are in the panel.
         if let channels, let sec = Sectors.sessionSectors(channels), sec.laps.count >= 2, sec.gapMs > 0 {
             items.append(SessionStat(key: "theoretical", label: "Theoretical best", value: LapTime.fmtMs(sec.theoreticalBestMs)))
         }
-        // Shift points (`Gears`, #187): the typical upshift rpm across the session.
-        if let channels, let sp = Gears.shiftPoints(channels) {
-            items.append(SessionStat(key: "upshifts", label: "Upshifts", value: "\(Gears.fmtRpm(Double(sp.medianRpm))) rpm"))
+        // The session's top speed and peak cornering G — `peakStatItems` on the
+        // web: the highest of each lap's `CompareLaps.lapMetrics`.
+        if let channels {
+            let metrics = channels.laps.map(CompareLaps.lapMetrics)
+            if let top = metrics.compactMap(\.topSpeedKph).max() {
+                items.append(SessionStat(key: "topSpeed", label: "Top speed", value: Units.fmtSpeedKph(top, units)))
+            }
+            if let maxG = metrics.compactMap(\.maxLatG).max() {
+                items.append(SessionStat(key: "maxG", label: "Max G", value: String(format: "%.2f G", maxG)))
+            }
         }
-        // Where the car hit its limit (`Limits`, #188), the corners whose
-        // rotation sits off this car's typical response (`Balance`, #189) and
-        // any figure past its line (`Health`, #190) — each a short sentence.
+        // Which way the car leaned, and in which corners (`Balance`, #189).
+        if let channels, let balance = Balance.balanceTendency(channels) {
+            items.append(SessionStat(key: "balance", label: "Balance", value: balance.value, note: balance.note))
+        }
+        // Where the car hit its limit (`Limits`, #188), as a short sentence.
         if let channels, let limits = Limits.limitSummary(channels) {
             items.append(SessionStat(key: "limits", label: "Limits", value: limits, text: true))
-        }
-        if let channels, let balance = Balance.balanceSummary(channels) {
-            items.append(SessionStat(key: "balance", label: "Balance", value: balance, text: true))
-        }
-        if let channels, let health = Health.healthSummary(channels, Health.Units(units)) {
-            // `healthSummary` leads with "car: " for the old one-line sentence; the label says it here.
-            let value = health.hasPrefix("car: ") ? String(health.dropFirst(5)) : health
-            items.append(SessionStat(key: "car", label: "Car", value: value, text: true))
         }
         return items
     }
@@ -265,8 +256,6 @@ extension Session {
 /// `text`, over a short sentence ("ABS in 3 places").
 struct SessionStat: Identifiable, Equatable {
     enum Tone { case warn, good }
-
-    static let FADING_MS_PER_LAP = 150.0
 
     let key: String
     let label: String

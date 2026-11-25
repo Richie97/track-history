@@ -20,17 +20,26 @@ import Foundation
 /// like nothing happening, and this view exists to settle that argument with
 /// the car's own numbers.
 ///
-/// The rigorous version is the bicycle model: expected yaw rate = v·δ/L, with δ
-/// the *road-wheel* angle (steering-wheel angle ÷ steering ratio) and L the
-/// wheelbase. Neither the ratio nor the wheelbase is stored, and the ratio is
-/// non-linear with lock on some cars, so v1 is deliberately **relative**: the
-/// session's own median yaw-per-degree-per-metre-per-second over every
-/// cornering sample is taken as this car's typical response
-/// (``referenceGain(_:sign:)``, which absorbs 1/(L·ratio)), and each corner is
-/// read against it. The consequence is stated wherever the figures are shown: a
-/// car that pushes in every corner reads neutral in every corner. What the view
-/// does find is the corner that behaves differently from the rest — which is
-/// the one worth taking to the setup sheet.
+/// The rigorous version is the bicycle model: yaw rate = v·δ / (L·(1 + K·v²)),
+/// with δ the *road-wheel* angle (steering-wheel angle ÷ steering ratio), L the
+/// wheelbase and K the car's understeer gradient. Neither the ratio nor the
+/// wheelbase is stored, so the reading is deliberately **relative**: this
+/// session's own response is the reference and each corner is read against it.
+/// The consequence is stated wherever the figures are shown: a car that pushes
+/// in every corner reads neutral in every corner. What the view does find is
+/// the corner that behaves differently from the rest — which is the one worth
+/// taking to the setup sheet.
+///
+/// **The reference is the car's response *at that speed*.** v1 took one number
+/// — the session's median yaw gain (``referenceGain(_:sign:)``) — for every
+/// corner, and since any car rotates less per degree of steering the faster it
+/// goes, every fast corner read understeer and every slow one oversteer. The
+/// reference is now ``balanceReference(_:sign:)``: the low-speed gain and K
+/// that ``steeringFit(_:)`` measures, so a sample is read against
+/// refGain / (1 + K·v²). A session the fit can't describe — or one it fits with
+/// a negative K, which is slow corners pushing and fast ones loose rather than
+/// a car — falls back to the median with K = 0. See the header of
+/// `public/js/balance.js`.
 ///
 /// Two data facts shape everything here, and this port inherits both. The sign
 /// conventions of `yaw` and `steering` are the recorder's, not ours, and
@@ -120,8 +129,9 @@ public enum Balance {
         return s.count % 2 == 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2
     }
 
-    /// This car's typical response today: the median yaw gain over every usable
-    /// sample of every readable lap. nil when there is none.
+    /// The median yaw gain over every usable sample of every readable lap: the
+    /// speed-blind reference ``balanceReference(_:sign:)`` falls back to. nil
+    /// when there is none.
     public static func referenceGain(_ channels: SessionChannels?, sign: Double? = nil) -> Double? {
         let s = sign ?? yawSign(channels)
         var gains: [Double] = []
@@ -134,9 +144,32 @@ public enum Balance {
         return median(gains)
     }
 
+    /// This car's response today, as the two numbers a sample is read against:
+    /// the reference gain at a speed v is `refGain / (1 + K·v²)` (v in m/s).
+    public struct Reference: Equatable, Sendable, Decodable {
+        public var refGain: Double
+        public var K: Double
+
+        public init(refGain: Double, K: Double) {
+            self.refGain = refGain
+            self.K = K
+        }
+    }
+
+    /// From ``steeringFit(_:)`` when it describes the session (r² at least
+    /// `MIN_FIT_R2` and K not negative); otherwise the median gain with K = 0.
+    /// nil when there is nothing to measure.
+    public static func balanceReference(_ channels: SessionChannels?, sign: Double? = nil) -> Reference? {
+        if let fit = steeringFit(channels), fit.r2 >= MIN_FIT_R2, fit.K >= 0 {
+            return Reference(refGain: fit.gain0, K: fit.K)
+        }
+        guard let refGain = referenceGain(channels, sign: sign) else { return nil }
+        return Reference(refGain: refGain, K: 0)
+    }
+
     /// One scatter point: `steer` the steering angle as stored, `rot` the
-    /// aligned yaw rate ÷ speed (°/m — the curvature the car actually took) and
-    /// `speed` in km/h. `usable` is false for a sample that plots but doesn't
+    /// aligned yaw rate ÷ speed (°/m — the curvature the car actually took) with
+    /// the reference's speed term divided out (× (1 + K·v²)) and `speed` in km/h. `usable` is false for a sample that plots but doesn't
     /// count toward a reading.
     public struct Point: Equatable, Sendable, Decodable {
         public var k: Int
@@ -156,7 +189,8 @@ public enum Balance {
 
     /// One lap as scatter points — one per grid sample carrying all three
     /// channels. A stationary sample has no rotation per metre and is skipped.
-    public static func balancePoints(_ entry: LapChannels?, _ sign: Double = 1) -> [Point] {
+    /// `K` is the reference's; 0 leaves the rotation as driven.
+    public static func balancePoints(_ entry: LapChannels?, _ sign: Double = 1, _ K: Double = 0) -> [Point] {
         guard let entry, hasBalanceData(entry) else { return [] }
         var out: [Point] = []
         for k in 0..<usableLength(entry) {
@@ -164,7 +198,7 @@ public enum Balance {
             guard v > 0 else { continue }
             out.append(
                 Point(
-                    k: k, steer: entry.steering![k], rot: (entry.yaw![k] * sign) / v,
+                    k: k, steer: entry.steering![k], rot: ((entry.yaw![k] * sign) / v) * (1 + K * v * v),
                     speed: entry.speed![k], usable: usableAt(entry, k)
                 )
             )
@@ -173,7 +207,7 @@ public enum Balance {
     }
 
     /// How one lap took one corner: the sum over its usable samples of the
-    /// rotation the steering asked for (`expected`, |refGain·v·δ|) and the
+    /// rotation the steering asked for (`expected`, |refGain·v·δ / (1 + K·v²)|) and the
     /// rotation the car delivered projected onto it (`actual`), their `ratio`,
     /// and `pct` = (ratio − 1)·100 — negative is understeer. Sums rather than a
     /// mean of per-sample ratios, so a barely-steering sample can't blow the
@@ -195,9 +229,10 @@ public enum Balance {
     }
 
     /// nil when the corner holds no usable sample of this lap, the reference
-    /// isn't positive, or the lap can't be read.
+    /// isn't positive, or the lap can't be read. `refGain` and `K` are the
+    /// reference's; K = 0 is one gain at every speed.
     public static func cornerBalance(
-        _ entry: LapChannels?, _ corner: Corners.Corner, _ refGain: Double, _ sign: Double = 1
+        _ entry: LapChannels?, _ corner: Corners.Corner, _ refGain: Double, _ sign: Double = 1, _ K: Double = 0
     ) -> Reading? {
         guard let entry, hasBalanceData(entry), refGain > 0 else { return nil }
         var expected: Double = 0, actual: Double = 0, samples = 0
@@ -206,7 +241,8 @@ public enum Balance {
         while k <= corner.k1 && k < n {
             defer { k += 1 }
             guard usableAt(entry, k) else { continue }
-            let e = refGain * entry.speed![k] * KPH_TO_MPS * entry.steering![k]
+            let v = entry.speed![k] * KPH_TO_MPS
+            let e = (refGain * v * entry.steering![k]) / (1 + K * v * v)
             expected += abs(e)
             // JavaScript's Math.sign: 0 for a zero expectation, which contributes
             // nothing rather than flipping the projection.
@@ -254,6 +290,7 @@ public enum Balance {
     public struct SessionBalance: Equatable, Sendable {
         public var sign: Double
         public var refGain: Double
+        public var K: Double
         public var corners: [CornerBalance]
     }
 
@@ -265,13 +302,14 @@ public enum Balance {
         let corners = Corners.sessionCorners(channels)
         guard !corners.isEmpty else { return nil }
         let sign = yawSign(channels)
-        guard let refGain = referenceGain(channels, sign: sign), refGain > 0 else { return nil }
+        guard let ref = balanceReference(channels, sign: sign), ref.refGain > 0 else { return nil }
+        let refGain = ref.refGain, K = ref.K
         var rows: [CornerBalance] = []
         for c in corners {
             var perLap: [LapReading] = []
             var expected: Double = 0, actual: Double = 0, samples = 0
             for lap in laps {
-                guard let cb = cornerBalance(lap.entry, c, refGain, sign) else { continue }
+                guard let cb = cornerBalance(lap.entry, c, refGain, sign, K) else { continue }
                 perLap.append(
                     LapReading(
                         chIdx: lap.chIdx, expected: cb.expected, actual: cb.actual,
@@ -290,7 +328,7 @@ public enum Balance {
                 )
             )
         }
-        return rows.isEmpty ? nil : SessionBalance(sign: sign, refGain: refGain, corners: rows)
+        return rows.isEmpty ? nil : SessionBalance(sign: sign, refGain: refGain, K: K, corners: rows)
     }
 
     /// Corners named when there are a few, counted when there are many —
@@ -316,6 +354,34 @@ public enum Balance {
         if !us.isEmpty { parts.append("understeer in \(namedOrCounted(us))") }
         if !os.isEmpty { parts.append("oversteer in \(namedOrCounted(os))") }
         return parts.isEmpty ? "balance neutral" : parts.joined(separator: " and ")
+    }
+
+    /// The session's balance as a stats tile: one word for which way the car
+    /// leaned and, as the note, the corners behind it.
+    public struct Tendency: Equatable, Sendable, Decodable {
+        public var value: String
+        public var note: String?
+
+        public init(value: String, note: String? = nil) {
+            self.value = value
+            self.note = note
+        }
+    }
+
+    /// "Understeer", "Oversteer", "Mixed" when corners sit off the reference on
+    /// both sides ("T6 under, T3 over"), "Neutral" (no note) when none does —
+    /// the same pooled readings and threshold as ``balanceSummary(_:)``. nil
+    /// when the session can't be read.
+    public static func balanceTendency(_ channels: SessionChannels?) -> Tendency? {
+        guard let sb = sessionBalance(channels) else { return nil }
+        let us = sb.corners.filter { $0.all.pct <= -NEUTRAL_PCT }
+        let os = sb.corners.filter { $0.all.pct >= NEUTRAL_PCT }
+        if !us.isEmpty && !os.isEmpty {
+            return Tendency(value: "Mixed", note: "\(namedOrCounted(us)) under, \(namedOrCounted(os)) over")
+        }
+        if !us.isEmpty { return Tendency(value: "Understeer", note: namedOrCounted(us)) }
+        if !os.isEmpty { return Tendency(value: "Oversteer", note: namedOrCounted(os)) }
+        return Tendency(value: "Neutral", note: nil)
     }
 
     // MARK: - Steering ratio and understeer gradient, measured (#223)

@@ -2,9 +2,10 @@
 // figures — plus a sparkline of the session's lap times — in place of the one
 // " · "-joined sentence it used to be, which read as a paragraph of numbers.
 //
-// `lapStatItems` is the pure half (the three figures the lap times alone
-// give); the caller appends what the channel data adds (theoretical best,
-// upshifts, limits, balance, car health) as more items of the same shape:
+// `lapStatItems` is the pure half (the two figures the lap times alone give)
+// and `peakStatItems` the two the channel data adds (top speed, max G); the
+// caller appends the rest (theoretical best, balance, limits) as more items
+// of the same shape:
 //   { key, label, value, note?, tone?, text? }
 // `text: true` marks a value that is a sentence ("ABS in 3 places") rather
 // than a figure, drawn as a labelled line under the strip.
@@ -12,17 +13,9 @@
 // The phones build the same items under the same names (`Session.statItems`
 // in each `EventModel`) and draw them as `SessionStatsStrip`.
 
-import { esc, fmtDelta, fmtMs } from "./format.js";
-import { bestNAvg, paceSlope, warmupLapCount } from "./lap-stats.js";
-
-// A tenth and a half per lap either way is drift, not a story.
-export const FADING_MS_PER_LAP = 150;
-
-// "fading" | "improving" | null (steady) for a pace slope in ms per lap.
-export function paceTrend(slope) {
-  if (slope == null) return null;
-  return slope > FADING_MS_PER_LAP ? "fading" : slope < -FADING_MS_PER_LAP ? "improving" : null;
-}
+import { esc, fmtMs } from "./format.js";
+import { bestNAvg, warmupLapCount } from "./lap-stats.js";
+import { fmtSpeedKph } from "./units.js";
 
 export function lapStatItems(lapsMs) {
   const items = [];
@@ -30,16 +23,29 @@ export function lapStatItems(lapsMs) {
   if (b3 != null) items.push({ key: "best3", label: "Best 3 avg", value: fmtMs(b3) });
   const warm = warmupLapCount(lapsMs);
   if (warm != null) items.push({ key: "warmup", label: "Up to speed", value: `Lap ${warm}` });
-  const slope = paceSlope(lapsMs);
-  if (slope != null) {
-    const trend = paceTrend(slope);
-    const item = { key: "pace", label: "Pace", value: `${fmtDelta(Math.round(slope))}/lap` };
-    if (trend) {
-      item.note = trend;
-      item.tone = trend === "fading" ? "warn" : "good";
-    }
-    items.push(item);
+  return items;
+}
+
+// The session's peaks from its stored channels: the highest speed (km/h, as
+// stored) and the highest cornering G any lap reached. `latG` is a magnitude
+// on the 20 m grid (see js/grip.js), so this is the sustained peak rather than
+// a kerb strike. Either is null when no lap stored that channel.
+export function sessionPeaks(channels) {
+  let topSpeedKph = null;
+  let maxLatG = null;
+  for (const entry of channels?.laps ?? []) {
+    for (const v of Array.isArray(entry?.speed) ? entry.speed : []) if (topSpeedKph == null || v > topSpeedKph) topSpeedKph = v;
+    for (const v of Array.isArray(entry?.latG) ? entry.latG : []) if (maxLatG == null || v > maxLatG) maxLatG = v;
   }
+  return { topSpeedKph, maxLatG };
+}
+
+// `units` is the account's unit system (js/units.js), for the speed.
+export function peakStatItems(channels, units) {
+  const items = [];
+  const { topSpeedKph, maxLatG } = sessionPeaks(channels);
+  if (topSpeedKph != null) items.push({ key: "topSpeed", label: "Top speed", value: fmtSpeedKph(topSpeedKph, units) });
+  if (maxLatG != null) items.push({ key: "maxG", label: "Max G", value: `${maxLatG.toFixed(2)} G` });
   return items;
 }
 

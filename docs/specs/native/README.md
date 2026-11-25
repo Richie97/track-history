@@ -122,8 +122,7 @@ Features added after the rewrite shipped, and where they landed:
   the first ticket of epic [#193](https://github.com/Richie97/track-history/issues/193))
   — **all three.** Rides on the channel-graphs panel: a stepped band per
   highlighted lap under the RPM trace (gear 0 a gap, runs where the laps
-  disagree outlined) and a per-gear upshift-rpm table with factual notes,
-  plus the session's typical upshift rpm on the session stats line. The pure
+  disagree outlined) and a per-gear upshift-rpm table with factual notes. The pure
   half is `public/js/gears.js`, ported as `Gears` to the Kit
   (`Analysis/Gears.swift`) and `:core` (`Gears.kt`) under the same function
   and constant names and pinned by `contracts/logic/gears.json` — both ports
@@ -194,7 +193,8 @@ Features added after the rewrite shipped, and where they landed:
   colour stays lap identity), plus a per-corner table — corners are stretches
   of sustained |latG| from `public/js/corners.js`, the reusable segmentation
   primitive the ticket asked for — reading each corner per highlighted lap
-  and pooled, and a line in the session stats. The pure half is
+  and pooled, and a *Balance* cell in the session stats strip (one word and
+  its corners, `balanceTendency`). The pure half is
   `public/js/balance.js` + `corners.js`, ported as `Balance` and `Corners` to
   the Kit (`Analysis/Balance.swift`, `Analysis/Corners.swift`) and `:core`
   (`Balance.kt`, `Corners.kt`) under the same function and constant names and
@@ -211,8 +211,10 @@ Features added after the rewrite shipped, and where they landed:
   untappable on the phones: a point is one 20 m sample of one lap, and the
   reading it belongs to is the corner's, which is the row.
   The decisions every client inherits: v1 is
-  **relative** — the reference is the session's own median yaw gain rather
-  than the rigorous bicycle model's `v·δ/L`, so a car that pushes everywhere
+  **relative** — the reference is the session's own response at the corner's speed
+  (`balanceReference`: the fitted low-speed gain and understeer gradient, or
+  the median yaw gain when the session can't be fitted) rather than the
+  rigorous bicycle model's `v·δ/L`, so a car that pushes everywhere
   reads neutral everywhere and the view finds the corner that differs; the yaw/steering
   sign alignment is *measured* per session (`yawSign`), never assumed; and
   readings are per corner, never per sample, because yaw lags steering on
@@ -231,8 +233,7 @@ Features added after the rewrite shipped, and where they landed:
   per figure with the session's number by that channel's own rule and a
   sparkline across the laps), threshold shading in the garage's wear
   vocabulary rather than alarms, the cross-corner tire spread per lap, fuel
-  burn and laps remaining, and a per-lap table; the stats line names any
-  figure past its line and the fuel outlook. The pure half is
+  burn and laps remaining, and a per-lap table. The pure half is
   `public/js/health.js`, ported as `Health` to the Kit
   (`Analysis/Health.swift`) and `:core` (`Health.kt`) under the same names
   (`HEALTH_DEFS`, `lapValue`, `healthStatus`, `sessionHealth`, `tyreSpread`,

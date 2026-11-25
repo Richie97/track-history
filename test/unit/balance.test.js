@@ -12,8 +12,10 @@ import {
   balanceLabel,
   balanceLaps,
   balancePoints,
+  balanceReference,
   balanceScatterSvg,
   balanceSummary,
+  balanceTendency,
   balanceTableHtml,
   cornerBalance,
   estimateSteeringRatio,
@@ -187,6 +189,19 @@ describe("sessionBalance", () => {
   });
 });
 
+describe("balanceTendency", () => {
+  it("is one word for the way the car leaned, with the corners behind it", () => {
+    expect(balanceTendency(channels)).toEqual({ value: "Understeer", note: "T2" });
+    expect(balanceTendency({ laps: [neutral] })).toEqual({ value: "Neutral", note: null });
+    const loose = { laps: [{ ...neutral, yaw: neutral.yaw.map((y, k) => (k >= 9 ? y * 1.3 : y)) }] };
+    expect(balanceTendency(loose)).toEqual({ value: "Oversteer", note: "T2" });
+    // Beside a neutral lap, so the reference stays the car's and both corners sit off it.
+    const both = { laps: [neutral, { ...neutral, n: 2, yaw: neutral.yaw.map((y, k) => (k >= 9 ? y * 1.3 : y * 0.8)) }] };
+    expect(balanceTendency(both)).toEqual({ value: "Mixed", note: "T1 under, T2 over" });
+    expect(balanceTendency({ laps: [{ speed: [1] }] })).toBeNull();
+  });
+});
+
 describe("balanceSummary", () => {
   it("names the corners that sit off the reference, pooled across laps", () => {
     expect(balanceSummary(channels)).toBe("understeer in T2");
@@ -288,6 +303,85 @@ describe("steeringFit", () => {
     const variable = bicycleLap({ ratio: R, wheelbaseM: L, K: KUS });
     variable.yaw = variable.yaw.map((y, k) => (Math.abs(variable.steering[k]) > 35 ? y * 1.6 : y));
     expect(steeringFit({ laps: [variable] }).r2).toBeLessThan(steeringFit(modelChannels).r2);
+  });
+});
+
+// A lap of two corners *from* the bicycle model: a slow one (80 km/h, k 2–13)
+// and a fast one (200 km/h, k 18–29), with `scaleAt(k)` on the yaw to make one
+// of them push. The model answers the steering exactly in both, so both are
+// neutral for this car — but it rotates far less per degree at 200 than at 80.
+const twoSpeedLap = (scaleAt = () => 1) => {
+  const speed = [], steering = [], latG = [], yaw = [];
+  for (let k = 0; k < 32; k++) {
+    const slow = k >= 2 && k <= 13, fast = k >= 18 && k <= 29;
+    const kph = fast ? 200 : 80;
+    const v = kph / 3.6;
+    const deg = slow ? 60 : fast ? -20 : 0;
+    speed.push(kph);
+    steering.push(deg);
+    latG.push(slow || fast ? 0.9 : 0);
+    yaw.push(((v * (deg / R)) / (L * (1 + KUS * v * v))) * scaleAt(k));
+  }
+  return { n: 1, timeMs: 100_000, speed, steering, latG, yaw };
+};
+
+describe("balanceReference", () => {
+  it("is the fitted low-speed gain and understeer gradient when the session fits", () => {
+    const ref = balanceReference(modelChannels);
+    expect(ref.refGain).toBeCloseTo(1 / (R * L), 9);
+    expect(ref.K).toBeCloseTo(KUS, 9);
+  });
+  it("falls back to the median gain, with no speed term, when there is no fit", () => {
+    // One speed all session: nothing to fit a slope to.
+    expect(steeringFit(channels)).toBeNull();
+    expect(balanceReference(channels)).toEqual({ refGain: referenceGain(channels), K: 0 });
+  });
+  it("falls back when the fit explains too little of the yaw", () => {
+    const noisy = { laps: [bicycleLap({ ratio: R, wheelbaseM: L, K: KUS, noise: (k) => ((k * 7) % 5 - 2) * 12 })] };
+    expect(steeringFit(noisy).r2).toBeLessThan(MIN_FIT_R2);
+    expect(balanceReference(noisy)).toEqual({ refGain: referenceGain(noisy), K: 0 });
+  });
+  it("falls back on a negative gradient: slow corners pushing and fast ones loose is balance, not the car", () => {
+    const loose = { laps: [bicycleLap({ ratio: R, wheelbaseM: L, K: -0.0003, kphTo: 150 })] };
+    const fit = steeringFit(loose);
+    expect(fit.r2).toBeGreaterThanOrEqual(MIN_FIT_R2);
+    expect(fit.K).toBeLessThan(0);
+    expect(balanceReference(loose)).toEqual({ refGain: referenceGain(loose), K: 0 });
+  });
+  it("is null with nothing to measure", () => {
+    expect(balanceReference({ laps: [{ speed: [1] }] })).toBeNull();
+    expect(balanceReference(null)).toBeNull();
+  });
+});
+
+describe("the reading is against the car's response at that speed", () => {
+  const session = { v: 1, dStepM: 20, laps: [twoSpeedLap()] };
+  it("reads a fast corner and a slow one both neutral when the car answered the steering in both", () => {
+    const sb = sessionBalance(session);
+    expect(sb.K).toBeCloseTo(KUS, 9);
+    expect(sb.corners.map((c) => c.n)).toEqual([1, 2]);
+    expect(sb.corners[0].all.pct).toBeCloseTo(0, 6);
+    expect(sb.corners[1].all.pct).toBeCloseTo(0, 6);
+    expect(balanceSummary(session)).toBe("balance neutral");
+  });
+  it("which one gain for every speed cannot: it calls the fast corner understeer and the slow one oversteer", () => {
+    const lap = session.laps[0];
+    const [slow, fast] = sessionCorners(session);
+    const blind = referenceGain(session);
+    expect(cornerBalance(lap, slow, blind).pct).toBeGreaterThan(NEUTRAL_PCT);
+    expect(cornerBalance(lap, fast, blind).pct).toBeLessThan(-NEUTRAL_PCT);
+  });
+  it("still finds the lap that pushed in the fast corner", () => {
+    const pushed = { v: 1, dStepM: 20, laps: [twoSpeedLap(), { ...twoSpeedLap((k) => (k >= 18 ? 0.7 : 1)), n: 2 }] };
+    const fastCorner = sessionBalance(pushed).corners[1];
+    expect(fastCorner.laps[1].pct).toBeLessThan(-NEUTRAL_PCT);
+    expect(fastCorner.laps[1].pct).toBeLessThan(fastCorner.laps[0].pct - 20);
+  });
+  it("plots the points with the speed term divided out, so the reference is one line", () => {
+    const { refGain, K: kus } = balanceReference(session);
+    for (const p of balancePoints(session.laps[0], 1, kus).filter((q) => q.usable)) {
+      expect(p.rot).toBeCloseTo(refGain * p.steer, 9);
+    }
   });
 });
 

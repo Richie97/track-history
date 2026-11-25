@@ -436,7 +436,9 @@
     <h2 id="analysis">What an imported session shows</h2>
     <p>
       The import preview shows each session's <strong>top speed, max RPM and
-      max lateral&nbsp;G</strong> and saves them into the session notes. Each
+      max lateral&nbsp;G</strong> and saves them into the session notes. On the
+      event page, the session's stats show its <strong>top speed</strong> and
+      <strong>max&nbsp;G</strong> (the highest cornering G of any lap). Each
       session also stores:
     </p>
     <ul>
@@ -508,8 +510,7 @@
       <li>A <strong>shift points</strong> table gives your upshift RPM from
         each gear (earliest, typical and latest across the session), with a
         note when a gear is taken to the top of the day's rev range or shifted
-        out of noticeably earlier than another. The typical upshift RPM joins
-        the session's stats line. See <a href="./shift-points.html">when to
+        out of noticeably earlier than another. See <a href="./shift-points.html">when to
         shift on track</a>.</li>
     </ul>
 
@@ -562,14 +563,16 @@
         stretches of sustained cornering force, numbered T1, T2… from the
         start/finish line (the app's numbering, not the circuit's).</li>
       <li>Each corner gets a reading per selected lap and for the session, such
-        as <em>"T1 understeer 14%, T7 neutral, T10 slight oversteer 9%"</em>.
-        The corners that stand out join the session's stats line.</li>
+        as <em>"T1 understeer 14%, T7 neutral, T10 slight oversteer 9%"</em>.</li>
+      <li>The session's stats show the result in a word (understeer,
+        oversteer, mixed or neutral) with the corners behind it.</li>
       <li>On the web app, hover a point or a corner row to see where on the lap
         it is.</li>
       <li>The reading is <em>relative</em>: each corner is compared with how
-        the car responded on average across the session. A car that pushes in
-        every corner reads neutral in every corner; what shows up is the corner
-        that behaves differently. The garage stores your car's wheelbase and
+        the car responded across the session at that corner's speed. A car that
+        pushes in every corner, or steadily more as speed rises, reads neutral
+        in every corner; what shows up is the corner that behaves
+        differently. The garage stores your car's wheelbase and
         steering ratio, but this reading doesn't use them yet.</li>
     </ul>
     <p>
@@ -598,8 +601,7 @@
         12.5&nbsp;V.</li>
       <li>The <strong>tire spread</strong> per lap gives left minus right on
         each axle and front minus rear, for temperatures and pressures.</li>
-      <li>A fuel line gives your burn per lap and the laps left at that rate,
-        and joins the session's stats line.</li>
+      <li>A fuel line gives your burn per lap and the laps left at that rate.</li>
       <li>On the web a per-lap table carries every figure; on the phones the
         small charts carry it.</li>
       <li>The tire pressures feed your
