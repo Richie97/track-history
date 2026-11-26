@@ -75,6 +75,13 @@ export const canCompareEvents = (entitlement) => isPro(entitlement);
 // draw: the switch or the locked offer, the player or the locked one.
 export const canSaveLapVideo = (entitlement) => isPro(entitlement);
 
+// The AI Coach (#314): an in-app debrief on the driver's own Anthropic or
+// OpenAI account. The server enforces it (requireEntitlement on
+// POST /api/ai/coach and its verify) — this decides what Settings and the
+// drawer draw: the key block and the conversation, or the Pro offer in place.
+// Always "AI Coach": a bare "coach" is a person here (NS-38).
+export const canUseAICoach = (entitlement) => isPro(entitlement);
+
 // Where "Manage subscription" goes, by the store that sold it. Legacy has no
 // subscription to manage; free has nothing yet — both return null. So does a
 // web subscription (`stripe`, NS-49): its portal is a session the server mints

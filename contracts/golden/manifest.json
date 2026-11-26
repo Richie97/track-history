@@ -641,6 +641,15 @@
       "source": "src/routes/me.ts"
     },
     {
+      "name": "ai-coach-verify",
+      "file": "ai-coach-verify.json",
+      "method": "POST",
+      "path": "/ai/coach/verify",
+      "status": 200,
+      "description": "Settings' Verify for an AI Coach key (Pro): the provider, its default model and the models the driver may pick from. A rejected key is 424 { error }, never 401.",
+      "source": "src/routes/aiCoach.ts"
+    },
+    {
       "name": "wrapped",
       "file": "wrapped.json",
       "method": "GET",

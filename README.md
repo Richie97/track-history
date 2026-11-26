@@ -2720,6 +2720,49 @@ and point it at `http://localhost:8787/mcp` — the consent page signs in throug
 the `DEV_MODE` bypass. The account needs Pro; `POST /auth/dev/entitlement`
 with `{ "pro": true }` grants it on a dev host.
 
+### The AI Coach
+
+The other half of epic #314 is the **AI Coach**: a debrief inside the web app
+that runs on the driver's **own Anthropic or OpenAI account**, with the same
+read-only tools the MCP server exposes (spec:
+`docs/specs/native/NS-58-ai-coach.md`; user docs: `site/docs/ai.html#ai-coach`).
+It is always "AI Coach" — a bare "coach" is a person here (share with a coach,
+NS-38). Pro, web only so far; the phones are ticket 6 (#320).
+
+- **Nothing to configure on deploy** beyond the `AI_COACH` rate-limit binding
+  already in `wrangler.jsonc` (10 requests a minute per user; change its
+  `namespace_id` if another Worker on the account uses `3148`). There is no
+  server-side provider key: the driver pastes theirs in **Settings → AI
+  assistants → AI Coach**, it is kept in their browser (the tab, or IndexedDB
+  with *Remember on this device*) and sent with each request in
+  `X-TE-AI-Key`. The Worker never stores or logs it.
+- **The API** — `POST /api/ai/coach` (`src/routes/aiCoach.ts`, the loop in
+  `src/ai/coach.ts`, the provider adapters in `src/ai/providers.ts`) takes
+  `{ context, messages, model? }`, runs up to eight rounds of tool calls
+  against Anthropic's Messages API or OpenAI's Responses API, and streams
+  `text` / `tool` / `done` / `error` events. `POST /api/ai/coach/verify`
+  checks a key and lists the models to pick from. The conversation lives on the
+  client; the server is stateless. A provider's rejected key is a `424`, never
+  a `401`.
+- **Your own logbook only**: the routes are mounted at `/api/ai` on their own,
+  so they exist neither under a coach's view of a student
+  (`/api/students/:id/…`) nor anywhere a shared link reaches.
+- **The system prompt** is `src/ai/coach-prompt.ts` — the MCP server's
+  `INSTRUCTIONS` plus the coach's own rules. Review a change to it like code.
+- **Models** come from the provider: verify reads its models API with the
+  driver's key, and Settings' model field completes from that list (narrowed
+  to models the loop can drive) while still accepting a typed id. The
+  defaults — `claude-sonnet-5-5` and `gpt-6.2-astra` — and a short built-in
+  list used when a key may not list models are in `src/ai/providers.ts`;
+  update the defaults there when a provider retires one.
+
+Try it locally without a key: the fake provider answers on a dev host under
+`DEV_MODE`. With `npm run dev` running and a Pro account
+(`POST /auth/dev/entitlement` with `{ "pro": true }`), run
+`localStorage.setItem("te-ai-fake", "1")` in the browser console and open
+*Debrief this session* on any session; or call the API directly with
+`X-TE-AI-Provider: fake`.
+
 ## Promo video
 
 [`promo/`](promo/) builds an 84-second promotional film from the real app: a

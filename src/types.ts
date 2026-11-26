@@ -76,6 +76,7 @@ export type Env = {
   MAP_TOKEN?: RateLimit; // per user: GET /api/map-token (NS-53)
   CLIP_PARTS?: RateLimit; // per user: PUT /api/clips/:id/parts/:n (NS-45)
   COACH_COMMENTS?: RateLimit; // per author: writing or editing a coach comment (NS-52)
+  AI_COACH?: RateLimit; // per user: POST /api/ai/coach and its verify (#318)
 
   // --- Best-lap video clips (NS-45, routes/clips.ts) -------------------------
   // The R2 bucket the clips live in (r2_buckets in wrangler.jsonc). Optional so

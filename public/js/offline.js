@@ -236,6 +236,7 @@ function substituteIds(path) {
 // ---------- response cache ---------------------------------------------------
 
 export async function cachePut(path, body) {
+  if (isAiPath(path)) return;
   await ready();
   await backend.respPut(path, body);
 }
@@ -293,7 +294,14 @@ const QUEUEABLE = [
   { method: "PUT", re: /^\/tracks\/[^/]+$/ },
 ];
 
+// The AI Coach (#319): a request to /ai/* carries the driver's provider key
+// and asks for an analysis that only means something answered live. It is
+// never queued for replay and its answers are never written to the response
+// cache — refused here by path, whatever the tables above come to say.
+export const isAiPath = (path) => /^\/ai(\/|$)/.test(String(path));
+
 export function isQueueable(method, path) {
+  if (isAiPath(path)) return false;
   return QUEUEABLE.some((q) => q.method === method && q.re.test(path));
 }
 

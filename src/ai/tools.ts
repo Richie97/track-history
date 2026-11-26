@@ -1,7 +1,7 @@
 // The AI tool layer (#315): one definition per tool — a name, a description
 // written for a model, a JSON-Schema input and a handler — shared by the MCP
-// server (routes/mcp.ts) and, later, the in-app coach (#318). Neither owns a
-// copy.
+// server (routes/mcp.ts) and the in-app AI Coach (ai/coach.ts, #318). Neither
+// owns a copy.
 //
 // Tools read through the API itself rather than through a second set of
 // queries: `apiGet` runs a GET against a private instance of the /api router
@@ -637,4 +637,26 @@ export async function runTool(env: Env, user: ToolUser, name: string, rawArgs: u
   if (!tool) throw new ToolError(`unknown tool "${name}"`);
   const args = validateArgs(tool.inputSchema, rawArgs);
   return tool.handler({ env, user, today: todayISO() }, args);
+}
+
+// Beyond this the result is refused rather than cut mid-JSON: ~20k tokens.
+export const MAX_RESULT_CHARS = 80_000;
+
+// A tool call as a model is answered: the result as JSON text, or the sentence
+// that tells it what to do instead. The MCP server and the AI Coach both
+// answer through this, so a tool says the same thing to either.
+export type ToolAnswer = { text: string; isError: boolean; result?: Record<string, unknown> };
+
+export async function answerTool(env: Env, user: ToolUser, name: string, rawArgs: unknown): Promise<ToolAnswer> {
+  try {
+    const result = await runTool(env, user, name, rawArgs);
+    const text = JSON.stringify(result);
+    if (text.length > MAX_RESULT_CHARS)
+      return { text: "That result is too large to return. Narrow the request — fewer channels, a wider step, or a filter.", isError: true };
+    return { text, isError: false, result };
+  } catch (err) {
+    if (err instanceof ToolError) return { text: err.message, isError: true };
+    console.error("ai tool failed", name, err);
+    return { text: "The tool failed unexpectedly. Try again, or try a different request.", isError: true };
+  }
 }

@@ -70,6 +70,8 @@ struct GoldenContractTests {
         // Publishing a best-lap video to YouTube (NS-46).
         case "youtube-draft": try roundTrip(YouTubeDraft.self, entry.name)
         case "youtube-upload": try roundTrip(YouTubeUpload.self, entry.name)
+        // The AI Coach (NS-58): Settings' Verify.
+        case "ai-coach-verify": try roundTrip(AICoachVerify.self, entry.name)
         case "event-create", "session-create", "part-create", "measurement-create":
             try roundTrip(CreatedID.self, entry.name)
         case "event-update", "session-update", "laps-append", "track-update", "vehicle-update",

@@ -2017,3 +2017,65 @@ body:has(.wrapped) { overflow: hidden; }
 }
 .trackmap-open { float: right; margin: -4px 0 0 10px; }
 .mv-bar [hidden], .mv-readout[hidden], .mv-note[hidden] { display: none; }
+
+/* ---------- AI Coach (#319) ---------- */
+/* A drawer on the right edge, so the charts it talks about stay on screen. On
+   a phone it covers the page; from 1100px the page makes room for it instead
+   (body.coach-open), so nothing is hidden behind it. */
+:root { --coach-w: 400px; }
+.coach-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 50; /* over the app bar (35), under a full-screen lap stage (60) */
+  width: min(var(--coach-w), 100vw);
+  display: flex; flex-direction: column;
+  background: var(--surface-card); color: var(--text-body);
+  border-left: 1px solid var(--border-strong);
+  box-shadow: -12px 0 32px var(--shadow-color);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@media (min-width: 1100px) {
+  body.coach-open { padding-right: var(--coach-w); }
+  .coach-drawer { box-shadow: none; }
+}
+.coach-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 12px 14px; border-bottom: 1px solid var(--border-hairline);
+  padding-top: max(12px, env(safe-area-inset-top));
+}
+.coach-head strong { color: var(--text-strong); }
+.coach-log { flex: 1 1 auto; overflow-y: auto; padding: 14px; overscroll-behavior: contain; }
+.coach-log .pro-panel { margin: 0; }
+.coach-turn + .coach-turn { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-hairline); }
+.coach-q {
+  margin: 0 0 10px auto; width: fit-content; max-width: 90%;
+  padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--surface-raised); color: var(--text-strong);
+  font-size: var(--fs-sm); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.coach-progress { margin: 0 0 8px; }
+.coach-progress[hidden] { display: none; }
+.coach-a { font-size: var(--fs-sm); line-height: 1.55; overflow-wrap: anywhere; }
+.coach-a p { margin: 0 0 10px; }
+.coach-a ul, .coach-a ol { margin: 0 0 10px; padding-left: 20px; }
+.coach-a li + li { margin-top: 4px; }
+.coach-a strong { color: var(--text-strong); }
+.coach-after .error-banner { margin: 8px 0; }
+.coach-stop { margin: 6px 0 0; }
+.coach-save { margin-top: 10px; }
+.coach-save .goal-msg { color: var(--text-muted); font-size: var(--fs-xs); }
+.coach-ask { display: flex; gap: 8px; align-items: flex-end; padding: 10px 14px; border-top: 1px solid var(--border-hairline); }
+.coach-ask textarea, .ai-provider input[type="password"], .ai-provider input[data-ai-model] {
+  padding: 8px 12px;
+  border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
+  background: var(--surface-input); color: var(--text-strong);
+  font: inherit; font-size: var(--fs-sm);
+}
+.coach-ask textarea { flex: 1 1 auto; min-width: 0; min-height: 0; resize: none; }
+.coach-ask[hidden], .coach-foot[hidden] { display: none; }
+.coach-foot { margin: 0; padding: 0 14px 10px; font-size: var(--fs-xs); }
+.coach-offline { font-weight: 400; }
+/* Settings → AI assistants: the AI Coach's provider rows. */
+.settings-sub { margin: 18px 0 4px; font-size: var(--fs-h3); color: var(--text-strong); }
+.ai-provider + .ai-provider { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-hairline); }
+.ai-provider .btn-row { margin-top: 8px; align-items: center; }
+.ai-provider input[type="password"], .ai-provider input[data-ai-model] { flex: 1 1 220px; min-width: 0; }
+.ai-provider .error-banner { margin: 8px 0 0; }

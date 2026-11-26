@@ -164,8 +164,14 @@ Documentation is hand-maintained in `README.md`, the docs site, `AGENTS.md` and 
      hours-accounting rule or the vehicle form's geometry help change.
    - `site/docs/ai.html` — connecting an AI assistant (Claude, ChatGPT, any
      MCP client) to the logbook with Pro: the connector address, what it can
-     and can't read, disconnecting. Update when the MCP tools, the consent
-     page or Settings' connected-assistants list change.
+     and can't read, disconnecting — and **the AI Coach** (`#ai-coach`): the
+     three places it opens, getting an API key from Anthropic or OpenAI,
+     that the driver pays the provider directly, what is sent, and how it
+     differs from sharing with a human coach. Update when the MCP tools, the
+     consent page, Settings' connected-assistants list, the AI Coach's entry
+     points, its providers or where a key is kept change. It has **no guide
+     screenshot yet**: `promo/guides.mjs` owes one of the drawer, captured on
+     the fake provider (`localStorage["te-ai-fake"] = "1"`).
    - `site/docs/privacy.html` and `site/docs/terms.html` — privacy policy and
      terms of use (operator: Speedshift LLC). In the app they're linked from
      the Settings page (account dropdown → Settings) on every platform, and

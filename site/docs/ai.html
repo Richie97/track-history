@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Connect Claude or ChatGPT to your track logbook — Track Evolution docs</title>
-  <meta name="description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, and ask it about your laps, sessions and garage.">
+  <meta name="description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, or use the AI Coach in the web app, and ask about your laps, sessions and garage.">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Track Evolution">
   <meta property="og:title" content="Connect Claude or ChatGPT to your track logbook — Track Evolution docs">
-  <meta property="og:description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, and ask it about your laps, sessions and garage.">
+  <meta property="og:description" content="Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, or use the AI Coach in the web app, and ask about your laps, sessions and garage.">
   <meta property="og:url" content="https://docs.trackevolution.app/docs/ai.html">
   <meta property="og:image" content="https://docs.trackevolution.app/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -25,7 +25,7 @@
         "@id": "https://docs.trackevolution.app/docs/ai.html#page",
         "url": "https://docs.trackevolution.app/docs/ai.html",
         "headline": "AI assistants",
-        "description": "Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, and ask it about your laps, sessions and garage.",
+        "description": "Connect Claude, ChatGPT or another AI assistant to your Track Evolution logbook with Pro, or use the AI Coach in the web app, and ask about your laps, sessions and garage.",
         "inLanguage": "en",
         "isPartOf": { "@type": "WebSite", "@id": "https://trackevolution.app/#website", "name": "Track Evolution", "url": "https://trackevolution.app/" },
         "about": { "@type": "SoftwareApplication", "@id": "https://trackevolution.app/#app", "name": "Track Evolution", "url": "https://trackevolution.app/" },
@@ -156,6 +156,12 @@
       language: where the time is, how today compared with last year, what to
       work on next session. It reads your data and can't change anything.
     </p>
+    <p>
+      There are two ways in. If you already use Claude or ChatGPT,
+      <a href="#connect">connect it to your logbook</a> and ask there. Or use
+      the <a href="#ai-coach">AI Coach</a> inside the Track Evolution web app,
+      which runs on your own Anthropic or OpenAI account.
+    </p>
 
     <h2 id="ask">What you can ask</h2>
     <ul>
@@ -257,18 +263,98 @@
 
     <h2 id="pro">Pro</h2>
     <p>
-      Connecting an assistant is part of Track Evolution Pro. If your
-      subscription lapses, the assistant can't read your logbook until you
-      resubscribe. Nothing in your logbook changes.
+      Connecting an assistant and the AI Coach are both part of Track
+      Evolution Pro. If your subscription lapses, neither can read your
+      logbook until you resubscribe. Nothing in your logbook changes, and
+      replies you saved to your notes stay there.
+    </p>
+
+    <h2 id="ai-coach">The AI Coach</h2>
+    <p>
+      The AI Coach is the same kind of debrief without leaving Track
+      Evolution. It is in the web app, part of Pro, and it opens beside the
+      page you are on, so the charts it talks about stay in view:
+    </p>
+    <ul>
+      <li><strong>Debrief this session</strong>, on each session of an event:
+        what went well, where the time is, and one or two things to try
+        next.</li>
+      <li><strong>Explain the difference</strong>, on the two-lap comparison:
+        where the time went between the two laps you picked, corner by
+        corner.</li>
+      <li><strong>What should I work on next time?</strong>, on an event: a
+        plan for your next visit, from the day and your history at the
+        track.</li>
+    </ul>
+    <p>
+      You can ask follow-up questions, and keep a reply with <strong>Save to
+      notes</strong>: a session debrief is added to that session's notes, the
+      others to the event's. A saved reply is marked <em>AI Coach</em> with
+      the date, so you (and a coach you share your logbook with) can tell it
+      from your own notes.
+    </p>
+    <h3>Setting it up</h3>
+    <p>
+      The AI Coach runs on your own account with Anthropic (the maker of
+      Claude) or OpenAI (the maker of ChatGPT), through an API key. That is a
+      separate account from a Claude or ChatGPT subscription; if a
+      subscription is what you have, <a href="#connect">connecting your
+      assistant</a> is the easier way.
+    </p>
+    <ol>
+      <li>Create an API key with
+        <a href="https://platform.claude.com/settings/keys">Anthropic</a> or
+        <a href="https://platform.openai.com/api-keys">OpenAI</a>. Both ask
+        you to add credit to the account first.</li>
+      <li>In the Track Evolution web app, open the account menu →
+        <strong>Settings</strong> → <strong>AI assistants</strong> →
+        <strong>AI Coach</strong>.</li>
+      <li>Paste the key beside its provider and choose
+        <strong>Verify</strong>. If you add a key for each, pick which one the
+        AI Coach uses.</li>
+      <li>Optionally choose a <strong>Model</strong>: start typing and pick
+        from the models your account with that provider offers. Leave it
+        empty to use the default.</li>
+    </ol>
+    <p>
+      A key is kept for the browser tab you typed it into. Tick
+      <strong>Remember on this device</strong> to store it in that browser
+      instead, until you choose <strong>Forget key</strong> or sign out. Either
+      way it is never stored on our servers.
+    </p>
+    <h3>What it costs</h3>
+    <p>
+      Track Evolution doesn't charge for the AI Coach beyond Pro. You pay
+      Anthropic or OpenAI directly for what each question uses, at their
+      prices, which depend on the model you pick. You can set a spending limit
+      in your account with them.
+    </p>
+    <h3>What is sent</h3>
+    <p>
+      When you ask the AI Coach something, the parts of your logbook it needs
+      to answer are sent to the provider you chose, under your own account
+      with them: the same things an assistant
+      <a href="#sees">can read</a>, as summaries and figures, not your video.
+      Your key travels with the request and is not kept. The AI Coach only
+      reads; it can't add, change or delete anything, and it only ever works
+      on your own logbook. See the
+      <a href="./privacy.html#ai">privacy policy</a>.
     </p>
 
     <h2 id="coaching">A word on coaching</h2>
     <p>
-      An assistant is a second pair of eyes on your data, not an instructor.
-      Its corner numbers (T1, T2…) are the app's own, counted from the
-      start/finish line, not the circuit's official turn numbers. Treat its
-      suggestions as things to try next session, talk them through with your
-      coach, and never use an assistant while you're driving.
+      An assistant, or the AI Coach, is a second pair of eyes on your data,
+      not an instructor. Its corner numbers (T1, T2…) are the app's own,
+      counted from the start/finish line, not the circuit's official turn
+      numbers. Treat its suggestions as things to try next session, talk them
+      through with your coach, and never use it while you're driving.
+    </p>
+    <p>
+      The AI Coach is not the same thing as
+      <a href="./working-with-a-coach.html">sharing your logbook with a
+      coach</a>. That is a person you invite, who reads your sessions and
+      leaves comments on them. The AI Coach never sees those comments, and a
+      coach reading your logbook can't run the AI Coach on it.
     </p>
 
     <nav class="docs-pager">
