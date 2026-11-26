@@ -151,11 +151,13 @@ import {
 } from "../public/js/grip.js";
 import {
   cornerAt,
+  cornerDirs,
   cornerLabel,
-  cornerMask,
-  cornersFromMask,
+  cornersFromDirs,
   lapCorners,
+  lateralSigns,
   sessionCorners,
+  sessionDirs,
 } from "../public/js/corners.js";
 import {
   balanceLabel,
@@ -845,47 +847,111 @@ const gripFixture = {
 // distance; this cuts it by lateral load, and everything per-corner segments
 // through it — so a port that disagrees about where T4 is disagrees about
 // every reading hung off it. What is worth pinning: the threshold at its exact
-// boundary (inclusive, and a stored sign is still a magnitude), the merge that
-// makes a chicane one corner rather than two, the minimum length that drops a
-// kerb strike, and the *union* rule — the session's corner list comes from
-// every lap's mask together, so a lap that took a corner wider widens the
-// window for all of them.
+// boundary (inclusive, and latG's own sign is never a direction), the merge
+// that makes a double apex one corner rather than two, the minimum length that
+// drops a kerb strike, the *direction* rule — a change of direction ends a
+// corner whatever the gap, read from yaw, else steering, and not at all when a
+// lap has neither — and the session rules: any lap's load makes a point a
+// corner, in the direction more laps turn (the earliest lap's on a tie), with
+// a lap from a recorder of the opposite convention put the same way round
+// first and the whole session falling back to magnitude when one lap has no
+// direction.
 const cornerLatG = [0, 0.1, 0.5, 0.9, 1.0, 0.6, 0.1, 0, 0, 0.7, 0.8, 0.2, 0.9, 0.7, 0.1, 0, 0, 1.4, 0, 0, 0.1, 0, 0, 0];
 const cornerLapA = { n: 1, timeMs: 90000, speed: Array.from({ length: 24 }, () => 100), latG: cornerLatG };
-// Takes the first corner a point wider and never loads the tire in the chicane.
+// Takes the first corner a point wider and never loads the tire in the double apex.
 const cornerLapB = {
   n: 2,
   timeMs: 91000,
   speed: Array.from({ length: 24 }, () => 100),
   latG: cornerLatG.map((g, k) => (k === 1 ? 0.4 : k >= 9 && k <= 13 ? 0.1 : g)),
 };
-// Carries no latG at all: it must drop out of the union rather than shorten it.
+// Carries no latG at all: it must drop out of the session rather than shorten it.
 const cornerLapC = { n: 3, timeMs: 92000, speed: Array.from({ length: 24 }, () => 100) };
 const cornerChannels = { v: 1, dStepM: 20, laps: [cornerLapA, cornerLapB, cornerLapC] };
+// Esses: left at k 1–3, right at k 5–7 with one clear point between, then a
+// left double apex at k 11–13 and k 15–17. One corner then one by magnitude;
+// three by direction.
+const essG = [0, 0.6, 0.8, 0.7, 0.2, 0.7, 0.9, 0.8, 0.1, 0, 0, 0.6, 0.7, 0.6, 0.1, 0.5, 0.6, 0.5, 0, 0, 0];
+const essYaw = [1, 5, 6, 5, 1, -5, -6, -5, -1, 1, 1, 4, 4, 4, 1, 4, 4, 4, 1, 1, 1];
+const essSpeed = Array.from({ length: 21 }, () => 100);
+const essLap = { n: 1, timeMs: 60000, speed: essSpeed, latG: essG, yaw: essYaw };
+const essLaps = {
+  a: essLap,
+  // The same lap again, so a vote has a majority.
+  again: { ...essLap, n: 2 },
+  // A recorder whose yaw is positive the other way.
+  flipped: { n: 3, timeMs: 60000, speed: essSpeed, latG: essG, yaw: essYaw.map((v) => -v) },
+  // Still loaded left through k 4 and k 5, where the others have let go or
+  // are already turning right.
+  late: {
+    n: 4,
+    timeMs: 60000,
+    speed: essSpeed,
+    latG: essG.map((g, k) => (k === 4 || k === 5 ? 0.5 : g)),
+    yaw: essYaw.map((v, k) => (k === 4 || k === 5 ? 3 : v)),
+  },
+  // No yaw: the direction comes from steering, here of the opposite sign.
+  steered: { n: 5, timeMs: 60000, speed: essSpeed, latG: essG, steering: essYaw.map((v) => v * -3) },
+  // Neither: no direction to read.
+  bare: { n: 6, timeMs: 60000, speed: essSpeed, latG: essG },
+};
+const essSession = (...laps) => ({ v: 1, dStepM: 20, laps });
+const cornerTurns = [1, 1, 1, -1, 1, 1, 1];
 const cornersFixture = {
   description:
     "Corner-segmentation reference output from public/js/corners.js " +
-    "(cornerMask / cornersFromMask / lapCorners / sessionCorners / cornerAt). " +
+    "(lateralSigns / cornerDirs / cornersFromDirs / lapCorners / sessionDirs / sessionCorners / cornerAt). " +
     "Ports must reproduce the windows exactly and the peaks to 1e-9. " +
     "Regenerate with `npm run contracts:logic`.",
   source: "public/js/corners.js",
-  input: { channels: cornerChannels, mask: [0, 0.34, 0.35, -0.9] },
+  input: {
+    channels: cornerChannels,
+    latG: [0, 0.34, 0.35, -0.9],
+    signs: [1, -1, -1, 1],
+    turns: cornerTurns,
+    esses: essLaps,
+  },
   expected: {
-    // The threshold is inclusive and reads |latG|, so a negative is a corner.
-    mask: cornerMask([0, 0.34, 0.35, -0.9]),
-    // The chicane's one-point dip merges; the single-point kerb strike drops.
-    runs: cornersFromMask(cornerMask(cornerLatG)),
+    // The threshold is inclusive and reads |latG|, so a negative is a corner
+    // and not a direction; the direction is the sign handed in.
+    dirs: cornerDirs([0, 0.34, 0.35, -0.9]),
+    signedDirs: cornerDirs([0, 0.34, 0.35, -0.9], [1, -1, -1, 1]),
+    // The double apex's one-point dip merges; the single-point kerb strike drops.
+    runs: cornersFromDirs(cornerDirs(cornerLatG)),
     // Both options, so a port can't hard-code either bound.
-    tightRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0 }),
-    shortRuns: cornersFromMask(cornerMask(cornerLatG), { mergeGap: 0, minPoints: 2 }),
-    strikeRuns: cornersFromMask(cornerMask(cornerLatG), { minPoints: 1 }),
+    tightRuns: cornersFromDirs(cornerDirs(cornerLatG), { mergeGap: 0 }),
+    shortRuns: cornersFromDirs(cornerDirs(cornerLatG), { mergeGap: 0, minPoints: 2 }),
+    strikeRuns: cornersFromDirs(cornerDirs(cornerLatG), { minPoints: 1 }),
+    // An opposite flick keeps two same-direction runs apart even inside the
+    // merge distance, and still does when it is itself too short to count.
+    turnRuns: cornersFromDirs(cornerTurns),
+    turnRunsAll: cornersFromDirs(cornerTurns, { minPoints: 1 }),
+    // Yaw, then steering, then nothing.
+    signs: {
+      a: lateralSigns(essLaps.a),
+      steered: lateralSigns(essLaps.steered),
+      bare: lateralSigns(essLaps.bare),
+    },
     lapA: lapCorners(cornerLapA),
+    essLap: lapCorners(essLaps.a),
+    essSteered: lapCorners(essLaps.steered),
+    essBare: lapCorners(essLaps.bare),
     session: sessionCorners(cornerChannels),
     labels: sessionCorners(cornerChannels).map(cornerLabel),
-    // Inside a corner, inside the chicane's dip (still the chicane), on a
+    // Inside a corner, inside the double apex's dip (still that corner), on a
     // straight, and past the end of the lap.
     at: [3, 11, 7, 99].map((k) => cornerAt(sessionCorners(cornerChannels), k)?.n ?? null),
     noData: sessionCorners({ v: 1, dStepM: 20, laps: [cornerLapC] }),
+    // [a, flipped]: the second comes back the first's way round. [a, bare]:
+    // no direction at all.
+    flippedDirs: sessionDirs([essLaps.a, essLaps.flipped]),
+    bareDirs: sessionDirs([essLaps.a, essLaps.bare]),
+    essFlipped: sessionCorners(essSession(essLaps.a, essLaps.flipped)),
+    // Two against one at k 5; then one against one, each way round.
+    essVote: sessionCorners(essSession(essLaps.a, essLaps.again, essLaps.late)),
+    essTie: sessionCorners(essSession(essLaps.a, essLaps.late)),
+    essTieLate: sessionCorners(essSession(essLaps.late, essLaps.a)),
+    essMixed: sessionCorners(essSession(essLaps.a, essLaps.bare)),
   },
 };
 
@@ -3682,7 +3748,7 @@ console.log(
   `wrote contracts/logic/grip.json (peak ${gripFixture.expected.peak.toFixed(3)} G over ` +
     `${gripFixture.expected.session.all.samples} samples)`
 );
-console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners on the union)`);
+console.log(`wrote contracts/logic/corners.json (${cornersFixture.expected.session.length} corners in the session)`);
 console.log(
   `wrote contracts/logic/balance.json (reference gain ${balanceFixture.expected.refGain.toFixed(5)}/m, ` +
     `"${balanceFixture.expected.summary}")`

@@ -16,25 +16,38 @@ import kotlinx.serialization.Serializable
  * — which is the right cut for "where did the time go" and the wrong one for
  * "what was the car doing in the corner": a sector boundary lands mid-corner as
  * often as not. This cuts by *lateral load* instead: a corner is a stretch of
- * grid points where the stored `|latG|` stays at or above [CORNER_MIN_G],
- * merged across a short dip (a chicane's flick between two apexes is one
- * corner, not two) and dropped when too short to be anything but a kerb strike.
- * It is the primitive [Balance] hangs off, and it is its own file because
- * anything per-corner — entry speed, minimum speed, brake release — segments
- * the same way.
+ * grid points where the stored `|latG|` stays at or above [CORNER_MIN_G] *in
+ * one direction*, merged across a short dip (a double apex is one corner, not
+ * two) and dropped when too short to be anything but a kerb strike. It is the
+ * primitive [Balance] hangs off, and it is its own file because anything
+ * per-corner — entry speed, minimum speed, brake release — segments the same
+ * way.
+ *
+ * Direction is the point. `latG` is stored as a magnitude, and through a
+ * left-right transition a magnitude dips for a grid point or two and comes
+ * straight back — so read alone it fuses linked corners: at VIR the whole
+ * Climbing Esses were one "corner", Roller Coaster through Hog Pen another,
+ * nine in a lap of eighteen. The sign comes from a channel that has one — yaw,
+ * else steering ([lateralSigns]) — and a change of direction always ends a
+ * corner, whatever the gap. A lap with neither channel (a GPS-only import) has
+ * no direction to read and segments by magnitude alone, as every lap did
+ * before.
  *
  * Corners are numbered from the start/finish line in distance order and
  * labelled T1…Tn. Those are the app's numbers at this threshold, not the
  * circuit's official turn numbers: a fast kink may or may not clear
- * [CORNER_MIN_G], and a double apex may count once or twice. Every surface that
- * shows one says as much.
+ * [CORNER_MIN_G], two apexes in the same direction count once, and a bend the
+ * start/finish line cuts through is counted on both sides of it. Every surface
+ * that shows one says as much.
  *
- * [sessionCorners] segments the *union* of every lap's cornering mask rather
- * than any one lap's, so the corner list is one list for the session — the same
- * T4 on every lap, whichever laps are highlighted — and a lap that took a
- * corner a little wider still lands in the same window. The grid is what makes
- * that legitimate: laps are aligned by driven distance from the start/finish
- * line, so the same k is the same place on track to within the line taken.
+ * [sessionCorners] segments every lap together on the shared distance grid
+ * rather than any one lap's, so the corner list is one list for the session —
+ * the same T4 on every lap, whichever laps are highlighted — and a lap that
+ * took a corner a little wider still lands in the same window. A grid point is
+ * cornering when *any* lap is loaded there, in the direction most of the loaded
+ * laps agree on. The grid is what makes that legitimate: laps are aligned by
+ * driven distance from the start/finish line, so the same k is the same place
+ * on track to within the line taken.
  */
 public object Corners {
     /**
@@ -46,9 +59,9 @@ public object Corners {
     public const val CORNER_MIN_G: Double = 0.35
 
     /**
-     * Two cornering runs separated by at most this many below-threshold grid
-     * points are one corner: a chicane or a double apex, not two corners.
-     * 2 points = 40 m at the 20 m grid.
+     * Two cornering runs *in the same direction* separated by at most this many
+     * below-threshold grid points are one corner: a double apex, not two
+     * corners. 2 points = 40 m at the 20 m grid.
      */
     public const val CORNER_MERGE_GAP_POINTS: Int = 2
 
@@ -62,29 +75,71 @@ public object Corners {
     public fun hasCornerData(entry: LapChannels?): Boolean = entry?.latG != null
 
     /**
-     * The cornering mask of one lap: true at every grid point where `|latG|` is
-     * at or above [minG]. A magnitude stored with a sign is still a magnitude —
-     * `pdr.js` stores `abs(lateral acceleration)`, and a negative would be a
-     * source bug, not a left-hander.
+     * Which way the car is turning at each grid point of one lap: 1 or -1, from
+     * yaw, else steering; null when the lap stored neither. Which of the two is
+     * "left" is the recorder's business and nothing here depends on it — only
+     * on the sign changing when the direction does.
      */
-    public fun cornerMask(latG: List<Double>?, minG: Double = CORNER_MIN_G): List<Boolean> =
-        latG?.map { abs(it) >= minG } ?: emptyList()
+    public fun lateralSigns(entry: LapChannels?): List<Int>? {
+        val latG = entry?.latG ?: return null
+        val src = entry.yaw ?: entry.steering ?: return null
+        return latG.indices.map { k -> if (k < src.size && src[k] < 0) -1 else 1 }
+    }
 
     /**
-     * A mask reduced to corners: inclusive runs, merged across gaps of at most
-     * [mergeGap] clear points, runs shorter than [minPoints] dropped.
+     * The cornering direction at each grid point: 0 below [minG], else the sign
+     * from [signs] — or 1 throughout without it, which is the magnitude-only
+     * reading. A magnitude stored with a sign is still a magnitude — `pdr.js`
+     * stores `abs(lateral acceleration)`, so `latG`'s own sign is never a
+     * direction.
      */
-    public fun cornersFromMask(
-        mask: List<Boolean>,
+    public fun cornerDirs(
+        latG: List<Double>?,
+        signs: List<Int>? = null,
+        minG: Double = CORNER_MIN_G,
+    ): List<Int> =
+        latG?.mapIndexed { k, g -> if (abs(g) >= minG) signs?.getOrNull(k) ?: 1 else 0 } ?: emptyList()
+
+    /**
+     * Directions reduced to corners: inclusive runs. A run is a stretch of one
+     * non-zero direction; two runs merge across a gap of at most [mergeGap]
+     * clear points only when they turn the same way, and runs shorter than
+     * [minPoints] are dropped.
+     */
+    public fun cornersFromDirs(
+        dirs: List<Int>,
         mergeGap: Int = CORNER_MERGE_GAP_POINTS,
         minPoints: Int = MIN_CORNER_POINTS,
-    ): List<Limits.Run> = Limits.booleanRuns(mask, mergeGap).filter { it.k1 - it.k0 + 1 >= minPoints }
+    ): List<Limits.Run> {
+        // Parallel lists: each run's direction, start and end.
+        val runDirs = ArrayList<Int>()
+        val k0s = ArrayList<Int>()
+        val k1s = ArrayList<Int>()
+        for (k in dirs.indices) {
+            val dir = dirs[k]
+            if (dir == 0) continue
+            // The last run is the last of either direction, so an opposite run
+            // in between has already taken its place and nothing merges across
+            // it.
+            val last = runDirs.size - 1
+            if (last >= 0 && runDirs[last] == dir && k - k1s[last] - 1 <= mergeGap) {
+                k1s[last] = k
+            } else {
+                runDirs.add(dir)
+                k0s.add(k)
+                k1s.add(k)
+            }
+        }
+        return k0s.indices
+            .filter { k1s[it] - k0s[it] + 1 >= minPoints }
+            .map { Limits.Run(k0s[it], k1s[it]) }
+    }
 
     /**
      * One corner, numbered from the start/finish line. [peakG] is the highest
      * `|latG|` seen inside the window and [peakK] where; [laps] is how many laps
-     * cleared the threshold somewhere inside it, and stays 0 on a single lap's
-     * corners, which have no session to count over.
+     * were loaded in the corner's direction somewhere inside it, and stays 0 on
+     * a single lap's corners, which have no session to count over.
      */
     @Serializable
     public data class Corner(
@@ -107,10 +162,11 @@ public object Corners {
         minPoints: Int = MIN_CORNER_POINTS,
     ): List<Corner> {
         val latG = entry?.latG ?: return emptyList()
-        return cornersFromMask(cornerMask(latG, minG), mergeGap, minPoints).mapIndexed { i, r ->
-            val (peakG, peakK) = peakIn(latG, r)
-            Corner(n = i + 1, k0 = r.k0, k1 = r.k1, peakG = peakG, peakK = peakK)
-        }
+        return cornersFromDirs(cornerDirs(latG, lateralSigns(entry), minG), mergeGap, minPoints)
+            .mapIndexed { i, r ->
+                val (peakG, peakK) = peakIn(latG, r)
+                Corner(n = i + 1, k0 = r.k0, k1 = r.k1, peakG = peakG, peakK = peakK)
+            }
     }
 
     private fun peakIn(latG: List<Double>, run: Limits.Run): Pair<Double, Int> {
@@ -129,9 +185,39 @@ public object Corners {
     }
 
     /**
-     * The session's corners on the shared grid, from the union of every lap's
-     * cornering mask — see the file's documentation. Empty when no lap stored
-     * `latG`.
+     * Every lap's cornering directions in one convention. Two laps of one
+     * session share a recorder, but a comparison can put laps from two
+     * recorders on one grid and their yaw need not agree on which way is
+     * positive — so each lap is checked against the first wherever both are
+     * loaded, and flipped when it disagrees more than it agrees. Measured, not
+     * assumed, as [Balance] does for steering against yaw. When any lap has no
+     * direction at all, none is used: half a session cut by direction and half
+     * not would be two corner lists laid over each other.
+     *
+     * Laps without `latG` contribute an empty list.
+     */
+    public fun sessionDirs(laps: List<LapChannels>, minG: Double = CORNER_MIN_G): List<List<Int>> {
+        val signs = laps.map { lateralSigns(it) }
+        if (signs.any { it == null }) return laps.map { cornerDirs(it.latG, null, minG) }
+        val dirs = laps.mapIndexed { i, l -> cornerDirs(l.latG, signs[i], minG) }
+        val ref = dirs.firstOrNull() ?: return dirs
+        return dirs.mapIndexed { i, d ->
+            if (i == 0) return@mapIndexed d
+            var agree = 0
+            var k = 0
+            while (k < d.size && k < ref.size) {
+                agree += d[k] * ref[k]
+                k++
+            }
+            if (agree < 0) d.map { -it } else d
+        }
+    }
+
+    /**
+     * The session's corners on the shared grid, from every lap's directions
+     * together — a point is cornering when any lap is loaded there, in the
+     * direction more of the loaded laps turn (on a tie, the earliest loaded
+     * lap's). See the file's documentation. Empty when no lap stored `latG`.
      */
     public fun sessionCorners(
         channels: SessionChannels?,
@@ -142,10 +228,19 @@ public object Corners {
         val laps = (channels?.laps ?: emptyList()).filter { it.latG != null }
         if (laps.isEmpty()) return emptyList()
         val n = laps.maxOf { it.latG!!.size }
-        val union = BooleanArray(n)
-        val masks = laps.map { cornerMask(it.latG, minG) }
-        for (m in masks) for (k in m.indices) if (m[k]) union[k] = true
-        return cornersFromMask(union.toList(), mergeGap, minPoints).mapIndexed { i, r ->
+        val dirs = sessionDirs(laps, minG)
+        val voted = List(n) { k ->
+            var sum = 0
+            var first = 0
+            for (d in dirs) {
+                val v = d.getOrElse(k) { 0 }
+                sum += v
+                if (first == 0) first = v
+            }
+            if (sum > 0) 1 else if (sum < 0) -1 else first
+        }
+        return cornersFromDirs(voted, mergeGap, minPoints).mapIndexed { i, r ->
+            val dir = voted[r.k0]
             var peakG = 0.0
             var peakK = r.k0
             var count = 0
@@ -155,9 +250,9 @@ public object Corners {
                     peakG = g
                     peakK = k
                 }
-                val m = masks[li]
+                val d = dirs[li]
                 for (kk in r.k0..r.k1) {
-                    if (kk < m.size && m[kk]) {
+                    if (kk < d.size && d[kk] == dir) {
                         count++
                         break
                     }

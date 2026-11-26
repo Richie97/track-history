@@ -1087,7 +1087,8 @@ ticket's colour-by-speed is therefore not needed, and colour stays lap
 identity as everywhere else in the panel — speed is in the tooltip). Points
 above the line are oversteer, below it understeer. Under it, a **per-corner
 table** segments the lap into corners — stretches of sustained lateral load
-(0.35 G or more), merged across a short dip so a chicane is one corner, and
+(0.35 G or more) in one direction, so a left-right pair is two corners while
+a double apex, merged across its short dip, is one, and
 numbered T1… from the start/finish line, so the numbers are the app's rather
 than the circuit's — and gives each corner's reading per highlighted lap and
 pooled for the session: *"T1 understeer 14%, T7 neutral, T10 slight
