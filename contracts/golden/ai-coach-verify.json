@@ -1,0 +1,16 @@
+{
+  "method": "POST",
+  "path": "/ai/coach/verify",
+  "status": 200,
+  "body": {
+    "default_model": "fake-1",
+    "models": [
+      {
+        "id": "fake-1",
+        "label": "Fake 1"
+      }
+    ],
+    "ok": true,
+    "provider": "fake"
+  }
+}

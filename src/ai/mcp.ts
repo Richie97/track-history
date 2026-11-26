@@ -9,7 +9,9 @@
 
 import type { Env } from "../types";
 import { isEntitled } from "../lib/entitlement";
-import { TOOLS, ToolError, type ToolUser, runTool } from "./tools";
+import { MAX_RESULT_CHARS, TOOLS, type ToolUser, answerTool } from "./tools";
+
+export { MAX_RESULT_CHARS };
 
 // Newest first; the first is what an unknown request version is answered
 // with. 2024-11-05 is left out: it is the HTTP+SSE transport, not this one.
@@ -71,9 +73,6 @@ export const PROMPTS: Prompt[] = [
 export const PRO_REQUIRED_MESSAGE =
   "Track Evolution Pro is required to use this connection. Subscribe (or restore your purchase) in the Track Evolution app on your iPhone or Android phone, then try again.";
 
-// Beyond this the result is refused rather than cut mid-JSON: ~20k tokens.
-export const MAX_RESULT_CHARS = 80_000;
-
 type JsonRpcId = string | number;
 type JsonRpcRequest = { jsonrpc: "2.0"; id?: JsonRpcId | null; method?: string; params?: any; result?: unknown; error?: unknown };
 export type JsonRpcResponse =
@@ -104,21 +103,13 @@ const textResult = (text: string, isError = false) => ({ content: [{ type: "text
 
 async function callTool(env: Env, user: ToolUser, params: any, version: string) {
   if (!isEntitled(user.entitledUntil, Date.now())) return textResult(PRO_REQUIRED_MESSAGE, true);
-  try {
-    const result = await runTool(env, user, params?.name, params?.arguments);
-    const text = JSON.stringify(result);
-    if (text.length > MAX_RESULT_CHARS)
-      return textResult("That result is too large to return. Narrow the request — fewer channels, a wider step, or a filter.", true);
-    return {
-      content: [{ type: "text", text }],
-      ...(supportsStructured(version) ? { structuredContent: result } : {}),
-      isError: false,
-    };
-  } catch (err) {
-    if (err instanceof ToolError) return textResult(err.message, true);
-    console.error("mcp tool failed", params?.name, err);
-    return textResult("The tool failed unexpectedly. Try again, or try a different request.", true);
-  }
+  const answer = await answerTool(env, user, params?.name, params?.arguments);
+  if (answer.isError) return textResult(answer.text, true);
+  return {
+    content: [{ type: "text", text: answer.text }],
+    ...(supportsStructured(version) ? { structuredContent: answer.result } : {}),
+    isError: false,
+  };
 }
 
 // One JSON-RPC message → its response, or null for a notification (or a

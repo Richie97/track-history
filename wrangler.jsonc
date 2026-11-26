@@ -81,6 +81,10 @@
     // Map tokens per user (NS-53): one per open of the map viewer, good for
     // half an hour, so 20 a minute is a loop.
     { "name": "MAP_TOKEN", "namespace_id": "3147", "simple": { "limit": 20, "period": 60 } },
+    // AI Coach requests per user (#318): a debrief and a few follow-ups is a
+    // minute's normal use, and each one runs up to eight rounds of tool calls
+    // on the Worker's CPU.
+    { "name": "AI_COACH", "namespace_id": "3148", "simple": { "limit": 10, "period": 60 } },
   ],
   // Best-lap video clips (NS-45, src/routes/clips.ts). No public access and no
   // custom domain: every byte goes through /clips/* and its signed URLs.

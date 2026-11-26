@@ -31,8 +31,9 @@ export const requireSession = createMiddleware<AppContext>(async (c, next) => {
 // maps to its paywall (NS-32 rule 5).
 //
 // It guards GET /garage, the parts/measurements routes, the setups routes,
-// inviting a coach, saving / playing a best-lap video and drafting / starting
-// a YouTube upload of one, and nothing else —
+// inviting a coach, saving / playing a best-lap video, drafting / starting
+// a YouTube upload of one, and the AI Coach's two POSTs (routes/aiCoach.ts —
+// analysis requests that write nothing), and nothing else —
 // `test/api/entitlement-gates.test.ts` enumerates them, so an accidental
 // addition fails there. It must never sit in front of a POST/PUT/DELETE on
 // events, sessions, laps or tracks: the offline layer drops rejected writes,

@@ -13,6 +13,7 @@ import {
   b64urlDecodeJson,
 } from "./test/billing-helpers";
 import { chain as appleTestChain } from "./test/fixtures/billing/pems.mjs";
+import { mockAiProviders } from "./test/ai-coach-mock";
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -253,6 +254,8 @@ function appleFetchMock(googleJwk: object) {
       redirect_uris: ["https://assistant.example/callback"],
     })
     .persist();
+  // The AI Coach's providers (#318), scripted in test/ai-coach-mock.ts.
+  mockAiProviders(fetchMock);
   return fetchMock;
 }
 

@@ -87,9 +87,17 @@ import {
 } from "./js/comments.js";
 import { EXPORT_FILES, EXPORT_OFFLINE, exportErrorText, exportFilename, exportStoppedPartway, exportUrl } from "./js/export.js";
 import {
-  canCompareEvents, canSaveLapVideo, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
+  canCompareEvents, canSaveLapVideo, canUseAICoach, canUseGarage, canUseSetups, canViewChannels, canViewSpend,
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
+import {
+  COACH_DISCLAIMER, COACH_ENTRIES, COACH_NAME, COACH_OFFLINE, COACH_PRO_WHAT, COACH_PROVIDERS, appendCoachNote, coachContext,
+  coachErrorText, coachMarkdownHtml, coachSaveLabel, modelOptionsHtml, modelPlaceholder, providerName, resolveModelInput,
+  streamCoach, verifyCoachKey,
+} from "./js/ai-coach.js";
+import {
+  aiCredential, aiKeyState, clearAiKeys, forgetAiKey, loadAiKeys, refreshAiModels, saveAiKey, setAiActive, setAiModel,
+} from "./js/ai-keys.js";
 import {
   PLANS_DISABLED, billedText, checkoutIdFrom, endedText, fmtPlanPrice, plansEnabled, subscribeLabel, trialLine,
 } from "./js/billing.js";
@@ -253,6 +261,332 @@ const PRO_CHANNELS_NOTE =
 // disagree about which traces were free.
 const IMPORT_FREE_NOTE =
   "Importing is free: lap times, the racing line, and speed, throttle and brake traces. " + PRO_CHANNELS_NOTE;
+
+// ---------- the AI Coach (#319) ----------------------------------------------
+//
+// A drawer, not a route, so the charts it talks about stay on screen: fixed to
+// the right edge, and at desktop widths the page makes room for it (the
+// `coach-open` body class) rather than being covered. It opens from a session
+// card, the two-lap compare and the event page, each seeding its own context
+// and opening question (js/ai-coach.js), and it is for your own logbook only:
+// never offered when readOnly() — a coach's view of a student, a shared event
+// or session, a share page.
+//
+// The request goes straight to fetch through streamCoach, never through api():
+// it is neither cached nor queued, and its refusals — the 402 paywall, a
+// provider's 424 / 429 / 502 — are drawn here in the drawer, never as the sync
+// banner.
+
+let coach = null;
+// Set when a button found no key: Settings scrolls to the AI Coach block.
+let focusAiCoachSettings = false;
+
+function closeCoach() {
+  if (!coach) return;
+  coach.abort?.abort();
+  coach.el.remove();
+  coach = null;
+  document.body.classList.remove("coach-open");
+  // The page just got its width back: let the canvases and charts re-measure.
+  window.dispatchEvent(new Event("resize"));
+}
+
+// An entry point's button — nothing at all in a read-only view. `data` is the
+// extra attributes the view finds it by.
+function coachButtonHtml(entry, data = "", cls = "btn small") {
+  if (readOnly()) return "";
+  return `<button type="button" class="${cls}" data-coach="${entry}" ${data}>${esc(COACH_ENTRIES[entry].button)}<span class="coach-offline" hidden> · ${COACH_OFFLINE}</span></button>`;
+}
+
+// Offline, the buttons are disabled and say why. Repainted with the sync
+// banner, so they follow the connection while the page is open.
+function paintCoachButtons() {
+  document.querySelectorAll("[data-coach]").forEach((btn) => {
+    btn.disabled = syncStatus.offline;
+    const note = btn.querySelector(".coach-offline");
+    if (note) note.hidden = !syncStatus.offline;
+  });
+}
+
+// What a click does: with no key (and nothing connected) it opens the Settings
+// block instead of a dead panel; otherwise the drawer. A free account gets the
+// drawer too — the Pro offer is drawn in it.
+async function startCoach(opts) {
+  if (readOnly() || syncStatus.offline) return;
+  await loadAiKeys();
+  if (canUseAICoach(state.entitlement) && !aiCredential()) {
+    focusAiCoachSettings = true;
+    location.hash = "#/settings";
+    return;
+  }
+  openCoach(opts);
+}
+
+// opts: { entry, context, subtitle, save(reply) → Promise }.
+function openCoach(opts) {
+  closeCoach();
+  const el = document.createElement("aside");
+  el.className = "coach-drawer";
+  el.setAttribute("aria-label", COACH_NAME);
+  el.innerHTML = `
+    <header class="coach-head">
+      <div><strong>${COACH_NAME}</strong> <span class="hint-inline">${esc(opts.subtitle || COACH_ENTRIES[opts.entry].title)}</span></div>
+      <button type="button" class="btn small ghost" data-coach-close aria-label="Close the ${COACH_NAME}">✕</button>
+    </header>
+    <div class="coach-log" role="log" aria-live="polite"></div>
+    <form class="coach-ask">
+      <textarea name="q" rows="2" maxlength="4000" placeholder="Ask a follow-up…" aria-label="Ask a follow-up"></textarea>
+      <button class="btn small primary">Send</button>
+    </form>
+    <div class="coach-foot hint"></div>`;
+  document.body.append(el);
+  document.body.classList.add("coach-open");
+  window.dispatchEvent(new Event("resize"));
+  coach = { ...opts, el, messages: [], busy: false, abort: null };
+  el.querySelector("[data-coach-close]").onclick = closeCoach;
+  const form = el.querySelector(".coach-ask");
+  form.onsubmit = (evt) => {
+    evt.preventDefault();
+    const text = form.q.value.trim();
+    if (!text || coach?.busy) return;
+    form.q.value = "";
+    coachAsk(text);
+  };
+  form.q.onkeydown = (evt) => {
+    if (evt.key === "Enter" && !evt.shiftKey) {
+      evt.preventDefault();
+      form.requestSubmit();
+    }
+  };
+  if (!canUseAICoach(state.entitlement)) return coachPaywall();
+  const cred = aiCredential();
+  el.querySelector(".coach-foot").textContent = `Runs on your ${providerName(cred?.provider)} account. ${COACH_DISCLAIMER}`;
+  coachAsk(COACH_ENTRIES[opts.entry].question);
+}
+
+// A 402 is an offer, not an error: the paywall, in the drawer.
+function coachPaywall() {
+  if (!coach) return;
+  coach.el.querySelector(".coach-log").innerHTML = proPanelHtml(COACH_NAME, COACH_PRO_WHAT);
+  coach.el.querySelector(".coach-ask").hidden = true;
+  coach.el.querySelector(".coach-foot").hidden = true;
+}
+
+async function coachAsk(text) {
+  const c = coach;
+  if (!c || c.busy) return;
+  const cred = aiCredential();
+  if (!cred) return closeCoach();
+  c.busy = true;
+  const log = c.el.querySelector(".coach-log");
+  const send = c.el.querySelector(".coach-ask button");
+  send.disabled = true;
+  const turn = document.createElement("div");
+  turn.className = "coach-turn";
+  turn.innerHTML = `
+    <div class="coach-q">${esc(text)}</div>
+    <div class="coach-progress hint" role="status">Thinking…</div>
+    <div class="coach-a"></div>
+    <div class="coach-after"></div>`;
+  log.append(turn);
+  const [progress, answer, after] = [".coach-progress", ".coach-a", ".coach-after"].map((s) => turn.querySelector(s));
+  const follow = () => (log.scrollTop = log.scrollHeight);
+  follow();
+
+  c.messages.push({ role: "user", content: text });
+  c.abort = new AbortController();
+  let reply = "";
+  const result = await streamCoach(
+    {
+      credential: cred,
+      body: { context: c.context, messages: c.messages, ...(cred.model ? { model: cred.model } : {}) },
+      signal: c.abort.signal,
+    },
+    {
+      onText(delta) {
+        reply += delta;
+        // Escaped text and a safe Markdown subset — never the model's HTML.
+        answer.innerHTML = coachMarkdownHtml(reply);
+        follow();
+      },
+      onTool(tool) {
+        progress.textContent = typeof tool.label === "string" && tool.label ? tool.label : "Reading your logbook…";
+      },
+    }
+  );
+  // Closed (or the page changed) while it was answering.
+  if (coach !== c) return;
+  c.busy = false;
+  c.abort = null;
+  send.disabled = false;
+  progress.hidden = true;
+
+  if (result.kind === "unauthorized") {
+    closeCoach();
+    return renderLogin();
+  }
+  if (result.kind === "paywall") return coachPaywall();
+  if (result.kind === "done") {
+    const answered = Boolean(reply.trim());
+    if (answered) c.messages.push({ role: "assistant", content: reply });
+    else {
+      // Nothing came back, so the question leaves the conversation too.
+      c.messages.pop();
+      answer.innerHTML = `<p class="hint">The ${COACH_NAME} had nothing to add.</p>`;
+    }
+    if (result.message) after.insertAdjacentHTML("beforeend", `<div class="hint coach-stop">${esc(result.message)}</div>`);
+    if (answered) coachSaveRow(c, after, reply);
+    return follow();
+  }
+  // Refused or failed: the question was not answered, so it leaves the
+  // conversation and "Try again" asks it afresh.
+  c.messages.pop();
+  if (result.kind === "aborted") return;
+  const message =
+    result.kind === "offline" ? `The ${COACH_NAME} ${COACH_OFFLINE}.` : coachErrorText(result.status, result.error, cred.provider);
+  after.insertAdjacentHTML(
+    "beforeend",
+    `<div class="error-banner">${esc(message)}</div>
+     <div class="btn-row">
+       <button type="button" class="btn small" data-coach-retry>Try again</button>
+       ${result.status === 424 || result.status === 400 ? `<a class="btn small ghost" href="#/settings" data-coach-settings>Open Settings</a>` : ""}
+     </div>`
+  );
+  after.querySelector("[data-coach-retry]").onclick = () => {
+    turn.remove();
+    coachAsk(text);
+  };
+  const toSettings = after.querySelector("[data-coach-settings]");
+  if (toSettings) toSettings.onclick = () => (focusAiCoachSettings = true);
+  follow();
+}
+
+// Keep a reply: appended to the session's or the event's notes through the
+// ordinary (queueable, free) write the view handed in.
+function coachSaveRow(c, after, reply) {
+  if (!c.save) return;
+  const row = document.createElement("div");
+  row.className = "btn-row coach-save";
+  row.innerHTML = `<button type="button" class="btn small">${esc(coachSaveLabel(c.entry))}</button><span class="goal-msg" role="status"></span>`;
+  after.append(row);
+  const [btn, msg] = [row.querySelector("button"), row.querySelector(".goal-msg")];
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await c.save(reply);
+      msg.textContent = "Saved to notes.";
+    } catch (err) {
+      btn.disabled = false;
+      msg.textContent = err.message;
+    }
+  };
+}
+
+// Settings → AI assistants → AI Coach: one key per provider, which one the
+// AI Coach uses, and where the key lives (js/ai-keys.js).
+async function drawAiCoachSettings(panel) {
+  await loadAiKeys();
+  if (!panel.isConnected) return;
+  const states = aiKeyState();
+  panel.innerHTML =
+    COACH_PROVIDERS.map((p) => {
+      const s = states.find((x) => x.id === p.id);
+      return `<div class="ai-provider" data-ai-provider="${p.id}">
+        <label class="dry-toggle" style="float:none;display:flex">
+          <input type="radio" name="ai-active" value="${p.id}" ${s.active ? "checked" : ""} ${s.hasKey ? "" : "disabled"}>
+          <strong>${esc(p.name)}</strong>
+          <span class="hint-inline">${
+            s.hasKey ? `key ${esc(s.masked)} · ${s.remembered ? "remembered in this browser" : "held for this tab"}` : "no key yet"
+          }</span>
+        </label>
+        ${
+          s.hasKey
+            ? `<div class="btn-row">
+                <label class="hint-inline" for="ai-model-${p.id}">Model</label>
+                <input id="ai-model-${p.id}" data-ai-model list="ai-models-${p.id}" value="${esc(s.model ?? "")}"
+                  placeholder="${esc(modelPlaceholder(s.defaultModel))}" autocomplete="off" autocapitalize="off" spellcheck="false">
+                <datalist id="ai-models-${p.id}">${modelOptionsHtml(s.models)}</datalist>
+                <button type="button" class="btn small" data-ai-forget>Forget key</button>
+              </div>
+              <div class="hint" style="margin:6px 0 0">Start typing to pick from the models your ${esc(p.name)} account offers, or leave it empty for the default.</div>`
+            : `<div class="btn-row">
+                <input type="password" data-ai-key placeholder="${esc(p.placeholder)}" autocomplete="off" spellcheck="false" aria-label="${esc(p.name)} API key">
+                <button type="button" class="btn small" data-ai-verify>Verify</button>
+                <a class="btn small ghost" href="${p.keyUrl}" target="_blank" rel="noopener">Get a key ↗</a>
+              </div>
+              <label class="dry-toggle" style="float:none;display:flex;margin-top:8px">
+                <input type="checkbox" data-ai-remember> Remember on this device
+              </label>`
+        }
+        <div data-ai-connect></div>
+        <div data-ai-msg role="status"></div>
+      </div>`;
+    }).join("") +
+    `<div class="hint" style="margin:12px 0 0">A key is held in this tab only and sent with each ${COACH_NAME} request — it is
+      <strong>never stored on our servers</strong>. With <em>Remember on this device</em> it is stored in this browser
+      until you forget it or sign out. You pay Anthropic or OpenAI directly for what the ${COACH_NAME} uses.</div>`;
+
+  panel.querySelectorAll("[data-ai-provider]").forEach((row) => {
+    const id = row.dataset.aiProvider;
+    const msg = row.querySelector("[data-ai-msg]");
+    const redraw = () => drawAiCoachSettings(panel);
+    row.querySelector("input[type=radio]").onchange = async () => {
+      await setAiActive(id);
+      redraw();
+    };
+    // The model field completes from the provider's own list (verify reads
+    // its models API). The stored list draws at once; the first focus re-reads
+    // it, so a model the provider released since the key was verified is
+    // there to pick. Typing an id that is not listed is allowed — the
+    // provider is the judge of it — and empty means the default.
+    const model = row.querySelector("[data-ai-model]");
+    if (model) {
+      let models = states.find((x) => x.id === id).models;
+      let refreshed = false;
+      model.onfocus = async () => {
+        if (refreshed || syncStatus.offline) return;
+        refreshed = true;
+        const fresh = await refreshAiModels(id, verifyCoachKey);
+        if (!fresh || !row.isConnected) return;
+        models = fresh;
+        row.querySelector("datalist").innerHTML = modelOptionsHtml(fresh);
+      };
+      model.onchange = async () => {
+        const picked = resolveModelInput(model.value, models);
+        model.value = picked ?? "";
+        await setAiModel(id, picked);
+      };
+    }
+    const forget = row.querySelector("[data-ai-forget]");
+    if (forget)
+      forget.onclick = async () => {
+        await forgetAiKey(id);
+        redraw();
+      };
+    const verify = row.querySelector("[data-ai-verify]");
+    if (verify)
+      verify.onclick = async () => {
+        const key = row.querySelector("[data-ai-key]").value.trim();
+        if (!key) return;
+        const remember = row.querySelector("[data-ai-remember]").checked;
+        verify.disabled = true;
+        msg.innerHTML = `<div class="hint" style="margin:8px 0 0">Checking with ${esc(providerName(id))}…</div>`;
+        const res = await verifyCoachKey(id, key);
+        if (!panel.isConnected) return;
+        if (res.status === 401) return renderLogin();
+        if (!res.ok) {
+          verify.disabled = false;
+          msg.innerHTML = `<div class="error-banner">${esc(res.error)}</div>`;
+          return;
+        }
+        const stored = await saveAiKey(id, { key, models: res.models, defaultModel: res.default_model, remember });
+        await redraw();
+        if (!stored)
+          panel.querySelector(`[data-ai-provider="${id}"] [data-ai-msg]`).innerHTML =
+            `<div class="hint" style="margin:8px 0 0">This browser wouldn't store the key, so it is held for this tab only.</div>`;
+      };
+  });
+}
 
 // ---------- garage & setup-sheet renderers -----------------------------------
 
@@ -869,8 +1203,11 @@ function shell(content) {
       const keys = await caches.keys();
       await Promise.all(keys.filter((k) => k.startsWith("th-data")).map((k) => caches.delete(k)));
     }
-    // Same reasoning for the offline layer's response cache and write queue.
+    // Same reasoning for the offline layer's response cache and write queue,
+    // and for an AI Coach key this browser was asked to remember (#319).
     await clearOffline();
+    closeCoach();
+    await clearAiKeys();
     clearUnitsCache();
     renderLogin();
   };
@@ -888,6 +1225,7 @@ const state = { me: null, totals: null, entitlement: null, plans: PLANS_DISABLED
 // syncStatus (shell() re-renders per route, so the banner is re-applied there
 // and updated live by the onSyncChange subscription below).
 function updateSyncBanner() {
+  paintCoachButtons();
   const el = document.getElementById("sync-banner");
   if (!el) return;
   const n = syncStatus.pending;
@@ -1620,6 +1958,9 @@ async function viewLapCompare(trackId, params) {
   // for a lap the server hasn't given an id yet.
   const [lapA, lapB] = [lapOf(rowA), lapOf(rowB)];
   const canShare = !readOnly() && [lapA, lapB].every((l) => l && !String(l.id).startsWith("tmp-"));
+  // The AI Coach's "Explain the difference" (#319) sends both laps — A, the
+  // reference, then B. Null (no button) for a lap without a server id.
+  const coachCtx = readOnly() ? null : coachContext("compare", { lapId: lapA?.id, compareLapId: lapB?.id, trackId });
   const pickerOpts = (selKey) => {
     let html = "", lastGroup = null;
     for (const r of rows) {
@@ -1646,6 +1987,7 @@ async function viewLapCompare(trackId, params) {
       &nbsp;vs&nbsp;
       <span class="swatch" style="background:${sideColors[1]}"></span> <select id="lap-b">${pickerOpts(keyOf(rowB))}</select>
       ${canShare ? `&nbsp;<button class="btn small" id="share-compare" aria-expanded="false" aria-controls="share-panel-compare">Share</button>` : ""}
+      ${coachCtx ? `&nbsp;${coachButtonHtml("compare", `id="coach-compare"`)}` : ""}
     </p>
     ${canShare ? `<div class="panel share-item" id="share-panel-compare" hidden></div>` : ""}`
   );
@@ -1655,6 +1997,24 @@ async function viewLapCompare(trackId, params) {
       path: `/laps/${lapA.id}/compare/${lapB.id}/share`,
       title: `${trackName} — two laps compared`,
     });
+
+  const coachCompare = view.querySelector("#coach-compare");
+  if (coachCompare) {
+    // A kept explanation goes to the notes of the more recent of the two
+    // laps' events — the day the driver is working from. Its notes are read
+    // fresh, since this page holds no event of its own to patch.
+    const target = [rowA, rowB].reduce((a, b) => (b.date > a.date ? b : a));
+    coachCompare.onclick = () =>
+      startCoach({
+        entry: "compare",
+        context: coachCtx,
+        subtitle: `Lap ${rowA.lapNum} (${fmtMs(rowA.timeMs)}) vs lap ${rowB.lapNum} (${fmtMs(rowB.timeMs)})`,
+        save: async (reply) => {
+          const event = await api(`/events/${target.eventId}`);
+          await api(`/events/${target.eventId}`, { method: "PUT", body: { notes: appendCoachNote(event.notes, reply, new Date()) } });
+        },
+      });
+  }
 
   const [selA, selB] = [view.querySelector("#lap-a"), view.querySelector("#lap-b")];
   const go = () => {
@@ -3158,12 +3518,19 @@ async function viewEvent(eventId) {
       // Where the car hit its limit (js/limits.js), as a short sentence.
       const lim = ch ? limitSummary(ch) : null;
       if (lim) stats.push({ key: "limits", label: "Limits", value: lim, text: true });
-      return `<div class="session">
+      // The AI Coach's session debrief (#319): for a session with laps that the
+      // server knows by id. coachButtonHtml draws nothing in a read-only view.
+      const debrief =
+        s.laps.length && coachContext("session", { eventId: e.id, sessionId: s.id })
+          ? coachButtonHtml("session", `data-coach-session="${esc(s.id)}"`)
+          : "";
+      return `<div class="session" data-session-card="${esc(s.id)}">
         <div class="s-head">
           <span class="s-label">${esc(s.label || "Session")}</span>
           <span class="s-best">${best != null ? `best <span class="t">${fmtMs(best)}</span> · ${s.laps.length} lap${s.laps.length === 1 ? "" : "s"}` : "No laps"}</span>
           ${conditionsChipHtml(s, usUnits())}
           <span class="grow"></span>
+          ${debrief}
           ${
             ro
               ? ""
@@ -3368,11 +3735,12 @@ async function viewEvent(eventId) {
       ${e.cost_cents != null ? `<div class="tile"><div class="label">Cost</div><div class="value">${fmtSpend(e.cost_cents)}</div></div>` : ""}
     </div>
     ${costBreakdownHtml(e)}
-    ${e.notes ? `<div class="panel notes-block">${esc(e.notes)}</div>` : ""}
+    <div id="event-notes">${e.notes ? `<div class="panel notes-block">${esc(e.notes)}</div>` : ""}</div>
     ${
       ro
         ? ""
         : `<div class="btn-row">
+      ${e.lap_count > 0 && coachContext("event", { eventId: e.id, trackId: e.track_id }) ? coachButtonHtml("event", `id="coach-event"`, "btn") : ""}
       <a class="btn" href="#/event/${e.id}/edit">Edit event</a>
       <button class="btn" id="share-event" aria-expanded="false" aria-controls="share-panel-event">Share</button>
       <button class="btn danger" id="del-event">Delete event</button>
@@ -3896,6 +4264,52 @@ async function viewEvent(eventId) {
   });
 
   if (!ro) bindItemShare(view, e);
+  // The AI Coach (#319). A kept reply is appended to the notes it belongs to —
+  // a session debrief to that session's (NS-40), the event question to the
+  // event's — through the same free, queueable writes the edit forms use, and
+  // labelled, since notes travel to a coach the driver has shared with. The
+  // page is patched in place rather than re-routed, which would close the
+  // drawer.
+  view.querySelectorAll("[data-coach-session]").forEach((btn) => {
+    const s = e.sessions.find((x) => String(x.id) === btn.dataset.coachSession);
+    btn.onclick = () =>
+      startCoach({
+        entry: "session",
+        context: coachContext("session", { eventId: e.id, sessionId: s.id }),
+        subtitle: s.label || "Session debrief",
+        save: async (reply) => {
+          const notes = appendCoachNote(s.notes, reply, new Date());
+          await api(`/sessions/${s.id}`, { method: "PUT", body: { notes } });
+          s.notes = notes;
+          const card = view.querySelector(`[data-session-card="${s.id}"]`);
+          if (!card) return;
+          let block = card.querySelector("[data-session-notes]");
+          if (!block) {
+            block = document.createElement("div");
+            block.className = "notes-block";
+            block.dataset.sessionNotes = s.id;
+            card.querySelector("[data-session-edit]").before(block);
+          }
+          block.textContent = notes;
+          card.querySelector("[data-session-edit] textarea").value = notes;
+        },
+      });
+  });
+  const coachEvent = view.querySelector("#coach-event");
+  if (coachEvent)
+    coachEvent.onclick = () =>
+      startCoach({
+        entry: "event",
+        context: coachContext("event", { eventId: e.id, trackId: e.track_id }),
+        subtitle: `${e.track_name} — next time`,
+        save: async (reply) => {
+          const notes = appendCoachNote(e.notes, reply, new Date());
+          await api(`/events/${e.id}`, { method: "PUT", body: { notes } });
+          e.notes = notes;
+          const slot = view.querySelector("#event-notes");
+          if (slot) slot.innerHTML = `<div class="panel notes-block">${esc(notes)}</div>`;
+        },
+      });
   // Coach comments (NS-52), once everything they hang off is on the page.
   loadComments(view, e);
   if (!ro) {
@@ -4711,6 +5125,14 @@ async function viewSettings(params = new URLSearchParams()) {
     </div>
     ${youtubeSettingsHtml()}
     <h2>AI assistants</h2>
+    <h3 class="settings-sub" id="ai-coach">${COACH_NAME}</h3>
+    <div class="hint" style="margin:0 0 4px">A debrief of a session, two laps or a track day, on your own Anthropic or OpenAI account. <a href="${DOCS_URL}/docs/ai.html#ai-coach" target="_blank" rel="noopener">How it works ↗</a></div>
+    ${
+      canUseAICoach(state.entitlement)
+        ? `<div class="panel" id="ai-coach-panel"><div class="hint" style="margin:0">Loading…</div></div>`
+        : proPanelHtml(COACH_NAME, COACH_PRO_WHAT, { underHeading: true })
+    }
+    <h3 class="settings-sub">Connected assistants</h3>
     <div class="hint" style="margin:0 0 4px">With Pro, connect Claude, ChatGPT or another assistant to your logbook. Read-only. <a href="${DOCS_URL}/docs/ai.html" target="_blank" rel="noopener">How to connect ↗</a></div>
     <div class="panel" id="conn-panel"><div class="hint" style="margin:0">Loading…</div></div>
     <h2>Your data</h2>
@@ -4858,6 +5280,19 @@ async function viewSettings(params = new URLSearchParams()) {
       }
     };
   });
+
+  // --- the AI Coach's keys (#319) ---
+  // Drawn after the page: reading what this browser remembered is async. A
+  // button that found no key sends the driver here, to this block.
+  const aiPanel = view.querySelector("#ai-coach-panel");
+  const aiReady = aiPanel ? drawAiCoachSettings(aiPanel) : Promise.resolve();
+  if (focusAiCoachSettings) {
+    focusAiCoachSettings = false;
+    aiReady.then(() => {
+      view.querySelector("#ai-coach")?.scrollIntoView({ block: "start" });
+      aiPanel?.querySelector("[data-ai-key]")?.focus({ preventScroll: true });
+    });
+  }
 
   // --- connected AI assistants (MCP, #316) ---
   // Loaded after the page draws: it is the one section that needs its own
@@ -7023,6 +7458,8 @@ async function routeView() {
   viewing = null;
   // …and with no map: the viewer (NS-53) holds a live map until told to let go.
   destroyMapViewer();
+  // The AI Coach drawer belongs to the page it was opened from (#319).
+  closeCoach();
   try {
     await ensureMe();
   } catch (err) {

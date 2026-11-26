@@ -17,6 +17,7 @@ import { clipFiles, sweepClips } from "./routes/clips";
 import { itemSharePage, itemSharePublic } from "./routes/itemSharePublic";
 import { youtubeConnect } from "./routes/youtube";
 import { sweepYouTube, youtubeQueue } from "./youtube/step";
+import { aiCoach } from "./routes/aiCoach";
 
 export type { Env, AppContext } from "./types";
 
@@ -67,6 +68,10 @@ app.route("/api/share", publicShare);
 // Registered before /api for the same reason: a request under
 // /api/students/:id must meet requireCoachGrant, not requireSession.
 app.route("/api/students/:studentId", studentApi);
+// The AI Coach (#318): its own mount rather than a row in api.ts, so it exists
+// neither under the coach mount above nor in the tool layer's private copy —
+// it runs over your own logbook only (routes/aiCoach.ts).
+app.route("/api/ai", aiCoach);
 app.route("/api", api);
 
 export default {

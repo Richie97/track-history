@@ -142,6 +142,8 @@ class GoldenContractTest {
             // Publishing a best-lap video to YouTube (NS-46).
             "youtube-draft" -> roundTrip(entry.name, app.trackevolution.core.model.YouTubeDraft.serializer())
             "youtube-upload" -> roundTrip(entry.name, app.trackevolution.core.model.YouTubeUpload.serializer())
+            // The AI Coach (NS-58): Settings' Verify.
+            "ai-coach-verify" -> roundTrip(entry.name, app.trackevolution.core.model.AICoachVerify.serializer())
             "event-create", "session-create", "part-create", "measurement-create" ->
                 roundTrip(entry.name, CreatedId.serializer())
             "event-update", "session-update", "laps-append", "track-update", "vehicle-update",

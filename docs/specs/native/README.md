@@ -549,8 +549,20 @@ Features added after the rewrite shipped, and where they landed:
   Settings' list of connected assistants with *Disconnect*, which is
   **web-only for now** (`GET` / `DELETE /api/me/connections`) — a phone user
   disconnects in the assistant itself or on the web; the native Settings rows
-  are a follow-up, not a gap in the feature. The in-app coach (#318–#320) is
-  the part that will need native work.
+  are a follow-up, not a gap in the feature. The in-app AI Coach (below) is
+  the part that needs native work.
+- **The AI Coach** (2026-11, epic
+  [#314](https://github.com/Richie97/track-history/issues/314),
+  [NS-58](NS-58-ai-coach.md)) — **server and web built** (#318, #319), **iOS
+  and Android decided but not built** (ticket 6, #320): an in-app debrief on
+  the driver's own Anthropic or OpenAI account, Pro, opened from a session,
+  the two-lap compare and an event. It is on the list for all three clients
+  because a debrief is read in the paddock, between sessions; it is on no car
+  surface and never runs during a recording. The server's half and the wire
+  format are done for the phones — both already decode `ai-coach-verify`, and
+  the `canUseAICoach` fixture row is in `contracts/logic/entitlement.json` —
+  so ticket 6 is the screens, the two predicate ports and an SSE parser each,
+  tested against `contracts/streams/ai-coach.sse`.
 - **Share with a coach** (2026-09, [NS-38](NS-38-coach-sharing.md)) — **all
   three, both halves** (granting and viewing), server first. On Android
   (ticket 4) the ports are `:core`'s `Coaching` and `Profile`, pinned by
@@ -708,6 +720,7 @@ change* rule does not apply — see the spec for why.
 | NS-55 | [Import laps from an AiM SmartyCam video](NS-55-smartycam-import.md) — tickets 1–3 (the web parser and the iOS and Android ports) built; clips (ticket 4) are not | Web + iOS + Android (no server change) | the video importers (NS-30, NS-32), NS-45, NS-47, NS-50, NS-53 |
 | NS-56 | [Share one lap, or two laps compared](NS-56-share-lap-compare.md) | Server + web + iOS + Android | NS-48, #165, #267 / #268 |
 | NS-57 | [Import laps anywhere: the track and the event found from GPS](NS-57-auto-place-laps.md) — built on all three clients; the iOS app half is unverified until CI builds it, and the catalog's curated start/finish lines (half of #487) are not built | Shared (server, web, iOS, Android) | the importers and recorders, NS-53, NS-36 |
+| NS-58 | [The AI Coach: request, stream and errors](NS-58-ai-coach.md) — server (#318) and web (#319) built; iOS and Android (#320) and connected accounts (#503) are not | Server + web (iOS + Android to follow) | #315, NS-32 |
 | — | iPhone Duo, epic #277 (the epic is the spec) | iOS | NS-34 |
 
 **iPhone Duo (epic #277).** No new layout rules: the Duo's poses fall into

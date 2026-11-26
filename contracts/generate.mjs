@@ -25,6 +25,7 @@ import { unstable_startWorker } from "wrangler";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_DIR = path.join(ROOT, "contracts", "golden");
+const STREAMS_DIR = path.join(ROOT, "contracts", "streams");
 // Scratch D1 for this run, rebuilt every time so the fixture is reproducible
 // and never inherits rows from a previous run. Gitignored.
 const PERSIST = path.join(ROOT, "contracts", ".persist");
@@ -71,7 +72,10 @@ function normalize(value, key) {
     for (const k of Object.keys(value).sort()) out[k] = normalize(value[k], k);
     return out;
   }
-  if (key != null && Object.hasOwn(VOLATILE, key) && value !== null) return VOLATILE[key];
+  // Only a value of the placeholder's own type: an AI Coach model's `id` is a
+  // name ("claude-sonnet-5-5"), not a row id, and a number in its place would
+  // pin the wrong type.
+  if (key != null && Object.hasOwn(VOLATILE, key) && typeof value === typeof VOLATILE[key]) return VOLATILE[key];
   // Wrapped's `through` is today while the fixture's year is running and null
   // once it has ended, so the raw value changes every day and then flips
   // type on 1 January. It is the one volatile field pinned as always-set:
@@ -191,6 +195,13 @@ function apiClient(base, token) {
     });
     return { status: res.status, body: await res.json().catch(() => null) };
   };
+  // The response itself, unread — for an event stream (recordStream).
+  client.raw = (method, apiPath, body, headers = {}) =>
+    fetch(new URL(`/api${apiPath}`, base), {
+      method,
+      headers: { "Content-Type": "application/json", ...(token ? { Cookie: `session=${token}` } : {}), ...headers },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
   // The same account against a restarted Worker (see captureCoaching).
   client.rebase = (newBase) => apiClient(newBase, token);
   // A raw-bytes PUT, for a clip part (NS-45), which is not JSON.
@@ -210,6 +221,19 @@ function apiClient(base, token) {
 // ---------------------------------------------------------------------------
 
 const captures = [];
+
+// Event streams (the AI Coach, NS-58), kept as the bytes the Worker sent: a
+// stream is not JSON, so it has no golden — the clients' SSE parsers read
+// these files instead. Written to contracts/streams/<name>.sse.
+const streams = [];
+
+async function recordStream(name, api, apiPath, body, headers) {
+  const res = await api.raw("POST", apiPath, body, headers);
+  const type = res.headers.get("Content-Type") ?? "";
+  if (res.status !== 200 || !type.startsWith("text/event-stream"))
+    throw new Error(`stream ${name}: expected a 200 event stream, got ${res.status} ${type}`);
+  streams.push({ name, text: await res.text() });
+}
 
 function record(name, method, pathTemplate, description, source, result) {
   captures.push({
@@ -866,6 +890,19 @@ async function captureAll(api, anon, f) {
     "The signed-in user once entitled: tier pro, source legacy, no expiry.",
     "src/routes/me.ts", await api("GET", "/me"));
 
+  // --- the AI Coach (#318, NS-58) ------------------------------------------
+  // On the fake provider, which answers only on a dev host under DEV_MODE —
+  // what this harness runs as. Verify is the one JSON route; the conversation
+  // itself is an event stream, recorded verbatim into contracts/streams/ for
+  // the clients' SSE parsers. The account is Pro by now (both routes are).
+  const FAKE_AI = { "X-TE-AI-Provider": "fake" };
+  record("ai-coach-verify", "POST", "/ai/coach/verify",
+    "Settings' Verify for an AI Coach key (Pro): the provider, its default model and the " +
+    "models the driver may pick from. A rejected key is 424 { error }, never 401.",
+    "src/routes/aiCoach.ts", await api("POST", "/ai/coach/verify", undefined, FAKE_AI));
+  await recordStream("ai-coach", api, "/ai/coach",
+    { context: { session_id: 1 }, messages: [{ role: "user", content: "Debrief this session." }] }, FAKE_AI);
+
   // --- Season Wrapped (NS-36) ---------------------------------------------
   // Last, so the extra event it needs disturbs no capture above. A second,
   // quicker day on the Patriot layout — the catalog doesn't know it — gives
@@ -1097,6 +1134,9 @@ const EXPECTED_ROUTES = [
   // instead; all four answer with the same { ok, entitlement } shape, pinned
   // here through the one route that needs no store.
   "POST /billing/google/legacy",
+  // The AI Coach (#318). POST /ai/coach itself answers an event stream, kept in
+  // contracts/streams/ rather than as a golden.
+  "POST /ai/coach/verify",
 ];
 
 function checkCoverage() {
@@ -1156,7 +1196,11 @@ try {
     ) + "\n"
   );
 
-  console.log(`Wrote ${captures.length} golden files to contracts/golden/`);
+  rmSync(STREAMS_DIR, { recursive: true, force: true });
+  mkdirSync(STREAMS_DIR, { recursive: true });
+  for (const s of streams) writeFileSync(path.join(STREAMS_DIR, `${s.name}.sse`), s.text);
+
+  console.log(`Wrote ${captures.length} golden files to contracts/golden/ and ${streams.length} stream(s) to contracts/streams/`);
 } finally {
   await worker.dispose();
   rmSync(PERSIST, { recursive: true, force: true });

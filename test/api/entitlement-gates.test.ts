@@ -16,6 +16,7 @@ import { youtube } from "../../src/routes/youtube";
 import { comments } from "../../src/routes/comments";
 import { maps } from "../../src/routes/maps";
 import { push } from "../../src/routes/push";
+import { aiCoach } from "../../src/routes/aiCoach";
 import { LEGACY_ENTITLED_UNTIL_MS } from "../../src/lib/entitlement";
 import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
@@ -27,7 +28,9 @@ import { apiClient, createEvent, createUser, sessionFor } from "./helpers";
 
 // Every router mounted under /api (src/index.ts). Kept explicit so a new
 // router has to be added here, at which point its gates are enumerated too.
-const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips, itemShare, youtube, comments, maps, push };
+// aiCoach is mounted on its own at /api/ai (so its paths below read /coach),
+// outside api.ts — see routes/aiCoach.ts — but it is /api all the same.
+const API_ROUTERS = { me, tracks, events, sessions, vehicles, share, billing, coaching, exportRoutes, clips, itemShare, youtube, comments, maps, push, aiCoach };
 
 const guardedRoutes = () =>
   Object.values(API_ROUTERS)
@@ -71,6 +74,10 @@ const EXPECTED_GATES = [
   // disconnecting and reading an upload's status stay free.
   "GET /clips/:id/youtube/draft",
   "POST /clips/:id/youtube",
+  // The AI Coach (#318), at /api/ai: POSTs that write nothing — an analysis
+  // request and a key check, not logbook writes.
+  "POST /coach",
+  "POST /coach/verify",
 ].sort();
 
 // A recording is the one irreplaceable thing in the system, and the offline

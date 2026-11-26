@@ -1,0 +1,24 @@
+event: tool
+data: {"name":"get_session_insights","label":"Analysing the session…"}
+
+event: text
+data: {"delta":"**Where the time is.** Your best lap sits close to your theoretical best, "}
+
+event: text
+data: {"delta":"so the pace is there — the gap is in stringing your best sectors together.\n\n"}
+
+event: text
+data: {"delta":"- **Brake release into the slow corners**: the minimum speed at the apex is where the laps differ most.\n"}
+
+event: text
+data: {"delta":"- **Throttle pickup**: full throttle comes later on your slower laps onto the longest straight.\n\n"}
+
+event: text
+data: {"delta":"For the next session, pick one corner and work on releasing the brake a little earlier. "}
+
+event: text
+data: {"delta":"Your instructor can tell you whether the car is ready for it."}
+
+event: done
+data: {"stop":"end","model":"fake-1"}
+
