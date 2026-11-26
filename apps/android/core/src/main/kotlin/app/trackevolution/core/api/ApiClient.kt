@@ -1,5 +1,9 @@
 package app.trackevolution.core.api
 
+import app.trackevolution.core.AICoach
+import app.trackevolution.core.model.AICoachMessage
+import app.trackevolution.core.model.AICoachOutcome
+import app.trackevolution.core.model.AICoachVerify
 import app.trackevolution.core.model.BillingResponse
 import app.trackevolution.core.model.Wrapped
 import app.trackevolution.core.model.CatalogCar
@@ -803,6 +807,133 @@ public class ApiClient private constructor(
         send("DELETE", "/push/device", null, OkResponse.serializer(), cached = false)
     }
 
+    // ---- The AI Coach (#320, NS-58) ------------------------------------------
+    //
+    // Straight to the transport, never through `route`: an AI Coach request is
+    // neither cached nor queued (`OfflineStore.isQueueable` refuses `/ai/` and
+    // `OfflineStoreTest` pins it), and none of its refusals is an exception a
+    // screen could mistake for a sync failure — `aiCoach` answers an
+    // [AICoachOutcome] the sheet draws in place. Your own logbook only: a
+    // student's client refuses both unsent, and the sheet is never offered
+    // there anyway. The key is sent per request and never kept by the server.
+
+    /**
+     * `POST /api/ai/coach`, read as it streams: [onText] hears each piece of
+     * the reply in order, [onTool] each tool's progress label (`name` may be
+     * one this build has never heard of). Answers how it ended; a stream that
+     * just stops, with neither `done` nor `error`, was cut off and is an error.
+     * Cancelling the caller's coroutine cancels the request.
+     */
+    public suspend fun aiCoach(
+        provider: String,
+        key: String?,
+        context: AICoach.CoachContext,
+        messages: List<AICoachMessage>,
+        model: String? = null,
+        onText: (String) -> Unit = {},
+        onTool: (name: String?, label: String?) -> Unit = { _, _ -> },
+    ): AICoachOutcome {
+        ownOnly()
+        val body = buildJsonObject {
+            put("context", requestJson.encodeToJsonElement(AICoach.CoachContext.serializer(), context))
+            put("messages", requestJson.encodeToJsonElement(ListSerializer(AICoachMessage.serializer()), messages))
+            if (!model.isNullOrBlank()) put("model", JsonPrimitive(model))
+        }
+        val token = tokens.currentToken()
+        var opened = false
+        return try {
+            client.prepareRequest {
+                method = HttpMethod.Post
+                url { takeFrom(serverUrl + API_PREFIX + "/ai/coach") }
+                aiHeaders(this, token, provider, key)
+                contentType(ContentType.Application.Json)
+                setBody(body.toString())
+            }.execute { response ->
+                opened = true
+                val status = response.status.value
+                when {
+                    status == 401 -> AICoachOutcome.Unauthorized
+                    status == 402 -> AICoachOutcome.Paywall
+                    status !in 200..299 -> AICoachOutcome.Error(status, ApiException.from(status, response.bodyAsText()).message)
+                    else -> readCoachStream(response.bodyAsChannel(), onText, onTool)
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: Exception) {
+            if (opened) AICoachOutcome.Error(502, COACH_CUT_OFF) else AICoachOutcome.Offline
+        }
+    }
+
+    private suspend fun readCoachStream(
+        channel: io.ktor.utils.io.ByteReadChannel,
+        onText: (String) -> Unit,
+        onTool: (String?, String?) -> Unit,
+    ): AICoachOutcome {
+        var outcome: AICoachOutcome? = null
+        val parser = AICoach.createSseParser { event, data ->
+            if (outcome != null) return@createSseParser
+            val obj = data as? kotlinx.serialization.json.JsonObject ?: return@createSseParser
+            fun str(k: String) = (obj[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            when (event) {
+                "text" -> str("delta")?.let(onText)
+                "tool" -> onTool(str("name"), str("label"))
+                "done" -> outcome = AICoachOutcome.Done(str("stop") ?: "end", str("model"), str("message")?.takeIf { it.isNotEmpty() })
+                "error" -> outcome = AICoachOutcome.Error(
+                    (obj["status"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 502,
+                    str("error") ?: "",
+                )
+            }
+        }
+        val buffer = ByteArray(8 * 1024)
+        while (true) {
+            val n = channel.readAvailable(buffer, 0, buffer.size)
+            if (n < 0) break
+            if (n > 0) parser.pushBytes(buffer, 0, n)
+            if (outcome != null) break
+        }
+        parser.end()
+        return outcome ?: AICoachOutcome.Error(502, COACH_CUT_OFF)
+    }
+
+    /**
+     * `POST /api/ai/coach/verify`: one call to the provider's models API, which
+     * proves the key and lists the models the driver's account can use. A
+     * rejected key is a 424 [ApiException.Server] whose message
+     * `AICoach.coachErrorText` words; never a 401 (that is the app session).
+     */
+    public suspend fun verifyAICoachKey(provider: String, key: String?): AICoachVerify {
+        ownOnly()
+        val token = tokens.currentToken()
+        val (status, text) = try {
+            val response = client.request {
+                method = HttpMethod.Post
+                url { takeFrom(serverUrl + API_PREFIX + "/ai/coach/verify") }
+                aiHeaders(this, token, provider, key)
+            }
+            response.status.value to response.bodyAsText()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException.Transport(e.message ?: "Network unavailable", e)
+        }
+        if (status !in 200..299) throw ApiException.from(status, text)
+        return try {
+            responseJson.decodeFromString(AICoachVerify.serializer(), text)
+        } catch (e: SerializationException) {
+            throw ApiException.Decoding("/ai/coach/verify: ${e.message}", e)
+        }
+    }
+
+    private fun aiHeaders(builder: HttpRequestBuilder, token: String?, provider: String, key: String?) {
+        defaultHeaders.forEach { (name, value) -> builder.header(name, value) }
+        if (token != null) builder.header(HttpHeaders.Authorization, "Bearer $token")
+        builder.header(AI_PROVIDER_HEADER, provider)
+        if (!key.isNullOrEmpty()) builder.header(AI_KEY_HEADER, key)
+    }
+
     // ---- Setup sheets (NS-40) ---------------------------------------------
 
     /**
@@ -1397,6 +1528,13 @@ public class ApiClient private constructor(
         public const val DEFAULT_BASE_URL: String = "https://trackevolution.app"
 
         private const val API_PREFIX = "/api"
+
+        /** The AI Coach's credential headers (NS-58). */
+        public const val AI_PROVIDER_HEADER: String = "X-TE-AI-Provider"
+        public const val AI_KEY_HEADER: String = "X-TE-AI-Key"
+
+        /** The web's words for a stream that ended with neither `done` nor `error`. */
+        public const val COACH_CUT_OFF: String = "the connection dropped before the reply finished"
 
         /** Sign-in lives outside the API surface, and outside the offline layer. */
         private const val AUTH_PREFIX = "/auth"

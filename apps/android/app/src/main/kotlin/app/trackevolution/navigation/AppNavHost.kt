@@ -35,6 +35,12 @@ import app.trackevolution.auth.CustomTabs
 import app.trackevolution.core.api.ApiClient
 import app.trackevolution.core.api.LogbookOwner
 import app.trackevolution.core.model.Entitlement
+import app.trackevolution.BuildConfig
+import app.trackevolution.ai.AICoachAccess
+import app.trackevolution.ai.AICoachChat
+import app.trackevolution.ai.AICoachSettingsState
+import app.trackevolution.ai.LocalAICoachKeys
+import app.trackevolution.ai.isDevServer
 import app.trackevolution.core.model.ItemShareKind
 import app.trackevolution.core.model.SessionDraft
 import app.trackevolution.core.offline.OfflineStore
@@ -209,6 +215,26 @@ fun AppNavHost(
     }
     val onStudentGone: () -> Unit = { nav.show(Route.Coaching) }
 
+    // The AI Coach (#320): your own logbook only, never during a recording, and
+    // never past the offline layer — the doors say "needs a connection" while
+    // the last request failed at the network level.
+    val aiKeys = LocalAICoachKeys.current
+    val offline = api.syncStatus.collectAsState().value.offline
+    val openSettings: () -> Unit = { nav.navigate(Route.Settings) { launchSingleTop = true } }
+    @Composable
+    fun aiCoachFor(owner: LogbookOwner, key: String = "ai-coach"): AICoachAccess? {
+        val chat = rememberScreenModel(key = key) { scope, _ -> AICoachChat(scope, root, aiKeys) }
+        if (owner.readOnly || recorderState.isRecording) return null
+        return AICoachAccess(
+            chat = chat,
+            keys = aiKeys,
+            pro = Entitlement.canUseAICoach(entitlement),
+            onOpenSettings = openSettings,
+            onSubscribe = onRequirePro,
+            onSignedOut = onSignOut,
+        )
+    }
+
     // Two tabs, two nested graphs (NS-37). Every logbook destination — and
     // Settings, which belongs to no tab and is reached from the dashboard — is
     // in the Events graph; the car and the garage list are in the Garage graph.
@@ -285,6 +311,8 @@ fun AppNavHost(
                     // The setup notebook (NS-40): the owner's own tier — it is
                     // never shared with a coach, so a read-only page has none.
                     canUseSetups = !owner.readOnly && Entitlement.canUseSetups(entitlement),
+                    aiCoach = aiCoachFor(owner),
+                    offline = offline,
                     onOpenSetup = { day, startFrom ->
                         nav.navigate(
                             Route.SetupForm(
@@ -515,6 +543,8 @@ fun AppNavHost(
                                 canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
                                 onClose = { comparing = false },
                                 readOnly = owner.readOnly,
+                                aiCoach = aiCoachFor(owner, key = "ai-coach-compare"),
+                                offline = offline,
                                 onNavigate = if (owner.readOnly) {
                                     null
                                 } else {
@@ -542,6 +572,8 @@ fun AppNavHost(
                         videoApi = api,
                         canPlayVideo = Entitlement.canSaveLapVideo(owner.entitlement(entitlement)),
                         readOnly = owner.readOnly,
+                        aiCoach = aiCoachFor(owner),
+                        offline = offline,
                     )
                 }
             }
@@ -572,6 +604,7 @@ fun AppNavHost(
 
             pageComposable<Route.Settings> {
                 val model = rememberScreenModel { scope, _ -> SettingsModel(scope, api, auth, unitsStore) }
+                val aiSettings = rememberScreenModel(key = "ai-coach") { scope, _ -> AICoachSettingsState(scope, api, aiKeys) }
                 SettingsScreen(
                     model = model,
                     checklistTemplate = checklistTemplate,
@@ -586,6 +619,10 @@ fun AppNavHost(
                     onSubscribe = onRequirePro,
                     onOpenCoaching = { nav.navigate(Route.Coaching) },
                     onOpenTrackDaysGuide = { nav.navigate(Route.TrackDaysGuide) },
+                    aiCoach = aiSettings,
+                    // Debug builds on a dev host: the server's scripted AI
+                    // provider, which it answers only there (NS-58).
+                    offerFakeAICoach = BuildConfig.DEBUG && isDevServer(serverUrl),
                 )
             }
 

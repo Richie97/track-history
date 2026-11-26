@@ -38,6 +38,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import app.trackevolution.BuildConfig
+import app.trackevolution.ai.AICoachSettingsCard
+import app.trackevolution.ai.AICoachSettingsFocus
+import app.trackevolution.ai.AICoachSettingsState
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.rememberLazyListState
 import app.trackevolution.clips.LocalClipStatus
 import app.trackevolution.push.CommentNotificationsCard
 import app.trackevolution.core.api.ApiClient
@@ -96,6 +101,13 @@ fun SettingsScreen(
     onOpenCoaching: () -> Unit = {},
     /** *Your first track day*, in the app's own web view. */
     onOpenTrackDaysGuide: () -> Unit = {},
+    /**
+     * Settings → AI assistants → AI Coach (#320): the provider keys, held by
+     * this destination. Null draws no AI section (a test that doesn't care).
+     */
+    aiCoach: AICoachSettingsState? = null,
+    /** Debug builds on a dev server: offer the server's fake AI provider. */
+    offerFakeAICoach: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors = TrackTheme.colors
@@ -107,8 +119,23 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
+    // A 401 from checking a key: the app session is gone, as everywhere.
+    LaunchedEffect(aiCoach?.signedOut) { if (aiCoach?.signedOut == true) onSignOut() }
+    val listState = rememberLazyListState()
+    // A button found no AI Coach key: bring its block into view, once.
+    LaunchedEffect(AICoachSettingsFocus.pending, model.state, aiCoach) {
+        if (!AICoachSettingsFocus.pending || aiCoach == null || model.state != LoadState.Ready) return@LaunchedEffect
+        AICoachSettingsFocus.pending = false
+        // Lazy items have no scroll-to-key: walk forward until the block is laid out.
+        while (listState.layoutInfo.visibleItemsInfo.none { it.key == "ai-header" } && listState.canScrollForward) {
+            listState.scrollBy(600f)
+        }
+        listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "ai-header" }?.let { listState.animateScrollToItem(it.index) }
+    }
+
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 12.dp),
@@ -168,6 +195,21 @@ fun SettingsScreen(
                 // it follows a thread being read — else `/me`'s.
                 val feed by CommentsBadge.feed.collectAsState()
                 CoachingCard(onOpenCoaching, unread = feed?.unread ?: model.user?.commentsUnread ?: 0)
+            }
+
+            // AI assistants (#320): the AI Coach's keys, apart from Coaching —
+            // a bare "coach" is a person in this app.
+            if (aiCoach != null) {
+                item("ai-header") { TESectionHeader("AI assistants") }
+                item("ai-coach") {
+                    AICoachSettingsCard(
+                        state = aiCoach,
+                        pro = Entitlement.canUseAICoach(entitlement),
+                        onSubscribe = onSubscribe,
+                        onOpenLink = onOpenLink,
+                        offerFake = offerFakeAICoach,
+                    )
+                }
             }
 
             item("track-days-header") { TESectionHeader("New to track days?") }

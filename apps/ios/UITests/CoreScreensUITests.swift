@@ -23,8 +23,22 @@ final class CoreScreensUITests: XCTestCase {
     /// matters — it has to survive a round trip through the app untouched.
     private static let seededTrack = "Virginia International Raceway (Full)"
 
+    /// The AI Coach's fixture (#320) — its own track, since the dev logbook is
+    /// shared and the test finds it by name.
+    private static let aiCoachTrack = "AI Coach Test Circuit (UITest)"
+    private var seededEventId: Int?
+
     override func setUp() {
         continueAfterFailure = false
+    }
+
+    override func tearDown() {
+        if let id = seededEventId {
+            deleteEventBestEffort(id)
+            seededEventId = nil
+        }
+        // The AI Coach test turns a tablet sideways; the next suite starts upright.
+        XCUIDevice.shared.orientation = .portrait
     }
 
     // MARK: - Dashboard
@@ -296,6 +310,110 @@ final class CoreScreensUITests: XCTestCase {
 
         app.buttons["paywallDone"].tap()
         XCTAssertTrue(summary.waitForExistence(timeout: 10), "Done should return to Settings")
+    }
+
+    // MARK: - The AI Coach
+
+    /// The AI Coach end to end (#320), on the server's scripted provider
+    /// (`-aiCoachFake` → `X-TE-AI-Provider: fake`, which the Worker answers only
+    /// under DEV_MODE on a dev host — a real key can't live in CI): a session's
+    /// *Debrief*, the streamed reply drawn with its bold and its list, a
+    /// follow-up, and *Save to session notes* writing the labelled reply into the
+    /// session's notes.
+    ///
+    /// On a phone it is a sheet over the page; at expanded width — the iPad run
+    /// of this suite — it is the event page's side column, with the page still
+    /// there beside it.
+    func testTheAICoachDebriefsASessionAndKeepsTheReply() throws {
+        try XCTSkipUnless(devServerIsRunning(), "needs `npm run dev` on :8787")
+        seededEventId = try seedImportedSession(track: Self.aiCoachTrack)
+        let app = try launchSignedIn(tier: .pro, extraLaunchArguments: ["-aiCoachFake"])
+
+        let card = app.buttons.matching(
+            NSPredicate(format: "identifier == %@ AND label CONTAINS %@", "trackCard", "AI Coach Test")
+        ).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "the seeded track should have a dashboard card")
+        scrollTo(card, in: app)
+        card.tap()
+        let event = app.buttons["trackEventCard"].firstMatch
+        XCTAssertTrue(event.waitForExistence(timeout: 15), "the track page should list the seeded event")
+        event.tap()
+        XCTAssertTrue(app.staticTexts["Best time"].waitForExistence(timeout: 20), "the event page should load")
+
+        // A tablet, turned sideways: the event page is two columns there (in
+        // portrait the sidebar leaves the pane too narrow for them, NS-34), so
+        // the AI Coach should open as the side column. 600 is `MEDIUM_MIN`.
+        let window = app.windows.firstMatch.frame
+        let tablet = min(window.width, window.height) >= 600
+        if tablet {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            let deadline = Date().addingTimeInterval(10)
+            while Date() < deadline, app.windows.firstMatch.frame.width <= app.windows.firstMatch.frame.height {
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+
+        // The event's own entry point sits under its stats.
+        XCTAssertTrue(app.buttons["aiCoach-event"].waitForExistence(timeout: 10), "the event offers *Next time*")
+
+        let debrief = app.buttons["aiCoach-session"]
+        XCTAssertTrue(scrollTo(debrief, in: app), "a session with laps offers *Debrief this session*")
+        debrief.tap()
+
+        let panel = app.descendants(matching: .any)["aiCoachPanel"]
+        XCTAssertTrue(panel.waitForExistence(timeout: 15), "the AI Coach should open")
+        let reply = app.descendants(matching: .any).matching(identifier: "aiCoachReply").firstMatch
+        XCTAssertTrue(reply.waitForExistence(timeout: 30), "the streamed reply should arrive")
+        let whole = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'aiCoachReply' AND label CONTAINS %@", "whether the car is ready for it")
+        ).firstMatch
+        XCTAssertTrue(whole.waitForExistence(timeout: 30), "the whole reply should arrive")
+        XCTAssertTrue(whole.label.contains("Brake release into the slow corners"), "with its list: \(whole.label)")
+        XCTAssertFalse(whole.label.contains("**"), "bold is drawn, never shown as its markers")
+        XCTAssertTrue(
+            app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Runs on your")).firstMatch.exists,
+            "the footer says whose account it runs on"
+        )
+
+        if tablet {
+            let best = app.staticTexts["Best time"]
+            if !best.isHittable { app.collectionViews.firstMatch.swipeDown(velocity: .fast) }
+            XCTAssertTrue(
+                best.isHittable,
+                "on a tablet sideways the AI Coach is the side column, with the page still there beside it"
+            )
+        }
+        attach(app, named: tablet ? "ai-coach-column" : "ai-coach-sheet")
+
+        // A follow-up: the conversation is sent whole and the reply joins it.
+        let followUp = app.textFields["aiCoachFollowUp"]
+        XCTAssertTrue(followUp.waitForExistence(timeout: 5))
+        followUp.tap()
+        followUp.typeText("Which corner first?")
+        app.buttons["aiCoachSend"].tap()
+        let followed = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier == 'aiCoachReply' AND label CONTAINS %@", "Start with the slowest corner")
+        ).firstMatch
+        XCTAssertTrue(followed.waitForExistence(timeout: 30), "the follow-up should be answered")
+
+        // Keep the first reply: into the session's notes, labelled.
+        let save = app.buttons.matching(identifier: "aiCoachSave").firstMatch
+        XCTAssertTrue(save.waitForExistence(timeout: 10), "a finished reply can be kept")
+        if !save.isHittable { panel.swipeDown(velocity: .slow) }
+        save.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["aiCoachSaved"].waitForExistence(timeout: 15),
+            "the reply should save to the session's notes"
+        )
+        let detail = try api("GET", "/api/events/\(try XCTUnwrap(seededEventId))")
+        let notes = ((detail["sessions"] as? [[String: Any]])?.first?["notes"] as? String) ?? ""
+        XCTAssertTrue(notes.hasPrefix("AI Coach, "), "the kept reply is labelled: \(notes)")
+        XCTAssertTrue(notes.contains("Where the time is."), "as plain text, its bold gone: \(notes)")
+        XCTAssertFalse(notes.contains("**"))
+
+        app.buttons["aiCoachClose"].tap()
+        XCTAssertFalse(panel.waitForExistence(timeout: 3) && panel.isHittable, "closing it closes it")
     }
 
     // MARK: - Helpers

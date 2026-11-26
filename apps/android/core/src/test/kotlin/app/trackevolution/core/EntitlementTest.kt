@@ -75,6 +75,7 @@ class EntitlementTest {
                 "$name: canCompareEvents",
             )
             assertEquals(flag("canSaveLapVideo"), Entitlement.canSaveLapVideo(entitlement), "$name: canSaveLapVideo")
+            assertEquals(flag("canUseAICoach"), Entitlement.canUseAICoach(entitlement), "$name: canUseAICoach")
 
             val manage = expected["manageUrl"]!!
             assertEquals(

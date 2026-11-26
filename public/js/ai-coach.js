@@ -252,25 +252,22 @@ export const modelPlaceholder = (defaultModel) => (defaultModel ? `Default (${de
 
 // ---------- drawing a reply ---------------------------------------------------
 
-// Bold is the one inline mark. The text is escaped FIRST and the only tags
-// that exist afterwards are the ones written here, so nothing a model (or a
-// lap note it quoted) says can become markup.
-const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-
-// A model's reply as HTML: paragraphs, bulleted and numbered lists, bold.
-// Everything else Markdown can say is shown as the plain text it is — a
-// heading becomes a bold line, and there is no HTML passthrough, no link, no
-// image and no code block.
-export function coachMarkdownHtml(text) {
+// A model's reply as blocks: paragraphs (their lines), bulleted and numbered
+// lists (their items) and headings, which are drawn as a bold line. Everything
+// else Markdown can say stays the plain text it is — there is no HTML, no link,
+// no image and no code block. The native apps port this (and coachBoldRuns)
+// under the same names, pinned by contracts/logic/ai-coach.json.
+//   { type: "p", lines: [string] } | { type: "ul" | "ol", items: [string] } | { type: "h", text }
+export function coachMarkdownBlocks(text) {
   const out = [];
   let para = [];
   let list = null;
   const endPara = () => {
-    if (para.length) out.push(`<p>${para.map(inline).join("<br>")}</p>`);
+    if (para.length) out.push({ type: "p", lines: para });
     para = [];
   };
   const endList = () => {
-    if (list) out.push(`<${list.tag}>${list.items.map((it) => `<li>${inline(it)}</li>`).join("")}</${list.tag}>`);
+    if (list) out.push({ type: list.tag, items: list.items });
     list = null;
   };
   for (const raw of String(text ?? "").replace(/\r\n?/g, "\n").split("\n")) {
@@ -292,7 +289,7 @@ export function coachMarkdownHtml(text) {
     } else if (heading) {
       endPara();
       endList();
-      out.push(`<p><strong>${esc(heading[1].replace(/\*\*/g, ""))}</strong></p>`);
+      out.push({ type: "h", text: heading[1].replace(/\*\*/g, "") });
     } else if (list && /^\s+\S/.test(raw)) {
       // An indented line under a list item continues it.
       list.items[list.items.length - 1] += ` ${line}`;
@@ -303,7 +300,40 @@ export function coachMarkdownHtml(text) {
   }
   endPara();
   endList();
-  return out.join("");
+  return out;
+}
+
+// A line split at its bold marks — the one inline mark — into runs:
+// [{ text, bold }]. An unclosed ** stays as the text it is.
+export function coachBoldRuns(s) {
+  const runs = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let at = 0;
+  let m;
+  const str = String(s ?? "");
+  while ((m = re.exec(str))) {
+    if (m.index > at) runs.push({ text: str.slice(at, m.index), bold: false });
+    runs.push({ text: m[1], bold: true });
+    at = m.index + m[0].length;
+  }
+  if (at < str.length) runs.push({ text: str.slice(at), bold: false });
+  return runs;
+}
+
+// Escaped FIRST, run by run, so the only tags that exist afterwards are the
+// ones written here: nothing a model (or a lap note it quoted) says can become
+// markup.
+const inline = (s) => coachBoldRuns(s).map((r) => (r.bold ? `<strong>${esc(r.text)}</strong>` : esc(r.text))).join("");
+
+// A model's reply as HTML, from coachMarkdownBlocks.
+export function coachMarkdownHtml(text) {
+  return coachMarkdownBlocks(text)
+    .map((b) => {
+      if (b.type === "p") return `<p>${b.lines.map(inline).join("<br>")}</p>`;
+      if (b.type === "h") return `<p><strong>${esc(b.text)}</strong></p>`;
+      return `<${b.type}>${b.items.map((it) => `<li>${inline(it)}</li>`).join("")}</${b.type}>`;
+    })
+    .join("");
 }
 
 // ---------- keeping a reply ---------------------------------------------------

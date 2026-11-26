@@ -4150,3 +4150,115 @@ const lapAxisFixture = {
 };
 writeFileSync(path.join(OUT_DIR, "lap-axis.json"), JSON.stringify(lapAxisFixture, null, 2) + "\n");
 console.log("wrote contracts/logic/lap-axis.json");
+
+// ---- the AI Coach (#320): what the phones port from public/js/ai-coach.js ----
+//
+// The entry points and their words, the request context, the error sentences,
+// the model field, the reply's Markdown subset (as blocks and bold runs — the
+// web draws them as HTML, the phones as text), the notes a kept reply makes,
+// and the event-stream parser over the ways a stream arrives: CRLF, comments,
+// unknown events, data that isn't JSON, a block cut off at the end. The ports
+// also parse contracts/streams/ai-coach.sse itself.
+{
+  const A = await import("../public/js/ai-coach.js");
+  const sseEvents = (chunks) => {
+    const events = [];
+    const p = A.createSseParser((event, data) => events.push({ event, data }));
+    for (const c of chunks) p.push(c);
+    p.end();
+    return events;
+  };
+  const sseInputs = [
+    ["event: text\ndata: {\"delta\":\"a\"}\n\n"],
+    ["event: text\r\ndata: {\"delta\":\"crlf\"}\r\n\r\n"],
+    ["event: text\r", "\ndata: {\"delta\":\"split cr\"}\r\n\r", "\n"],
+    [": keepalive\n\n", "event: tool\ndata: {\"name\":\"x\",\"label\":\"Reading…\"}\n\n"],
+    ["event: mystery\ndata: {\"a\":1}\n\nevent: text\ndata: not json\n\n"],
+    ["data: {\"delta\":\"no event name\"}\n\n"],
+    ["event:text\ndata:{\"delta\":\"no space\"}\n\n"],
+    ["event: done\ndata: {\"stop\":\"end\",\"model\":\"m\"}"],
+    ["event: text\ndata: {\"delta\":\"ab", "c\"}\n", "\n"],
+    ["event: error\ndata: {\"error\":\"Anthropic is unavailable right now — try again shortly\",\"status\":502}\n\n"],
+  ];
+  const d = (y, m, day) => ({ year: y, month: m, day });
+  const dates = [d(2026, 11, 26), d(2026, 1, 1), d(2026, 12, 31)];
+  const replies = [
+    "**Where the time is.** Your best lap.\n\n- **Brake release**: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\n## Next time\nPick one corner.",
+    "Plain line one\nline two\n\n\n\nafter gaps",
+    "* star item\n• bullet item\n- dash item\nnot a list",
+    "<b>not html</b> and [a link](https://x) and `code`",
+    "### **Bold heading**\n**unclosed bold\n1. **a** and **b**",
+    "\r\nwindows\r\nlines\r\n",
+    "",
+  ];
+  const models = [
+    { id: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+    { id: "claude-opus-5-5", label: "Claude Opus 5.5" },
+    { id: "gpt-6.2-astra", label: "gpt-6.2-astra" },
+  ];
+  const aiCoachFixture = {
+    generatedFrom: ["public/js/ai-coach.js"],
+    name: A.COACH_NAME,
+    proWhat: A.COACH_PRO_WHAT,
+    offline: A.COACH_OFFLINE,
+    disclaimer: A.COACH_DISCLAIMER,
+    providers: A.COACH_PROVIDERS,
+    providerNames: ["anthropic", "openai", "fake", ""].map((id) => ({ id, name: A.providerName(id) })),
+    entries: A.COACH_ENTRIES,
+    saveLabels: ["session", "compare", "event"].map((entry) => ({ entry, label: A.coachSaveLabel(entry) })),
+    contexts: [
+      ["session", { eventId: 3, sessionId: 9 }],
+      ["session", { eventId: 3, sessionId: "tmp-1" }],
+      ["session", { eventId: "12", sessionId: "40" }],
+      ["session", { eventId: 3 }],
+      ["compare", { lapId: 5, compareLapId: 6, trackId: 2 }],
+      ["compare", { lapId: 5, compareLapId: 6 }],
+      ["compare", { lapId: 5, compareLapId: 5, trackId: 2 }],
+      ["compare", { lapId: 5, compareLapId: "tmp-2", trackId: 2 }],
+      ["compare", { lapId: 0, compareLapId: 6 }],
+      ["event", { eventId: 3, trackId: 2 }],
+      ["event", { eventId: 3, trackId: "tmp-9" }],
+      ["event", { eventId: -1, trackId: 2 }],
+      ["event", { eventId: 1.5 }],
+      ["mystery", { eventId: 3 }],
+    ].map(([entry, ids]) => ({ entry, ids, context: A.coachContext(entry, ids) })),
+    errorTexts: [
+      [424, "provider rejected the key", "anthropic"],
+      [424, "provider rejected the key", "openai"],
+      [400, "no AI provider set up", "anthropic"],
+      [502, "", "openai"],
+      [429, "rate limited — too many AI Coach requests; wait a minute", "anthropic"],
+      [424, "your Anthropic account is out of credit — add some in the Console.", "anthropic"],
+      [502, "Anthropic is unavailable right now — try again shortly", "anthropic"],
+      [400, "unknown AI provider", "fake"],
+    ].map(([status, error, provider]) => ({ status, error, provider, text: A.coachErrorText(status, error, provider) })),
+    models,
+    modelInputs: ["", "   ", "claude-opus-5-5", "CLAUDE-OPUS-5-5", "Claude Sonnet 5.5", " claude-sonnet-5-5 ", "my-own-model", "gpt-6.2-astra"].map(
+      (text) => ({ text, model: A.resolveModelInput(text, models) })
+    ),
+    placeholders: [null, "claude-sonnet-5-5"].map((defaultModel) => ({ defaultModel, text: A.modelPlaceholder(defaultModel) })),
+    markdown: replies.map((text) => ({ text, blocks: A.coachMarkdownBlocks(text) })),
+    boldRuns: ["plain", "**all bold**", "a **b** c **d**", "**unclosed", "****", "x ** y ** z", "**a**b**c**"].map((text) => ({
+      text,
+      runs: A.coachBoldRuns(text),
+    })),
+    plainText: replies.map((text) => ({ text, plain: A.coachPlainText(text) })),
+    // Dates are calendar days ({ year, month 1–12, day }), not instants, so no
+    // port has a time zone to get wrong.
+    labels: dates.map((date) => ({ date, label: A.coachNotesLabel(new Date(date.year, date.month - 1, date.day)) })),
+    notes: [
+      [null, replies[0], dates[0]],
+      ["", replies[1], dates[1]],
+      ["My own note.\n\n", replies[2], dates[2]],
+      ["  Earlier words  ", "**Short.**", dates[0]],
+    ].map(([existing, reply, date]) => ({
+      existing,
+      reply,
+      date,
+      notes: A.appendCoachNote(existing, reply, new Date(date.year, date.month - 1, date.day)),
+    })),
+    sse: sseInputs.map((chunks) => ({ chunks, events: sseEvents(chunks) })),
+  };
+  writeFileSync(path.join(OUT_DIR, "ai-coach.json"), JSON.stringify(aiCoachFixture, null, 2) + "\n");
+  console.log(`wrote contracts/logic/ai-coach.json (${aiCoachFixture.sse.length} streams, ${aiCoachFixture.markdown.length} replies)`);
+}

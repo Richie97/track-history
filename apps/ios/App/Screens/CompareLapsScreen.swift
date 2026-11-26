@@ -25,9 +25,22 @@ struct CompareLapsScreen: View {
     @Environment(\.layout) private var layout
     @State private var model: CompareLapsModel?
     @State private var stage: LapStageModel?
-    /// The picked pair's share sheet (NS-56) — this view's one modal
-    /// presentation; the stage's full-bleed cover is `LapStageView`'s own.
-    @State private var sharing: ItemShareTarget?
+    /// The picked pair's share sheet (NS-56) or the AI Coach on it (#320) —
+    /// this view's one modal presentation; the stage's full-bleed cover is
+    /// `LapStageView`'s own.
+    @State private var modal: Modal?
+
+    private enum Modal: Identifiable {
+        case share(ItemShareTarget)
+        case aiCoach(AICoachConversation)
+
+        var id: String {
+            switch self {
+            case .share(let target): "share-\(target.id)"
+            case .aiCoach: "ai-coach"
+            }
+        }
+    }
 
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
@@ -36,8 +49,11 @@ struct CompareLapsScreen: View {
             }
         }
         .background(Color(.bgPage))
-        .sheet(item: $sharing) { target in
-            ItemShareSheet(target: target)
+        .sheet(item: $modal) { modal in
+            switch modal {
+            case .share(let target): ItemShareSheet(target: target)
+            case .aiCoach(let conversation): AICoachSheet(conversation: conversation)
+            }
         }
         .task {
             if model == nil {
@@ -97,12 +113,24 @@ struct CompareLapsScreen: View {
                     if !owner.isReadOnly, let target = model.shareTarget {
                         Button {
                             stage.pause(announce: false)
-                            sharing = target
+                            modal = .share(target)
                         } label: {
                             Label("Share…", systemImage: "square.and.arrow.up")
                         }
                         .buttonStyle(TEButtonStyle(kind: .quiet))
                         .accessibilityIdentifier("shareCompare")
+                    }
+                    // *Explain the difference* (#320): both laps, A the
+                    // reference. Your own logbook only, and only for laps the
+                    // server knows by id.
+                    if !owner.isReadOnly, let launch = model.aiCoachLaunch(api: auth.api) {
+                        AICoachButton(entry: .compare) {
+                            stage.pause(announce: false)
+                            modal = .aiCoach(AICoachConversation(
+                                launch: launch, api: auth.api, store: auth.aiCoach, entitlement: auth.entitlement,
+                                onUnauthorized: { [auth] in auth.handleUnauthorized() }
+                            ))
+                        }
                     }
                     if pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN {
                         Text("⚠️ These laps cover driven distances \(Int((pair.mismatch * 100).rounded()))% apart — likely a different layout or start/finish line.")
@@ -412,6 +440,28 @@ final class CompareLapsModel {
         else { return nil }
         let target = ItemShareTarget.compare(a: a, b: b)
         return target.hasTempId ? nil : target
+    }
+
+    /// The AI Coach's *Explain the difference* on the picked pair (#320), or nil
+    /// without two different laps the server knows. A kept explanation goes to
+    /// the notes of the more recent of the two laps' events — the day the
+    /// driver is working from — read fresh, as the web does.
+    func aiCoachLaunch(api: APIClient) -> AICoachLaunch? {
+        guard rows.indices.contains(selA), rows.indices.contains(selB), selA != selB else { return nil }
+        let (rowA, rowB) = (rows[selA], rows[selB])
+        guard let context = AICoach.coachContext(
+            .compare, .init(lapId: lapId(rowA), compareLapId: lapId(rowB), trackId: trackId)
+        ) else { return nil }
+        let target = rowB.date > rowA.date ? rowB.eventId : rowA.eventId
+        return AICoachLaunch(
+            entry: .compare, context: context,
+            subtitle: "Lap \(rowA.lapNum) (\(LapTime.fmtMs(rowA.timeMs))) vs lap \(rowB.lapNum) (\(LapTime.fmtMs(rowB.timeMs)))"
+        ) { reply in
+            let event = try await api.event(id: target).event
+            var patch = EventPatch()
+            patch.notes = .set(AICoach.appendCoachNote(event.notes, reply, Date()))
+            try await api.updateEvent(id: target, patch)
+        }
     }
 
     var pair: Pair? {

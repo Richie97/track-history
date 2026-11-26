@@ -1,5 +1,11 @@
 package app.trackevolution.screens
 
+import app.trackevolution.ai.AICoachAccess
+import app.trackevolution.ai.AICoachButton
+import app.trackevolution.ai.AICoachChat
+import app.trackevolution.ai.AICoachHost
+import app.trackevolution.core.AICoach
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -136,6 +142,15 @@ fun EventScreen(
      * Null draws no expand control — the shared-item page has none.
      */
     onOpenMap: ((Int) -> Unit)? = null,
+    /**
+     * The AI Coach (#320): a session's *Debrief*, the event's *Next time*, and
+     * the conversation — a sheet, or the analysis column's place at expanded
+     * width. Null offers none of it: a read-only page, a shared item, a live
+     * recording.
+     */
+    aiCoach: AICoachAccess? = null,
+    /** The last request failed at the network level: the AI Coach's doors say "needs a connection". */
+    offline: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     val listState = rememberLazyListState()
@@ -276,6 +291,23 @@ fun EventScreen(
                 }
             }
 
+            // The AI Coach's *What should I work on next time?* (#320): an event
+            // with laps that the server knows by id.
+            val nextTime = aiCoach?.takeIf { event.lapCount > 0 }
+                ?.let { AICoach.coachContext("event", eventId = event.id, trackId = event.trackId) }
+            if (aiCoach != null && nextTime != null && !readOnly) item("ai-coach-event") {
+                AICoachButton("event", offline, onClick = {
+                    aiCoach.start(
+                        AICoachChat.Opening(
+                            entry = "event",
+                            context = nextTime,
+                            subtitle = "${event.trackName} — next time",
+                            save = { reply -> model.keepCoachReply(null, reply) },
+                        ),
+                    )
+                })
+            }
+
             // The checklist is for prep, so it appears while there is still prep
             // to do — or once one exists, however far past the event is.
             if (!readOnly && (EventDates.isUpcoming(event.startDate) || !event.checklist.isNullOrEmpty())) {
@@ -361,6 +393,23 @@ fun EventScreen(
                             onSave = { label, notes -> model.updateSession(session.id, label, notes) },
                             onShare = { sharingSession = session.id },
                             readOnly = readOnly,
+                            // The AI Coach's session debrief (#320): a session
+                            // with laps that the server knows by id.
+                            onDebrief = aiCoach?.takeIf { session.laps.isNotEmpty() }?.let { access ->
+                                AICoach.coachContext("session", eventId = event.id, sessionId = session.id)?.let { ctx ->
+                                    {
+                                        access.start(
+                                            AICoachChat.Opening(
+                                                entry = "session",
+                                                context = ctx,
+                                                subtitle = session.label ?: "Session debrief",
+                                                save = { reply -> model.keepCoachReply(session.id, reply) },
+                                            ),
+                                        )
+                                    }
+                                }
+                            },
+                            aiOffline = offline,
                             lapComments = comments?.counts?.byLap.orEmpty(),
                             commentsSlot = comments?.let { c ->
                                 {
@@ -388,7 +437,11 @@ fun EventScreen(
         }
         }
 
-        if (analysisWidth != null) {
+        // At expanded width an open AI Coach takes the analysis column's place
+        // (#320) — the page it talks about stays beside it; below, a sheet.
+        if (analysisWidth != null && aiCoach?.chat?.opening != null) {
+            AICoachHost(aiCoach, sideWidth = analysisWidth) { page() }
+        } else if (analysisWidth != null) {
             Row(Modifier.fillMaxSize()) {
                 PaneWidth(Modifier.weight(1f)) { page() }
                 VerticalDivider(color = colors.borderHairline)
@@ -404,7 +457,7 @@ fun EventScreen(
                 }
             }
         } else {
-            page()
+            AICoachHost(aiCoach, sideWidth = null) { page() }
         }
     }
 
@@ -616,6 +669,9 @@ private fun SessionCard(
     lapComments: Map<Int, Comments.Count> = emptyMap(),
     /** The session's comments block (NS-52), under its laps. */
     commentsSlot: (@Composable () -> Unit)? = null,
+    /** The AI Coach's *Debrief this session* (#320); null offers none. */
+    onDebrief: (() -> Unit)? = null,
+    aiOffline: Boolean = false,
 ) {
     val colors = TrackTheme.colors
     var lapDraft by rememberSaveable(session.id) { mutableStateOf("") }
@@ -778,6 +834,10 @@ private fun SessionCard(
                     color = if (channelsInColumn && selected) colors.accentInk else colors.textMuted,
                 )
             }
+        }
+
+        if (onDebrief != null && !readOnly) {
+            AICoachButton("session", aiOffline, onClick = onDebrief, tag = "aiCoach-session-${session.id}")
         }
 
         commentsSlot?.invoke()

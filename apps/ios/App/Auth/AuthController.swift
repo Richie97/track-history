@@ -195,6 +195,8 @@ final class AuthController {
 
     let api: APIClient
     let server: ServerSettings
+    /// The AI Coach's provider keys, in this device's Keychain (#320).
+    let aiCoach: AICoachStore
     private let tokens: KeychainTokenStore
     private let webAuth: any WebAuthenticating
     private let providersStore: AuthProvidersStore
@@ -217,6 +219,7 @@ final class AuthController {
         }
         let api = APIClient(baseURL: server.url, tokens: tokens, offline: offline)
         self.api = api
+        self.aiCoach = AICoachStore { server.url.host() }
         self.inbox = CommentInbox { try await api.commentFeed() }
         self.webAuth = webAuth ?? WebAuthSession()
     }
@@ -365,6 +368,8 @@ final class AuthController {
         await api.clearOffline()
         AppServices.clips.clear()
         youtubeUploads = [:]
+        // …nor the AI Coach keys they pay for (#320).
+        aiCoach.clear()
         state = .signedOut
     }
 
@@ -391,6 +396,7 @@ final class AuthController {
         // user's data under another's account.
         await api.clearOffline()
         AppServices.clips.clear()
+        aiCoach.clear()
         state = .signedOut
         // Another server, another set of buttons — drop to its own last known
         // answer rather than leaving the previous server's on screen.

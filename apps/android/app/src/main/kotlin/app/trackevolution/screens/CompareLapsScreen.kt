@@ -1,5 +1,12 @@
 package app.trackevolution.screens
 
+import app.trackevolution.ai.AICoachAccess
+import app.trackevolution.ai.AICoachButton
+import app.trackevolution.ai.AICoachChat
+import app.trackevolution.ai.AICoachHost
+import app.trackevolution.core.AICoach
+import app.trackevolution.ui.LocalLayoutMetrics
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -88,8 +95,15 @@ fun CompareLapsScreen(
     canPlayVideo: Boolean = false,
     /** A coach's view of a student's laps: no *Share…* (NS-56). */
     readOnly: Boolean = false,
+    /** The AI Coach's *Explain the difference* (#320); null offers none (a coach's view, a live recording). */
+    aiCoach: AICoachAccess? = null,
+    /** The last request failed at the network level: the AI Coach's door says "needs a connection". */
+    offline: Boolean = false,
 ) {
     val colors = TrackTheme.colors
+    // A pane wide enough gives the conversation a column beside the charts;
+    // the track page's narrow compare column does not, and gets the sheet.
+    val coachWidth = LocalLayoutMetrics.current.sideColumnWidth(0.36f, 320.dp, 440.dp)
 
     LaunchedEffect(Unit) { if (model.state == LoadState.Loading) model.load() }
 
@@ -110,6 +124,7 @@ fun CompareLapsScreen(
         }
     }
 
+    AICoachHost(aiCoach.takeIf { !readOnly }, sideWidth = coachWidth) {
     TELoadable(state = model.state, onRetry = model::load, modifier = modifier) {
         val pair = model.pair
         // The column has its own heading above, with the close beside it, so
@@ -167,6 +182,25 @@ fun CompareLapsScreen(
                     ShareItemButton(onClick = { sharing = true }, modifier = Modifier.testTag("shareCompare"))
                 }
             }
+            // The AI Coach's *Explain the difference* (#320): both laps — A,
+            // the reference, then B — by their server ids, or no button.
+            val coachCtx = aiCoach?.takeIf { !readOnly }?.let {
+                AICoach.coachContext("compare", lapId = pair.lapA?.id, compareLapId = pair.lapB?.id, trackId = model.trackId)
+            }
+            if (aiCoach != null && coachCtx != null) {
+                item("ai-coach") {
+                    AICoachButton("compare", offline, onClick = {
+                        aiCoach.start(
+                            AICoachChat.Opening(
+                                entry = "compare",
+                                context = coachCtx,
+                                subtitle = model.coachSubtitle(),
+                                save = { reply -> model.keepCoachReply(reply) },
+                            ),
+                        )
+                    })
+                }
+            }
             if (pair.mismatch > CompareLaps.LENGTH_MISMATCH_WARN) {
                 item("mismatch") {
                     Text(
@@ -212,6 +246,7 @@ fun CompareLapsScreen(
             return@TELoadable
         }
         LapStagePage(holder = holder, trace = trace, header = header, body = body)
+    }
     }
 }
 

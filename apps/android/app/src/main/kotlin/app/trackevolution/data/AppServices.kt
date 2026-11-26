@@ -2,6 +2,7 @@ package app.trackevolution.data
 
 import android.content.Context
 import app.trackevolution.BuildConfig
+import app.trackevolution.ai.AICoachKeys
 import app.trackevolution.auth.AuthStore
 import app.trackevolution.billing.BillingController
 import app.trackevolution.billing.BillingPrefs
@@ -92,6 +93,13 @@ internal class AppServices private constructor(context: Context) {
         notificationsAllowed = { NotificationManagerCompat.from(context).areNotificationsEnabled() },
         prefs = PushPrefs(context),
     )
+
+    /**
+     * The AI Coach's provider keys (#320): this device only, encrypted, out of
+     * backups, cleared on sign-out. The fake provider is honoured in debug
+     * builds only.
+     */
+    val aiKeys = AICoachKeys.encrypted(context, fakeAllowed = BuildConfig.DEBUG)
 
     companion object {
         @Volatile

@@ -4,7 +4,7 @@ import Foundation
 // "AI Coach" — a bare "coach" is a person in this app (NS-38). The
 // conversation itself is an event stream, not JSON (its recorded fixture is
 // contracts/streams/ai-coach.sse); these are the JSON shapes around it. The
-// screens land with ticket 6 (#320) — this is the decoder its golden needs.
+// logic the screens use (#320) is AICoachRules.swift.
 
 /// One model a driver may pick for a provider: its id and its name in words.
 public struct AICoachModel: Codable, Hashable, Sendable {

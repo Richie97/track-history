@@ -74,6 +74,13 @@ public extension Entitlement {
     /// and the lap page's player draw.
     static func canSaveLapVideo(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
 
+    /// The AI Coach (#320): a debrief on the driver's own Anthropic or OpenAI
+    /// account. The server gates its routes (`POST /api/ai/coach` and its
+    /// verify); this decides what Settings and the AI Coach sheet draw — the key
+    /// block and the conversation, or the Pro offer in place. Always "AI Coach":
+    /// a bare "coach" is a person here (NS-38).
+    static func canUseAICoach(_ entitlement: Entitlement?) -> Bool { isPro(entitlement) }
+
     /// Where "Manage subscription" goes, by the store that sold it.
     static let APPLE_MANAGE_URL = URL(string: "https://apps.apple.com/account/subscriptions")!
     static let GOOGLE_MANAGE_URL = URL(

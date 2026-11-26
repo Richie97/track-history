@@ -133,6 +133,14 @@ public data class Entitlement(
         public fun canSaveLapVideo(entitlement: Entitlement?): Boolean = isPro(entitlement)
 
         /**
+         * The AI Coach (#320, NS-58): a debrief on the driver's own Anthropic or
+         * OpenAI account. The server gates `POST /api/ai/coach` with
+         * `requireEntitlement` too; this decides whether the sheet streams or
+         * draws the paywall in place.
+         */
+        public fun canUseAICoach(entitlement: Entitlement?): Boolean = isPro(entitlement)
+
+        /**
          * Where "Manage subscription" goes, by the store that sold it. Legacy has
          * no subscription to manage and free has nothing yet — both null. A lapsed
          * subscriber keeps their source, so Manage still targets the right store.

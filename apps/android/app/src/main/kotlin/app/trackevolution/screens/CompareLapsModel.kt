@@ -3,7 +3,10 @@ package app.trackevolution.screens
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import app.trackevolution.core.AICoach
 import app.trackevolution.core.CompareLaps
+import app.trackevolution.core.model.EventPatch
+import app.trackevolution.core.model.Patch
 import app.trackevolution.core.EventDates
 import app.trackevolution.core.LapTime
 import app.trackevolution.core.api.ApiClient
@@ -100,6 +103,30 @@ class CompareLapsModel(
     fun pickB(index: Int) {
         if (index == selA) selA = selB
         selB = index
+    }
+
+    /** The AI Coach's subtitle for the pair: "Lap 3 (1:31.200) vs lap 5 (1:30.480)" — the web's words. */
+    fun coachSubtitle(): String {
+        val a = rows.getOrNull(selA) ?: return AICoach.COACH_ENTRIES.getValue("compare").title
+        val b = rows.getOrNull(selB) ?: return AICoach.COACH_ENTRIES.getValue("compare").title
+        return "Lap ${a.lapNum} (${LapTime.fmtMs(a.timeMs)}) vs lap ${b.lapNum} (${LapTime.fmtMs(b.timeMs)})"
+    }
+
+    /**
+     * Keeps an AI Coach explanation (#320) in the notes of the more recent of
+     * the two laps' events — the day the driver is working from. Its notes are
+     * read fresh, since this page holds no event of its own to patch; the write
+     * is the ordinary (queueable, free) one.
+     */
+    suspend fun keepCoachReply(reply: String) {
+        val a = rows.getOrNull(selA) ?: return
+        val b = rows.getOrNull(selB) ?: return
+        val target = if (b.date > a.date) b else a
+        val event = api.event(target.eventId).event
+        api.updateEvent(
+            target.eventId,
+            EventPatch(notes = Patch.Set(AICoach.appendCoachNote(event.notes, reply, java.time.LocalDate.now()))),
+        )
     }
 
     /** "May 3, 2026 · Sat AM · Lap 2 — 1:30.480", trimmed to what the row has. */
