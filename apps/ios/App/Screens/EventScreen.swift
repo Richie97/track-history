@@ -42,14 +42,21 @@ struct EventScreen: View {
     private enum FormSheet: Identifiable {
         case editSession(Session)
         case share(ItemShareTarget)
+        /// The AI Coach (#320), below expanded width — above it, the
+        /// conversation is the side column instead.
+        case aiCoach(AICoachConversation)
 
         var id: String {
             switch self {
             case .editSession(let session): "edit-\(session.id)"
             case .share(let target): "share-\(target.id)"
+            case .aiCoach: "ai-coach"
             }
         }
     }
+    /// The open AI Coach conversation (#320): the sheet's, or — at expanded
+    /// width — the side column's, in place of the analysis.
+    @State private var aiCoach: AICoachConversation?
     @State private var confirmingDeleteEvent = false
     /// The session the analysis column is showing (NS-34 ticket 3).
     @State private var selectedChannelSessionId: Int?
@@ -192,7 +199,12 @@ struct EventScreen: View {
             }
             Button("Keep", role: .cancel) {}
         }
-        .sheet(item: $formSheet) { sheet in
+        .sheet(item: $formSheet, onDismiss: {
+            if !isTwoColumn {
+                aiCoach?.stop()
+                aiCoach = nil
+            }
+        }) { sheet in
             switch sheet {
             case .editSession(let session):
                 SessionEditSheet(session: session) { label, notes in
@@ -200,6 +212,8 @@ struct EventScreen: View {
                 }
             case .share(let target):
                 ItemShareSheet(target: target)
+            case .aiCoach(let conversation):
+                AICoachSheet(conversation: conversation)
             }
         }
     }
@@ -243,16 +257,98 @@ struct EventScreen: View {
                     .measuringPaneWidth()
                     .frame(maxWidth: .infinity)
                 Divider()
-                AnalysisColumn(
-                    detail: detail,
-                    selectedSessionId: $selectedChannelSessionId,
-                    comments: comments
-                )
+                Group {
+                    // The AI Coach takes the side column while it is open
+                    // (#320), so the page it talks about stays in view;
+                    // closing it gives the analysis back.
+                    if let aiCoach {
+                        AICoachPanel(
+                            conversation: aiCoach,
+                            onClose: { closeAICoach() },
+                            onOpenSettings: {
+                                closeAICoach()
+                                auth.aiCoach.focusSettings = true
+                                router.push(.settings)
+                            }
+                        )
+                    } else {
+                        AnalysisColumn(
+                            detail: detail,
+                            selectedSessionId: $selectedChannelSessionId,
+                            comments: comments
+                        )
+                    }
+                }
                 .measuringPaneWidth()
                 .frame(width: analysisWidth)
             }
         } else {
             list(model, detail)
+        }
+    }
+
+    // MARK: - The AI Coach (#320)
+
+    /// Open the AI Coach: the side column at expanded width, a sheet below it.
+    private func openAICoach(_ launch: AICoachLaunch) {
+        aiCoach?.stop()
+        let conversation = AICoachConversation(
+            launch: launch, api: auth.api, store: auth.aiCoach, entitlement: auth.entitlement,
+            onUnauthorized: { [auth] in auth.handleUnauthorized() }
+        )
+        aiCoach = conversation
+        if !isTwoColumn { formSheet = .aiCoach(conversation) }
+    }
+
+    private func closeAICoach() {
+        aiCoach?.stop()
+        aiCoach = nil
+    }
+
+    /// Whether an entry point is offered: your own logbook only — never a
+    /// coach's view of a student (NS-38) — and only for rows the server knows.
+    private func aiCoachContext(_ entry: AICoach.Entry, _ ids: AICoach.Ids) -> AICoach.Context? {
+        owner.isReadOnly ? nil : AICoach.coachContext(entry, ids)
+    }
+
+    /// *Debrief this session*: a kept reply is appended to the session's notes.
+    @ViewBuilder
+    private func debriefRow(_ model: EventModel, _ session: Session) -> some View {
+        if !session.laps.isEmpty,
+           let context = aiCoachContext(.session, .init(eventId: model.eventId, sessionId: session.id)) {
+            row {
+                AICoachButton(entry: .session) {
+                    openAICoach(AICoachLaunch(
+                        entry: .session, context: context,
+                        subtitle: session.label ?? AICoach.entry(.session).title
+                    ) { [auth] reply in
+                        let current = model.detail?.sessions.first { $0.id == session.id }?.notes
+                        let notes = AICoach.appendCoachNote(current, reply, Date())
+                        try await auth.api.updateSession(id: session.id, SessionPatch(notes: .set(notes)))
+                        await model.reload()
+                    })
+                }
+            }
+        }
+    }
+
+    /// *What should I work on next time?*: a kept reply goes to the event's notes.
+    @ViewBuilder
+    private func nextTimeRow(_ model: EventModel, _ event: Event) -> some View {
+        if event.lapCount > 0,
+           let context = aiCoachContext(.event, .init(eventId: model.eventId, trackId: event.trackId)) {
+            row {
+                AICoachButton(entry: .event) {
+                    openAICoach(AICoachLaunch(
+                        entry: .event, context: context, subtitle: "\(event.trackName) — next time"
+                    ) { [auth] reply in
+                        var patch = EventPatch()
+                        patch.notes = .set(AICoach.appendCoachNote(model.event?.notes, reply, Date()))
+                        try await auth.api.updateEvent(id: model.eventId, patch)
+                        await model.reload()
+                    })
+                }
+            }
         }
     }
 
@@ -381,9 +477,12 @@ struct EventScreen: View {
                     Text(notes)
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textBody))
+                        .accessibilityIdentifier("eventNotes")
                 }
             }
         }
+
+        nextTimeRow(model, event)
     }
 
     /// The *Cost* tile, when anything was entered — an uncosted day has no tile
@@ -638,8 +737,11 @@ struct EventScreen: View {
                     Text(notes)
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textBody))
+                        .accessibilityIdentifier("sessionNotes-\(session.id)")
                 }
             }
+
+            debriefRow(model, session)
 
             channelSection(session)
 

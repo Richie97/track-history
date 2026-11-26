@@ -1,5 +1,7 @@
 package app.trackevolution.screens
 
+import app.trackevolution.core.AICoach
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -140,6 +142,24 @@ class EventModel(
                 notes = Patch.Set(notes?.trim()?.takeIf { it.isNotEmpty() }),
             ),
         )
+    }
+
+    /**
+     * Keeps an AI Coach reply (#320): appended, labelled, to the session's
+     * notes for a debrief ([sessionId]) or the event's otherwise — through the
+     * same free, queueable writes the edit forms use. Throws the write's
+     * [ApiException], which the sheet says beside its button.
+     */
+    suspend fun keepCoachReply(sessionId: Int?, reply: String) {
+        val current = detail ?: api.event(eventId)
+        val today = java.time.LocalDate.now()
+        if (sessionId != null) {
+            val existing = current.sessions.firstOrNull { it.id == sessionId }?.notes
+            api.updateSession(sessionId, SessionPatch(notes = Patch.Set(AICoach.appendCoachNote(existing, reply, today))))
+        } else {
+            api.updateEvent(eventId, EventPatch(notes = Patch.Set(AICoach.appendCoachNote(current.event.notes, reply, today))))
+        }
+        load()
     }
 
     fun deleteSession(id: Int) = write { api.deleteSession(id) }

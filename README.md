@@ -2722,20 +2722,29 @@ with `{ "pro": true }` grants it on a dev host.
 
 ### The AI Coach
 
-The other half of epic #314 is the **AI Coach**: a debrief inside the web app
-that runs on the driver's **own Anthropic or OpenAI account**, with the same
+The other half of epic #314 is the **AI Coach**: a debrief inside the app — web,
+iOS and Android — that runs on the driver's **own Anthropic or OpenAI account**, with the same
 read-only tools the MCP server exposes (spec:
 `docs/specs/native/NS-58-ai-coach.md`; user docs: `site/docs/ai.html#ai-coach`).
 It is always "AI Coach" — a bare "coach" is a person here (share with a coach,
-NS-38). Pro, web only so far; the phones are ticket 6 (#320).
+NS-38). Pro, on all three clients (web #319, phones #320).
 
 - **Nothing to configure on deploy** beyond the `AI_COACH` rate-limit binding
   already in `wrangler.jsonc` (10 requests a minute per user; change its
   `namespace_id` if another Worker on the account uses `3148`). There is no
   server-side provider key: the driver pastes theirs in **Settings → AI
-  assistants → AI Coach**, it is kept in their browser (the tab, or IndexedDB
-  with *Remember on this device*) and sent with each request in
-  `X-TE-AI-Key`. The Worker never stores or logs it.
+  assistants → AI Coach** (on the phones, *Settings → AI assistants*), it is kept
+  on that device — the browser tab, or IndexedDB with *Remember on this
+  device*; the iOS Keychain (`AfterFirstUnlockThisDeviceOnly`, never synced);
+  Android's encrypted prefs, excluded from backup and device transfer — and
+  sent with each request in `X-TE-AI-Key`. The Worker never stores or logs it.
+- **The phones are thin**: each ports `canUseAICoach` and the pure half of
+  `public/js/ai-coach.js` (the entry points, the request context, the SSE
+  parser, the reply's Markdown subset, the notes label) under the same names,
+  pinned by `contracts/logic/ai-coach.json` and the recorded stream
+  `contracts/streams/ai-coach.sse`. The sheet (or, at expanded width, the
+  event page's side column) is the only UI; requests bypass the offline
+  queue and cache.
 - **The API** — `POST /api/ai/coach` (`src/routes/aiCoach.ts`, the loop in
   `src/ai/coach.ts`, the provider adapters in `src/ai/providers.ts`) takes
   `{ context, messages, model? }`, runs up to eight rounds of tool calls
@@ -2761,7 +2770,9 @@ Try it locally without a key: the fake provider answers on a dev host under
 (`POST /auth/dev/entitlement` with `{ "pro": true }`), run
 `localStorage.setItem("te-ai-fake", "1")` in the browser console and open
 *Debrief this session* on any session; or call the API directly with
-`X-TE-AI-Provider: fake`.
+`X-TE-AI-Provider: fake`. On the phones, a debug build pointed at the dev
+server uses it too: iOS with the `-aiCoachFake` launch argument, Android with
+the fake switch in Settings' AI Coach card (shown only against a dev server).
 
 ## Promo video
 

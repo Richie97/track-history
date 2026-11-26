@@ -784,6 +784,135 @@ public actor APIClient {
 
     private struct YouTubeConnect: Decodable { let url: URL }
 
+    // MARK: - The AI Coach (#320, NS-58)
+
+    /// The two headers every AI Coach request carries. The key is the driver's
+    /// own, sent per request and never stored by the server.
+    private static func aiCoachHeaders(_ credential: AICoachCredential) -> [String: String] {
+        var headers = ["X-TE-AI-Provider": credential.provider]
+        if let key = credential.key, !key.isEmpty { headers["X-TE-AI-Key"] = key }
+        return headers
+    }
+
+    /// `POST /api/ai/coach`, read as it streams: `.text` and `.tool` as they
+    /// arrive, then exactly one `.finished` with how it ended — the web's
+    /// `streamCoach`. Cancelling the consuming task cancels the request and
+    /// ends the stream with no `.finished`.
+    ///
+    /// **Off the offline layer**: never cached, never queued, straight to the
+    /// transport — and never on a student's client (the AI Coach is for your
+    /// own logbook only; `/api/students/:id/ai/coach` is a 404 anyway).
+    public func aiCoach(_ body: AICoachRequest, credential: AICoachCredential) -> AsyncStream<AICoachStreamEvent> {
+        let prepared: Result<URLRequest, APIError>
+        if studentId != nil {
+            prepared = .failure(.readOnly)
+        } else {
+            prepared = Result {
+                var request = URLRequest(url: try url(for: "/ai/coach", query: nil, prefix: "/api"))
+                request.httpMethod = "POST"
+                request.httpBody = try encoder.encode(body)
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                for (name, value) in Self.aiCoachHeaders(credential) { request.setValue(value, forHTTPHeaderField: name) }
+                return request
+            }.mapError { $0 as? APIError ?? .transport("\($0)") }
+        }
+        let tokens = tokens
+        let session = session
+        return AsyncStream { continuation in
+            let task = Task {
+                guard case .success(var request) = prepared else {
+                    continuation.yield(.finished(.error(status: 404, error: APIError.readOnly.message)))
+                    continuation.finish()
+                    return
+                }
+                if let token = await tokens.currentToken() {
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                let outcome = await Self.readCoachStream(request, session: session) { continuation.yield($0) }
+                if let outcome { continuation.yield(.finished(outcome)) }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// The transport half of ``aiCoach(_:credential:)``: nil when cancelled.
+    private static func readCoachStream(
+        _ request: URLRequest,
+        session: URLSession,
+        yield: (AICoachStreamEvent) -> Void
+    ) async -> AICoachOutcome? {
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await session.bytes(for: request)
+        } catch {
+            return Task.isCancelled ? nil : .offline
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 401 { return .unauthorized }
+        if status == 402 { return .paywall }
+        guard (200..<300).contains(status) else {
+            var data = Data()
+            do { for try await b in bytes { data.append(b) } } catch {}
+            return .error(status: status, error: APIError.from(status: status, body: data).message)
+        }
+        var parser = AICoach.createSseParser()
+        var chunk: [UInt8] = []
+        chunk.reserveCapacity(1024)
+        func deliver(_ events: [SseEvent]) -> AICoachOutcome? {
+            for e in events {
+                guard let element = AICoach.streamEvent(e) else { continue }
+                if case .finished(let outcome) = element { return outcome }
+                yield(element)
+            }
+            return nil
+        }
+        do {
+            for try await b in bytes {
+                chunk.append(b)
+                // An event ends at a line break: hand each line over as it lands.
+                if b == 10 || chunk.count >= 1024 {
+                    if let outcome = deliver(parser.push(chunk)) { return outcome }
+                    chunk.removeAll(keepingCapacity: true)
+                }
+            }
+            if let outcome = deliver(parser.push(chunk) + parser.end()) { return outcome }
+        } catch {
+            return Task.isCancelled ? nil : .error(status: 502, error: AICoach.DROPPED)
+        }
+        if Task.isCancelled { return nil }
+        // A stream that just ended, with neither `done` nor `error`, was cut off.
+        return .error(status: 502, error: AICoach.DROPPED)
+    }
+
+    /// `POST /api/ai/coach/verify`: one call to the provider's models API,
+    /// which proves the key and lists the models the driver's account can use.
+    /// Live, never cached or queued; a refusal comes back as the sentence to
+    /// show (``AICoach/coachErrorText(_:_:_:)``).
+    public func verifyAICoachKey(provider: String, key: String?) async -> AICoachVerifyResult {
+        guard studentId == nil else { return .failed(status: 0, error: APIError.readOnly.message) }
+        let response: (status: Int, data: Data)
+        do {
+            response = try await rawSend(
+                "POST", "/ai/coach/verify", query: nil, body: nil, authenticated: true, prefix: "/api",
+                headers: Self.aiCoachHeaders(AICoachCredential(provider: provider, key: key))
+            )
+        } catch {
+            return .failed(status: 0, error: "Checking a key \(AICoach.COACH_OFFLINE).")
+        }
+        guard (200..<300).contains(response.status) else {
+            let error = APIError.from(status: response.status, body: response.data).message
+            return .failed(status: response.status, error: AICoach.coachErrorText(response.status, error, provider))
+        }
+        guard let verify = try? decoder.decode(AICoachVerify.self, from: response.data) else {
+            return .failed(status: 502, error: AICoach.coachErrorText(502, nil, provider))
+        }
+        return .ok(verify)
+    }
+
+
     /// An authenticated request for an `/api` path, built but not sent — for the
     /// transfers that can't go through this actor: a clip part sent by a
     /// background `URLSession` that outlives the app, and a clip download.
@@ -991,10 +1120,12 @@ public actor APIClient {
         query: [URLQueryItem]?,
         body: Data?,
         authenticated: Bool,
-        prefix: String
+        prefix: String,
+        headers: [String: String] = [:]
     ) async throws -> (status: Int, data: Data) {
         var request = URLRequest(url: try url(for: path, query: query, prefix: prefix))
         request.httpMethod = method
+        for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if let body {
             request.httpBody = body
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")

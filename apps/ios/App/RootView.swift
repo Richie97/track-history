@@ -199,6 +199,9 @@ struct RootView: View {
             // `location.hash` in `onSyncChange`.
             await followFlushedIds()
         }
+        // Whether the AI Coach's entry points can ask anything (#320): the
+        // offline layer's view of the connection, read once for the app.
+        .task { await auth.aiCoach.watch(auth.api) }
     }
 
     /// One column, or two (NS-34).

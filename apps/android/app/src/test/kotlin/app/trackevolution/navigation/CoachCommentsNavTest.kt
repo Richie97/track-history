@@ -294,6 +294,11 @@ class CoachCommentsNavTest {
     private fun await(tag: String) {
         repeat(400) {
             if (compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()) return
+            // Below the fold (the owner's page carries the AI Coach's doors
+            // above the sessions, #320): bring it into view once it exists.
+            if (compose.onAllNodes(androidx.compose.ui.test.hasScrollToNodeAction()).fetchSemanticsNodes().isNotEmpty()) {
+                runCatching { list().performScrollToNode(hasTestTag(tag)) }
+            }
             Thread.sleep(25)
             compose.waitForIdle()
         }

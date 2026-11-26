@@ -29,6 +29,7 @@ struct SettingsScreen: View {
     @State private var confirmingDisableShare = false
 
     private static let checklistKey = "checklistItem"
+    private static let aiCoachAnchor = "aiCoachSettings"
     private static let docsURL = URL(string: "https://docs.trackevolution.app")!
     /// The newcomer's guide — what an HPDE is, what you need, where to find
     /// one. Linked from here and from the dashboard's first-run welcome card,
@@ -38,7 +39,17 @@ struct SettingsScreen: View {
     var body: some View {
         TELoadable(state: model?.state ?? .loading, retry: { await model?.load() }) {
             if let model {
-                content(model)
+                ScrollViewReader { proxy in
+                    content(model)
+                        // An AI Coach entry point found no key: land on the
+                        // block that takes one (#320).
+                        .task(id: auth.aiCoach.focusSettings) {
+                            guard auth.aiCoach.focusSettings else { return }
+                            auth.aiCoach.focusSettings = false
+                            try? await Task.sleep(for: .milliseconds(250))
+                            withAnimation { proxy.scrollTo(Self.aiCoachAnchor, anchor: .top) }
+                        }
+                }
             }
         }
         .navigationTitle("Settings")
@@ -182,6 +193,12 @@ struct SettingsScreen: View {
 
             TESectionHeader("Prep checklist")
             checklistTemplateCard(model)
+
+            // The AI Coach (#320) — a model on the driver's own account, so its
+            // own area, apart from Coaching, which is people.
+            TESectionHeader("AI assistants")
+                .id(Self.aiCoachAnchor)
+            AICoachSettingsCard()
 
             TESectionHeader("Coaching")
             TECard {

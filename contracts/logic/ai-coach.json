@@ -1,0 +1,768 @@
+{
+  "generatedFrom": [
+    "public/js/ai-coach.js"
+  ],
+  "name": "AI Coach",
+  "proWhat": "A debrief of a session, an explanation of the gap between two laps, or a plan for your next visit — written from your own telemetry and history, on your own Anthropic or OpenAI account.",
+  "offline": "needs a connection",
+  "disclaimer": "For the paddock, not the car — and not a substitute for an instructor.",
+  "providers": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic",
+      "keyUrl": "https://platform.claude.com/settings/keys",
+      "placeholder": "sk-ant-…"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI",
+      "keyUrl": "https://platform.openai.com/api-keys",
+      "placeholder": "sk-…"
+    }
+  ],
+  "providerNames": [
+    {
+      "id": "anthropic",
+      "name": "Anthropic"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI"
+    },
+    {
+      "id": "fake",
+      "name": "provider"
+    },
+    {
+      "id": "",
+      "name": "provider"
+    }
+  ],
+  "entries": {
+    "session": {
+      "button": "Debrief this session",
+      "title": "Session debrief",
+      "question": "Debrief this session: what went well, where the time is, and one or two specific things to try next session.",
+      "saveTo": "session"
+    },
+    "compare": {
+      "button": "Explain the difference",
+      "title": "Two laps compared",
+      "question": "Explain the difference between these two laps: where the time went, corner by corner, and what I would change.",
+      "saveTo": "event"
+    },
+    "event": {
+      "button": "What should I work on next time?",
+      "title": "Next time",
+      "question": "What should I work on next time I'm at this track?",
+      "saveTo": "event"
+    }
+  },
+  "saveLabels": [
+    {
+      "entry": "session",
+      "label": "Save to session notes"
+    },
+    {
+      "entry": "compare",
+      "label": "Save to event notes"
+    },
+    {
+      "entry": "event",
+      "label": "Save to event notes"
+    }
+  ],
+  "contexts": [
+    {
+      "entry": "session",
+      "ids": {
+        "eventId": 3,
+        "sessionId": 9
+      },
+      "context": {
+        "event_id": 3,
+        "session_id": 9
+      }
+    },
+    {
+      "entry": "session",
+      "ids": {
+        "eventId": 3,
+        "sessionId": "tmp-1"
+      },
+      "context": null
+    },
+    {
+      "entry": "session",
+      "ids": {
+        "eventId": "12",
+        "sessionId": "40"
+      },
+      "context": {
+        "event_id": 12,
+        "session_id": 40
+      }
+    },
+    {
+      "entry": "session",
+      "ids": {
+        "eventId": 3
+      },
+      "context": null
+    },
+    {
+      "entry": "compare",
+      "ids": {
+        "lapId": 5,
+        "compareLapId": 6,
+        "trackId": 2
+      },
+      "context": {
+        "lap_id": 5,
+        "compare_lap_id": 6,
+        "track_id": 2
+      }
+    },
+    {
+      "entry": "compare",
+      "ids": {
+        "lapId": 5,
+        "compareLapId": 6
+      },
+      "context": {
+        "lap_id": 5,
+        "compare_lap_id": 6
+      }
+    },
+    {
+      "entry": "compare",
+      "ids": {
+        "lapId": 5,
+        "compareLapId": 5,
+        "trackId": 2
+      },
+      "context": null
+    },
+    {
+      "entry": "compare",
+      "ids": {
+        "lapId": 5,
+        "compareLapId": "tmp-2",
+        "trackId": 2
+      },
+      "context": null
+    },
+    {
+      "entry": "compare",
+      "ids": {
+        "lapId": 0,
+        "compareLapId": 6
+      },
+      "context": null
+    },
+    {
+      "entry": "event",
+      "ids": {
+        "eventId": 3,
+        "trackId": 2
+      },
+      "context": {
+        "event_id": 3,
+        "track_id": 2
+      }
+    },
+    {
+      "entry": "event",
+      "ids": {
+        "eventId": 3,
+        "trackId": "tmp-9"
+      },
+      "context": {
+        "event_id": 3
+      }
+    },
+    {
+      "entry": "event",
+      "ids": {
+        "eventId": -1,
+        "trackId": 2
+      },
+      "context": null
+    },
+    {
+      "entry": "event",
+      "ids": {
+        "eventId": 1.5
+      },
+      "context": null
+    },
+    {
+      "entry": "mystery",
+      "ids": {
+        "eventId": 3
+      },
+      "context": null
+    }
+  ],
+  "errorTexts": [
+    {
+      "status": 424,
+      "error": "provider rejected the key",
+      "provider": "anthropic",
+      "text": "Anthropic rejected the key. Check it in Settings → AI assistants."
+    },
+    {
+      "status": 424,
+      "error": "provider rejected the key",
+      "provider": "openai",
+      "text": "OpenAI rejected the key. Check it in Settings → AI assistants."
+    },
+    {
+      "status": 400,
+      "error": "no AI provider set up",
+      "provider": "anthropic",
+      "text": "No AI provider is set up yet. Add a key in Settings → AI assistants."
+    },
+    {
+      "status": 502,
+      "error": "",
+      "provider": "openai",
+      "text": "The AI Coach couldn't answer. Try again."
+    },
+    {
+      "status": 429,
+      "error": "rate limited — too many AI Coach requests; wait a minute",
+      "provider": "anthropic",
+      "text": "Rate limited — too many AI Coach requests; wait a minute."
+    },
+    {
+      "status": 424,
+      "error": "your Anthropic account is out of credit — add some in the Console.",
+      "provider": "anthropic",
+      "text": "Your Anthropic account is out of credit — add some in the Console."
+    },
+    {
+      "status": 502,
+      "error": "Anthropic is unavailable right now — try again shortly",
+      "provider": "anthropic",
+      "text": "Anthropic is unavailable right now — try again shortly."
+    },
+    {
+      "status": 400,
+      "error": "unknown AI provider",
+      "provider": "fake",
+      "text": "Unknown AI provider."
+    }
+  ],
+  "models": [
+    {
+      "id": "claude-sonnet-5-5",
+      "label": "Claude Sonnet 5.5"
+    },
+    {
+      "id": "claude-opus-5-5",
+      "label": "Claude Opus 5.5"
+    },
+    {
+      "id": "gpt-6.2-astra",
+      "label": "gpt-6.2-astra"
+    }
+  ],
+  "modelInputs": [
+    {
+      "text": "",
+      "model": null
+    },
+    {
+      "text": "   ",
+      "model": null
+    },
+    {
+      "text": "claude-opus-5-5",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "text": "CLAUDE-OPUS-5-5",
+      "model": "claude-opus-5-5"
+    },
+    {
+      "text": "Claude Sonnet 5.5",
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "text": " claude-sonnet-5-5 ",
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "text": "my-own-model",
+      "model": "my-own-model"
+    },
+    {
+      "text": "gpt-6.2-astra",
+      "model": "gpt-6.2-astra"
+    }
+  ],
+  "placeholders": [
+    {
+      "defaultModel": null,
+      "text": "Default"
+    },
+    {
+      "defaultModel": "claude-sonnet-5-5",
+      "text": "Default (claude-sonnet-5-5)"
+    }
+  ],
+  "markdown": [
+    {
+      "text": "**Where the time is.** Your best lap.\n\n- **Brake release**: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\n## Next time\nPick one corner.",
+      "blocks": [
+        {
+          "type": "p",
+          "lines": [
+            "**Where the time is.** Your best lap."
+          ]
+        },
+        {
+          "type": "ul",
+          "items": [
+            "**Brake release**: earlier.",
+            "Throttle"
+          ]
+        },
+        {
+          "type": "ol",
+          "items": [
+            "One",
+            "Two continued"
+          ]
+        },
+        {
+          "type": "h",
+          "text": "Next time"
+        },
+        {
+          "type": "p",
+          "lines": [
+            "Pick one corner."
+          ]
+        }
+      ]
+    },
+    {
+      "text": "Plain line one\nline two\n\n\n\nafter gaps",
+      "blocks": [
+        {
+          "type": "p",
+          "lines": [
+            "Plain line one",
+            "line two"
+          ]
+        },
+        {
+          "type": "p",
+          "lines": [
+            "after gaps"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "* star item\n• bullet item\n- dash item\nnot a list",
+      "blocks": [
+        {
+          "type": "ul",
+          "items": [
+            "star item",
+            "bullet item",
+            "dash item"
+          ]
+        },
+        {
+          "type": "p",
+          "lines": [
+            "not a list"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "<b>not html</b> and [a link](https://x) and `code`",
+      "blocks": [
+        {
+          "type": "p",
+          "lines": [
+            "<b>not html</b> and [a link](https://x) and `code`"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "### **Bold heading**\n**unclosed bold\n1. **a** and **b**",
+      "blocks": [
+        {
+          "type": "h",
+          "text": "Bold heading"
+        },
+        {
+          "type": "p",
+          "lines": [
+            "**unclosed bold"
+          ]
+        },
+        {
+          "type": "ol",
+          "items": [
+            "**a** and **b**"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "\r\nwindows\r\nlines\r\n",
+      "blocks": [
+        {
+          "type": "p",
+          "lines": [
+            "windows",
+            "lines"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "",
+      "blocks": []
+    }
+  ],
+  "boldRuns": [
+    {
+      "text": "plain",
+      "runs": [
+        {
+          "text": "plain",
+          "bold": false
+        }
+      ]
+    },
+    {
+      "text": "**all bold**",
+      "runs": [
+        {
+          "text": "all bold",
+          "bold": true
+        }
+      ]
+    },
+    {
+      "text": "a **b** c **d**",
+      "runs": [
+        {
+          "text": "a ",
+          "bold": false
+        },
+        {
+          "text": "b",
+          "bold": true
+        },
+        {
+          "text": " c ",
+          "bold": false
+        },
+        {
+          "text": "d",
+          "bold": true
+        }
+      ]
+    },
+    {
+      "text": "**unclosed",
+      "runs": [
+        {
+          "text": "**unclosed",
+          "bold": false
+        }
+      ]
+    },
+    {
+      "text": "****",
+      "runs": [
+        {
+          "text": "****",
+          "bold": false
+        }
+      ]
+    },
+    {
+      "text": "x ** y ** z",
+      "runs": [
+        {
+          "text": "x ",
+          "bold": false
+        },
+        {
+          "text": " y ",
+          "bold": true
+        },
+        {
+          "text": " z",
+          "bold": false
+        }
+      ]
+    },
+    {
+      "text": "**a**b**c**",
+      "runs": [
+        {
+          "text": "a",
+          "bold": true
+        },
+        {
+          "text": "b",
+          "bold": false
+        },
+        {
+          "text": "c",
+          "bold": true
+        }
+      ]
+    }
+  ],
+  "plainText": [
+    {
+      "text": "**Where the time is.** Your best lap.\n\n- **Brake release**: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\n## Next time\nPick one corner.",
+      "plain": "Where the time is. Your best lap.\n\n- Brake release: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\nNext time\nPick one corner."
+    },
+    {
+      "text": "Plain line one\nline two\n\n\n\nafter gaps",
+      "plain": "Plain line one\nline two\n\nafter gaps"
+    },
+    {
+      "text": "* star item\n• bullet item\n- dash item\nnot a list",
+      "plain": "- star item\n- bullet item\n- dash item\nnot a list"
+    },
+    {
+      "text": "<b>not html</b> and [a link](https://x) and `code`",
+      "plain": "<b>not html</b> and [a link](https://x) and `code`"
+    },
+    {
+      "text": "### **Bold heading**\n**unclosed bold\n1. **a** and **b**",
+      "plain": "Bold heading\n**unclosed bold\n1. a and b"
+    },
+    {
+      "text": "\r\nwindows\r\nlines\r\n",
+      "plain": "windows\nlines"
+    },
+    {
+      "text": "",
+      "plain": ""
+    }
+  ],
+  "labels": [
+    {
+      "date": {
+        "year": 2026,
+        "month": 11,
+        "day": 26
+      },
+      "label": "AI Coach, 26 Nov"
+    },
+    {
+      "date": {
+        "year": 2026,
+        "month": 1,
+        "day": 1
+      },
+      "label": "AI Coach, 1 Jan"
+    },
+    {
+      "date": {
+        "year": 2026,
+        "month": 12,
+        "day": 31
+      },
+      "label": "AI Coach, 31 Dec"
+    }
+  ],
+  "notes": [
+    {
+      "existing": null,
+      "reply": "**Where the time is.** Your best lap.\n\n- **Brake release**: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\n## Next time\nPick one corner.",
+      "date": {
+        "year": 2026,
+        "month": 11,
+        "day": 26
+      },
+      "notes": "AI Coach, 26 Nov:\nWhere the time is. Your best lap.\n\n- Brake release: earlier.\n- Throttle\n\n1. One\n2) Two\n   continued\n\nNext time\nPick one corner."
+    },
+    {
+      "existing": "",
+      "reply": "Plain line one\nline two\n\n\n\nafter gaps",
+      "date": {
+        "year": 2026,
+        "month": 1,
+        "day": 1
+      },
+      "notes": "AI Coach, 1 Jan:\nPlain line one\nline two\n\nafter gaps"
+    },
+    {
+      "existing": "My own note.\n\n",
+      "reply": "* star item\n• bullet item\n- dash item\nnot a list",
+      "date": {
+        "year": 2026,
+        "month": 12,
+        "day": 31
+      },
+      "notes": "My own note.\n\nAI Coach, 31 Dec:\n- star item\n- bullet item\n- dash item\nnot a list"
+    },
+    {
+      "existing": "  Earlier words  ",
+      "reply": "**Short.**",
+      "date": {
+        "year": 2026,
+        "month": 11,
+        "day": 26
+      },
+      "notes": "Earlier words\n\nAI Coach, 26 Nov:\nShort."
+    }
+  ],
+  "sse": [
+    {
+      "chunks": [
+        "event: text\ndata: {\"delta\":\"a\"}\n\n"
+      ],
+      "events": [
+        {
+          "event": "text",
+          "data": {
+            "delta": "a"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: text\r\ndata: {\"delta\":\"crlf\"}\r\n\r\n"
+      ],
+      "events": [
+        {
+          "event": "text",
+          "data": {
+            "delta": "crlf"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: text\r",
+        "\ndata: {\"delta\":\"split cr\"}\r\n\r",
+        "\n"
+      ],
+      "events": [
+        {
+          "event": "text",
+          "data": {
+            "delta": "split cr"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        ": keepalive\n\n",
+        "event: tool\ndata: {\"name\":\"x\",\"label\":\"Reading…\"}\n\n"
+      ],
+      "events": [
+        {
+          "event": "tool",
+          "data": {
+            "name": "x",
+            "label": "Reading…"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: mystery\ndata: {\"a\":1}\n\nevent: text\ndata: not json\n\n"
+      ],
+      "events": [
+        {
+          "event": "mystery",
+          "data": {
+            "a": 1
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "data: {\"delta\":\"no event name\"}\n\n"
+      ],
+      "events": [
+        {
+          "event": "message",
+          "data": {
+            "delta": "no event name"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event:text\ndata:{\"delta\":\"no space\"}\n\n"
+      ],
+      "events": [
+        {
+          "event": "text",
+          "data": {
+            "delta": "no space"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: done\ndata: {\"stop\":\"end\",\"model\":\"m\"}"
+      ],
+      "events": [
+        {
+          "event": "done",
+          "data": {
+            "stop": "end",
+            "model": "m"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: text\ndata: {\"delta\":\"ab",
+        "c\"}\n",
+        "\n"
+      ],
+      "events": [
+        {
+          "event": "text",
+          "data": {
+            "delta": "abc"
+          }
+        }
+      ]
+    },
+    {
+      "chunks": [
+        "event: error\ndata: {\"error\":\"Anthropic is unavailable right now — try again shortly\",\"status\":502}\n\n"
+      ],
+      "events": [
+        {
+          "event": "error",
+          "data": {
+            "error": "Anthropic is unavailable right now — try again shortly",
+            "status": 502
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -321,6 +321,15 @@ dependencies {
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.junit4)
+    // AICoachDevServerTest (#320): the AI Coach's sheet on a device against
+    // `wrangler dev` and its fake provider — Compose's rule, as the Robolectric
+    // suite uses it (the test manifest is the debugImplementation above).
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    // Compose's rule pulls Espresso 3.5, whose input injection calls an
+    // `InputManager.getInstance` that current Android no longer has; 3.6.1 is
+    // the first that runs on the emulator images in use.
+    androidTestImplementation(libs.androidx.test.espresso.core)
 }
 
 /**

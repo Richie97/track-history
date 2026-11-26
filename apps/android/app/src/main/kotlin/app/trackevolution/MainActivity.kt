@@ -1,5 +1,7 @@
 package app.trackevolution
 
+import app.trackevolution.ai.LocalAICoachKeys
+
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -242,6 +244,7 @@ class MainActivity : ComponentActivity() {
                         LocalClipStatus provides services.clips,
                         LocalCommentPush provides services.push,
                         LocalYouTube provides youtube,
+                        LocalAICoachKeys provides services.aiKeys,
                     ) {
                         TrackTheme(choice) {
                             when (state) {
@@ -272,6 +275,9 @@ class MainActivity : ComponentActivity() {
                                         // the next account.
                                         services.clips.clear()
                                         youtube.clear()
+                                        // The AI Coach's provider keys (#320): the
+                                        // next driver must not run on this one's account.
+                                        services.aiKeys.clear()
                                         auth.signOut()
                                     },
                                     incomingImport = incomingImport,

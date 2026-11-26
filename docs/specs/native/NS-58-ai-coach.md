@@ -1,6 +1,6 @@
 # NS-58 — The AI Coach: request, stream and errors
 
-**Phase:** post-rewrite · **Platform:** Server + web (built, #318 / #319) · iOS + Android (ticket 6, #320 — not built) · **Depends on:** the AI tool layer (#315), NS-32 (subscriptions) · **Epic:** #314
+**Phase:** post-rewrite · **Platform:** Server + web (built, #318 / #319) · iOS + Android (built, #320) · **Depends on:** the AI tool layer (#315), NS-32 (subscriptions) · **Epic:** #314
 
 ## Goal
 
@@ -175,7 +175,7 @@ Where a client keeps a pasted key:
 | Client | Storage |
 |---|---|
 | Web | the tab's memory; IndexedDB in that browser only with *Remember on this device*; cleared on sign-out |
-| iOS / Android (ticket 6) | the Keychain / the Keystore-backed encrypted store; cleared on sign-out |
+| iOS / Android (ticket 6) | the Keychain (`AfterFirstUnlockThisDeviceOnly`, never synced) / the Keystore-backed encrypted prefs (excluded from backup and device transfer); cleared on sign-out |
 
 ## The system prompt
 
@@ -194,12 +194,17 @@ ids. A client sends no prompt of its own beyond the opening question.
   stream and every chunking, the context builder, the Markdown subset and its
   escaping, the notes label, the key store, and that `offline.js` never queues
   or caches `/api/ai/*`.
+- `contracts/logic/ai-coach.json` — the pure half of `public/js/ai-coach.js`
+  run by `npm run contracts:logic`: the entry points and their words,
+  `coachContext`, `coachErrorText`, the model field, the reply as
+  `coachMarkdownBlocks` / `coachBoldRuns` (the web draws those as HTML, the
+  phones as styled text), the notes a kept reply makes, and
+  `createSseParser` over CRLF, comments, unknown events, non-JSON data and
+  split chunks. The Kit and `:core` ports assert against it and parse the
+  recorded stream themselves, byte by byte, so a split inside a multi-byte
+  character is covered.
 
 ## Outstanding
 
-- iOS and Android (ticket 6, #320): the screens, the two `canUseAICoach`
-  ports (the fixture row is already in `contracts/logic/entitlement.json`) and
-  their SSE parsers against `contracts/streams/ai-coach.sse`. Both already
-  decode `ai-coach-verify` (`AICoachVerify`).
 - Connecting a provider account instead of pasting a key (ticket 7, #503).
 - The CPU measurement above.

@@ -28,3 +28,32 @@ public data class AICoachVerify(
     @SerialName("default_model") val defaultModel: String,
     val models: List<AICoachModel>,
 )
+
+/** One turn of an AI Coach conversation, as the request carries it: `user` or `assistant`. */
+@Serializable
+public data class AICoachMessage(
+    val role: String,
+    val content: String,
+)
+
+/**
+ * How an AI Coach request ended — `streamCoach`'s outcomes in
+ * `public/js/ai-coach.js`. Never thrown: every refusal is an answer the sheet
+ * draws in place (NS-58), never the sync banner.
+ */
+public sealed interface AICoachOutcome {
+    /** The reply is complete. [message] is said under it when it stopped short (`tool_limit`, `max_tokens`, `refusal`). */
+    public data class Done(val stop: String, val model: String?, val message: String?) : AICoachOutcome
+
+    /** 402: draw the Pro offer in place. */
+    public data object Paywall : AICoachOutcome
+
+    /** 401: the app session is gone. A provider's rejected key is a 424, never this. */
+    public data object Unauthorized : AICoachOutcome
+
+    /** The server's `{ error }` before the stream opened, or the stream's `error` event, or a cut-off stream (502). */
+    public data class Error(val status: Int, val error: String) : AICoachOutcome
+
+    /** The request never reached the server. */
+    public data object Offline : AICoachOutcome
+}

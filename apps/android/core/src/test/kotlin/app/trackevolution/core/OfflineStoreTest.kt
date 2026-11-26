@@ -115,6 +115,17 @@ class OfflineStoreTest {
      * a ticket to open in the browser, or the upload's 202 — so none of its
      * writes ever waits in the queue.
      */
+    /**
+     * The AI Coach (#320, NS-58) is a live conversation: a question that waited
+     * in the queue would be answered for nobody, and a reply cached under its
+     * path would be a stale one. Neither route is ever queued.
+     */
+    @Test
+    fun `never queues an AI Coach request`() {
+        assertFalse(OfflineStore.isQueueable("POST", "/ai/coach"))
+        assertFalse(OfflineStore.isQueueable("POST", "/ai/coach/verify"))
+    }
+
     @Test
     fun `never queues a YouTube write`() {
         assertFalse(OfflineStore.isQueueable("POST", "/clips/7/youtube"))

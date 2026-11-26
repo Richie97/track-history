@@ -25,10 +25,16 @@
     JSON manifest of their upload jobs (NS-45, ClipManifest). A clip is
     hundreds of MB, and a restored manifest pointing at a clip that wasn't
     restored with it is a dead job.
+
+    `ai_coach.xml` is the EncryptedSharedPreferences file behind AICoachKeys
+    (#320): the driver's own Anthropic / OpenAI API keys for the AI Coach.
+    A key the driver pays for must not follow a restore onto another device
+    silently — and, like auth.xml, its keystore key never travels with it.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="auth.xml" />
     <exclude domain="sharedpref" path="coaching.xml" />
     <exclude domain="sharedpref" path="push.xml" />
     <exclude domain="file" path="clips/" />
+    <exclude domain="sharedpref" path="ai_coach.xml" />
 </full-backup-content>

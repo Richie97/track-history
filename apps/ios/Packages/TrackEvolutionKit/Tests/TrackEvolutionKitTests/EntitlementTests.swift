@@ -32,6 +32,7 @@ struct EntitlementTests {
             #expect(Entitlement.canViewSpend(e) == c.expected.canViewSpend, Comment(rawValue: c.name))
             #expect(Entitlement.canCompareEvents(e) == c.expected.canCompareEvents, Comment(rawValue: c.name))
             #expect(Entitlement.canSaveLapVideo(e) == c.expected.canSaveLapVideo, Comment(rawValue: c.name))
+            #expect(Entitlement.canUseAICoach(e) == c.expected.canUseAICoach, Comment(rawValue: c.name))
             #expect(Entitlement.manageUrl(e)?.absoluteString == c.expected.manageUrl, Comment(rawValue: c.name))
             #expect(Entitlement.entitlementSummary(e, fmtDate: fmt) == c.expected.summary, Comment(rawValue: c.name))
         }
@@ -72,7 +73,7 @@ struct EntitlementTests {
         // Expired by the wall clock but still `pro` — the cached answer stands offline.
         let stale = pro(expiresAt: 1)
         let predicates: [(Entitlement?) -> Bool] = [
-            Entitlement.canRecord, Entitlement.canViewChannels, Entitlement.canUseGarage
+            Entitlement.canRecord, Entitlement.canViewChannels, Entitlement.canUseGarage, Entitlement.canUseAICoach
         ]
         for can in predicates {
             #expect(can(stale))
@@ -244,6 +245,7 @@ struct EntitlementFixture: Decodable {
         let canViewSpend: Bool
         let canCompareEvents: Bool
         let canSaveLapVideo: Bool
+        let canUseAICoach: Bool
         let manageUrl: String?
         let summary: String
     }

@@ -108,7 +108,22 @@ class CoachingNavTest {
         }
         assertTrue(compose.onAllNodesWithTag("eventImportVideo").fetchSemanticsNodes().isEmpty())
         assertTrue(compose.onAllNodesWithContentDescription("✕").fetchSemanticsNodes().isEmpty())
+        // The AI Coach is for your own logbook only (#320): no door on a student's page.
+        assertTrue(compose.onAllNodesWithTag("aiCoach-event").fetchSemanticsNodes().isEmpty())
+        assertTrue(compose.onAllNodesWithText("Debrief this session").fetchSemanticsNodes().isEmpty())
         assertTrue(sent.none { it.method.value != "GET" })
+    }
+
+    /** The counterpart of the rule above: on the account's own page the doors are there (#320). */
+    @Test
+    fun `your own event page offers the AI Coach's doors`() {
+        show(viewer = PRO, studentPro = true, start = Route.Event(5))
+        await("lap-21")
+        compose.onNode(androidx.compose.ui.test.hasScrollAction())
+            .performScrollToNode(hasTestTag("aiCoach-session-11"))
+        assertTrue(compose.onAllNodesWithTag("aiCoach-session-11").fetchSemanticsNodes().isNotEmpty())
+        compose.onNode(androidx.compose.ui.test.hasScrollAction())
+            .performScrollToNode(hasTestTag("aiCoach-event"))
     }
 
     @Test

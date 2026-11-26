@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   COACH_ENTRIES,
   appendCoachNote,
+  coachBoldRuns,
   coachContext,
   coachErrorText,
+  coachMarkdownBlocks,
   coachMarkdownHtml,
   coachNotesLabel,
   coachPlainText,
@@ -300,6 +302,28 @@ describe("coachMarkdownHtml", () => {
     expect(coachMarkdownHtml("")).toBe("");
     expect(coachMarkdownHtml(null)).toBe("");
     expect(coachMarkdownHtml("## Next **session**")).toBe("<p><strong>Next session</strong></p>");
+  });
+});
+
+// The phones port these two and draw the blocks as styled text (#320).
+describe("coachMarkdownBlocks and coachBoldRuns", () => {
+  it("splits a reply into paragraphs, lists and headings", () => {
+    expect(coachMarkdownBlocks("A\nB\n\n- one\n  more\n1. two\n# Head **x**")).toEqual([
+      { type: "p", lines: ["A", "B"] },
+      { type: "ul", items: ["one more"] },
+      { type: "ol", items: ["two"] },
+      { type: "h", text: "Head x" },
+    ]);
+  });
+
+  it("splits a line at its bold marks and leaves an unclosed one alone", () => {
+    expect(coachBoldRuns("a **b** c")).toEqual([
+      { text: "a ", bold: false },
+      { text: "b", bold: true },
+      { text: " c", bold: false },
+    ]);
+    expect(coachBoldRuns("**open")).toEqual([{ text: "**open", bold: false }]);
+    expect(coachBoldRuns("")).toEqual([]);
   });
 });
 

@@ -133,11 +133,14 @@ extension XCTestCase {
         app.launch()
 
         // The dashboard's own button, rather than anything about the account: this is
-        // the assertion that the token actually loaded the logbook.
-        XCTAssertTrue(
-            app.buttons["addMenu"].waitForExistence(timeout: 30),
-            "the seeded token should land on the dashboard"
-        )
+        // the assertion that the token actually loaded the logbook. On an iPad
+        // whose sidebar is too narrow for its toolbar (the 13-inch M5 simulator,
+        // iOS 26) the + menu folds into the bar's *More* overflow, so the
+        // dashboard's track grid stands in for it there.
+        let addMenu = app.buttons["addMenu"]
+        let landed = addMenu.waitForExistence(timeout: 30)
+            || app.buttons["trackCard"].firstMatch.exists
+        XCTAssertTrue(landed, "the seeded token should land on the dashboard")
         return app
     }
 
