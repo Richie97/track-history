@@ -80,7 +80,10 @@ const read = (p, enc = "utf8") => readFileSync(new URL(p, ROOT), enc);
 // path → contents, for every generated file.
 export function outputs() {
   return {
-    "src/landing.generated.ts": landingModule(landingHtml(read("site/index.html"))),
+    // Line endings normalised: on a Windows checkout (core.autocrlf) the page
+    // reads as CRLF, and baked into the string that is a different file from
+    // the one CI derives from the same commit.
+    "src/landing.generated.ts": landingModule(landingHtml(read("site/index.html").replace(/\r\n/g, "\n"))),
     "public/site/site.css": read("site/site.css"),
     "public/site/analytics.js": landingAnalytics(read("site/analytics.js")),
     "public/site/promo-poster.jpg": read("site/promo-poster.jpg", null),
