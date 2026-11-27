@@ -1,5 +1,6 @@
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { jpegHeader } from "../jpeg-fixture";
 import { createEvent, signedInProUser, signedInUser } from "./helpers";
 
 async function publicShare(slug: string) {
@@ -259,5 +260,61 @@ describe("a shared Season Wrapped (NS-36)", () => {
     await api("PUT", "/share", { slug: "wrapped-og-empty" });
     const html = await (await SELF.fetch("https://example.com/share/wrapped-og-empty/wrapped/1999")).text();
     expect(html).toContain("<title>Track Evolution — track-day logbook &amp; lap timer</title>");
+  });
+
+  // #155: the owner's browser uploads the poster; the page names it.
+  const putImage = (token: string, y: number, body: Uint8Array) =>
+    SELF.fetch(`https://example.com/api/wrapped/${y}/image`, {
+      method: "PUT",
+      headers: { "Content-Type": "image/jpeg", Cookie: `session=${token}` },
+      body,
+    });
+  const ogImage = (html: string) => html.match(/<meta property="og:image" content="([^"]*)"/)?.[1];
+
+  it("previews with the brand card until the owner's poster is uploaded, then with the poster", async () => {
+    const { api, token } = await signedInUser();
+    await createEvent(api, { start_date: past });
+    await api("PUT", "/share", { slug: "wrapped-img" });
+    const page = `https://example.com/share/wrapped-img/wrapped/${year}`;
+
+    expect(ogImage(await (await SELF.fetch(page)).text())).toBe("https://trackevolution.app/og-image.png");
+    expect((await SELF.fetch(`${page}/og.jpg`)).status).toBe(404);
+
+    const jpg = jpegHeader(1200, 630, 4096);
+    jpg.fill(0xab, 32);
+    expect((await putImage(token, year, jpg)).status).toBe(200);
+
+    const url = ogImage(await (await SELF.fetch(page)).text())!;
+    expect(url).toMatch(new RegExp(`^${page}/og\\.jpg\\?v=\\d+$`));
+    const res = await SELF.fetch(url);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("image/jpeg");
+    expect(res.headers.get("cache-control")).toBe("public, max-age=300");
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(jpg);
+    // The logbook's own page keeps the brand card.
+    expect(ogImage(await (await SELF.fetch("https://example.com/share/wrapped-img")).text())).toBe(
+      "https://trackevolution.app/og-image.png"
+    );
+  });
+
+  it("takes the image down with the share link, and with the season", async () => {
+    const { api, token } = await signedInUser();
+    const ev = await createEvent(api, { start_date: past });
+    await api("PUT", "/share", { slug: "wrapped-img-gone" });
+    await putImage(token, year, jpegHeader(1200, 630));
+    const image = `https://example.com/share/wrapped-img-gone/wrapped/${year}/og.jpg`;
+    expect((await SELF.fetch(image)).status).toBe(200);
+    expect((await SELF.fetch(image.replace(String(year), "1999"))).status).toBe(404);
+    expect((await SELF.fetch(image.replace(String(year), "x"))).status).toBe(404);
+
+    await api("DELETE", "/share");
+    expect((await SELF.fetch(image)).status).toBe(404);
+
+    await api("PUT", "/share", { slug: "wrapped-img-gone" });
+    expect((await SELF.fetch(image)).status).toBe(200);
+    await api("DELETE", `/events/${ev}`);
+    expect((await SELF.fetch(image)).status).toBe(404);
+    const html = await (await SELF.fetch(image.replace("/og.jpg", ""))).text();
+    expect(ogImage(html)).toBe("https://trackevolution.app/og-image.png");
   });
 });

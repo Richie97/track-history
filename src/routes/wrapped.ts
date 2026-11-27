@@ -6,6 +6,7 @@ import { type EventRow, withComputed } from "../lib/stats";
 import {
   seasonWrapped, wrappedPro, type TirePart, type TopSpeedRow, type VehicleEvent, type WrappedInputs,
 } from "../lib/wrapped";
+import { WRAPPED_IMAGE_MAX_BYTES, wrappedImageError } from "../lib/wrappedImage";
 
 // Season Wrapped (NS-36): the season's numbers, computed once on the server so
 // the web story, the public share (ticket 3) and a future native screen all
@@ -131,4 +132,32 @@ wrapped.get("/wrapped/:year", async (c) => {
   const season = seasonWrapped(inputs, year, today);
   if (!season) return c.json({ error: `no events in ${year}` }, 404);
   return c.json({ ...season, pro: pro ? wrappedPro(pro, year, today) : null });
+});
+
+// The season's link-preview image (#155): the 1200×630 poster, drawn by the
+// owner's browser because the Worker cannot rasterise text, kept so the public
+// share page can name it as its og:image (routes/share.ts serves it). Free,
+// like the share itself, and no entitlement check — it is a write. The "is
+// there a season to picture" check is folded into the insert, so a year with
+// no past event stores nothing and is the same 404 the GET gives.
+wrapped.put("/wrapped/:year/image", async (c) => {
+  const raw = c.req.param("year");
+  if (!/^\d{4}$/.test(raw)) return c.json({ error: "year must be four digits" }, 400);
+  if (Number(c.req.header("Content-Length") ?? 0) > WRAPPED_IMAGE_MAX_BYTES)
+    return c.json({ error: "image is too large" }, 413);
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  const problem = wrappedImageError(bytes);
+  if (problem) return c.json({ error: problem }, bytes.length > WRAPPED_IMAGE_MAX_BYTES ? 413 : 400);
+  const year = Number(raw);
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await c.env.DB.prepare(
+    `INSERT INTO wrapped_images (user_id, year, image, updated_at)
+     SELECT ?1, ?2, ?3, ?4
+     WHERE EXISTS (SELECT 1 FROM events WHERE user_id = ?1 AND start_date BETWEEN ?5 AND ?6 AND start_date <= ?7)
+     ON CONFLICT (user_id, year) DO UPDATE SET image = excluded.image, updated_at = excluded.updated_at`
+  )
+    .bind(c.get("userId"), year, bytes, Date.now(), `${year}-01-01`, `${year}-12-31`, today)
+    .run();
+  if (!res.meta.changes) return c.json({ error: `no events in ${year}` }, 404);
+  return c.json({ ok: true });
 });

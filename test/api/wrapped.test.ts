@@ -1,5 +1,6 @@
-import { env } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
+import { jpegHeader } from "../jpeg-fixture";
 import { apiClient, createEvent, signedInProUser, signedInUser } from "./helpers";
 
 const METRES_PER_MILE = 1609.344;
@@ -151,5 +152,78 @@ describe("migration 0026 — track_catalog.length_m", () => {
       "SELECT name FROM track_catalog WHERE length_m IS NULL ORDER BY name"
     ).all<{ name: string }>();
     expect(results.map((r) => r.name)).toEqual(["MotorSport Ranch (Cresson)", "Pocono Raceway", "Utah Motorsports Campus"]);
+  });
+});
+
+// The link-preview image (#155): the owner's browser draws the poster and
+// sends it; the share page (share.test.ts) names it as its og:image.
+describe("PUT /api/wrapped/:year/image", () => {
+  const put = (token: string | null, year: number | string, body: Uint8Array) =>
+    SELF.fetch(`https://example.com/api/wrapped/${year}/image`, {
+      method: "PUT",
+      headers: { "Content-Type": "image/jpeg", ...(token ? { Cookie: `session=${token}` } : {}) },
+      body,
+    });
+  const stored = (userId: number) =>
+    env.DB.prepare("SELECT year, length(image) AS bytes FROM wrapped_images WHERE user_id = ? ORDER BY year")
+      .bind(userId)
+      .all<{ year: number; bytes: number }>()
+      .then((r) => r.results);
+
+  it("requires a session", async () => {
+    expect((await put(null, thisYear, jpegHeader(1200, 630))).status).toBe(401);
+  });
+
+  it("keeps one image per year, replacing the last", async () => {
+    const { id, token, api } = await signedInUser();
+    await createEvent(api, { start_date: pastDate });
+    const first = await put(token, thisYear, jpegHeader(1200, 630, 500));
+    expect(first.status).toBe(200);
+    expect(await first.json()).toEqual({ ok: true });
+    expect((await put(token, thisYear, jpegHeader(1200, 630, 900))).status).toBe(200);
+    expect(await stored(id)).toEqual([{ year: thisYear, bytes: 900 }]);
+  });
+
+  it("is open to a free account — it is a write, and the share is free", async () => {
+    const { token, api } = await signedInUser();
+    await createEvent(api, { start_date: pastDate });
+    expect((await api("GET", "/garage")).status).toBe(402);
+    expect((await put(token, thisYear, jpegHeader(1200, 630))).status).toBe(200);
+  });
+
+  it("stores nothing for a year with no past events", async () => {
+    const { id, token, api } = await signedInUser();
+    await createEvent(api, { start_date: `${thisYear + 1}-05-01` });
+    for (const y of [1999, thisYear + 1]) {
+      const res = await put(token, y, jpegHeader(1200, 630));
+      expect(res.status, String(y)).toBe(404);
+      expect(await res.json()).toEqual({ error: `no events in ${y}` });
+    }
+    expect(await stored(id)).toEqual([]);
+  });
+
+  it("takes only a 1200×630 JPEG of a sane size", async () => {
+    const { id, token, api } = await signedInUser();
+    await createEvent(api, { start_date: pastDate });
+    const cases: [Uint8Array, number, string][] = [
+      [new TextEncoder().encode("<svg onload=alert(1)>".padEnd(64)), 400, "image must be a JPEG"],
+      [jpegHeader(1080, 1920), 400, "image must be 1200×630"],
+      [jpegHeader(1200, 630, 400_001), 413, "image is too large"],
+    ];
+    for (const [body, status, error] of cases) {
+      const res = await put(token, thisYear, body);
+      expect(res.status, error).toBe(status);
+      expect(await res.json()).toEqual({ error });
+    }
+    expect((await put(token, "26", jpegHeader(1200, 630))).status).toBe(400);
+    expect(await stored(id)).toEqual([]);
+  });
+
+  it("goes with the account", async () => {
+    const { id, token, api } = await signedInUser();
+    await createEvent(api, { start_date: pastDate });
+    await put(token, thisYear, jpegHeader(1200, 630));
+    await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
+    expect(await stored(id)).toEqual([]);
   });
 });

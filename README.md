@@ -2081,7 +2081,17 @@ Wrapped, which is free.
   `pro` key** (so no tire, no top speed, nothing from the garage or channels —
   pinned by `test/api/share.test.ts` against a Pro owner), and a `sharePage`
   route that swaps in the season's own OG title and description
-  (`wrappedSummary`, in the owner's units). The OG *image* stays the brand card.
+  (`wrappedSummary`, in the owner's units). The OG *image* is the owner's own
+  poster (#155): the Worker still cannot rasterise text, so when an owner with
+  a share slug opens a season the browser draws the 1200×630 poster — the
+  public one: free cards only, third person, always dark — and PUTs it as a
+  JPEG to `/api/wrapped/:year/image`, which keeps one per account and year in
+  `wrapped_images` (migration 0043). The share page then names
+  `/share/<slug>/wrapped/<year>/og.jpg?v=<uploaded-at>` as its `og:image`; until
+  an owner has opened that season on the web the link previews with the brand
+  card, and the image is as fresh as their last visit. It is re-sent only when
+  what it says has changed, and is served only through a live share slug for a
+  year that still has an event.
 
 ## Sharing & leaderboards
 

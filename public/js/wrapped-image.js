@@ -52,20 +52,37 @@ export function posterStats(data, units) {
   ];
 }
 
-function tokens() {
+// The dark theme's tokens (public/style.css :root) — the fallback when a token
+// is unset, and the whole palette for an image that must not depend on who
+// drew it.
+const DARK = {
+  bg: "#0a0a0b",
+  card: "#131316",
+  strong: "#f6f6f7",
+  body: "#d6d6d9",
+  muted: "#97979e",
+  accent: "#c8f24e",
+  accentInk: "#c8f24e",
+  accentContrast: "#0c1400",
+  accentTint: "rgba(200, 242, 78, 0.14)",
+  hairline: "rgba(255, 255, 255, 0.09)",
+};
+
+function tokens(theme) {
+  if (theme === "dark") return DARK;
   const css = getComputedStyle(document.documentElement);
   const v = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
   return {
-    bg: v("--bg-page", "#0a0a0b"),
-    card: v("--surface-card", "#131316"),
-    strong: v("--text-strong", "#f6f6f7"),
-    body: v("--text-body", "#d6d6d9"),
-    muted: v("--text-muted", "#97979e"),
-    accent: v("--accent", "#c8f24e"),
-    accentInk: v("--accent-ink", "#c8f24e"),
-    accentContrast: v("--accent-contrast", "#0c1400"),
-    accentTint: v("--accent-tint", "rgba(200, 242, 78, 0.14)"),
-    hairline: v("--border-hairline", "rgba(255, 255, 255, 0.09)"),
+    bg: v("--bg-page", DARK.bg),
+    card: v("--surface-card", DARK.card),
+    strong: v("--text-strong", DARK.strong),
+    body: v("--text-body", DARK.body),
+    muted: v("--text-muted", DARK.muted),
+    accent: v("--accent", DARK.accent),
+    accentInk: v("--accent-ink", DARK.accentInk),
+    accentContrast: v("--accent-contrast", DARK.accentContrast),
+    accentTint: v("--accent-tint", DARK.accentTint),
+    hairline: v("--border-hairline", DARK.hairline),
   };
 }
 
@@ -188,19 +205,40 @@ function drawWide(ctx, data, units, share, c) {
   text(ctx, APP_HOST, pad, h - pad + 8, { size: 24, weight: 500, color: c.muted });
 }
 
-// The poster as a PNG blob. `size` is "story" or "wide".
-export async function posterBlob(data, { units, share = false, size = "story" } = {}) {
+// The poster as an image blob — a PNG unless `type` says otherwise. `size` is
+// "story" or "wide"; `theme: "dark"` draws in the brand's dark palette whatever
+// theme the page is in.
+export async function posterBlob(data, { units, share = false, size = "story", theme = null, type = "image/png" } = {}) {
   await loadFonts();
   const { w, h } = POSTER_SIZES[size];
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  const c = tokens();
+  const c = tokens(theme);
   (size === "wide" ? drawWide : drawStory)(ctx, data, units, share, c);
   return new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("couldn't draw the poster"))), "image/png")
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("couldn't draw the poster"))), type, 0.9)
   );
+}
+
+// ---------- the link preview (#155) -------------------------------------------
+// The share page's og:image is this poster, uploaded by the owner's browser
+// because the Worker cannot rasterise text. It is the *public* poster: the
+// free card set only (no Pro tire row — the public share never carries one),
+// in the third person, and always dark, so the card under a link doesn't
+// depend on the theme of whoever opened Wrapped last. A JPEG: the gradient
+// makes the PNG ~550 KB against ~70 KB, and scrapers take either.
+export const PREVIEW_TYPE = "image/jpeg";
+
+// What the preview image would say, as one string: the upload is skipped while
+// this is what was last sent.
+export function previewSignature(data, units) {
+  return JSON.stringify(posterLines({ ...data, pro: null }, units, { share: true }));
+}
+
+export function previewBlob(data, units) {
+  return posterBlob({ ...data, pro: null }, { units, share: true, size: "wide", theme: "dark", type: PREVIEW_TYPE });
 }
 
 // Offer a blob as a download — the fallback wherever the Web Share API can't
