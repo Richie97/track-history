@@ -33,7 +33,7 @@ import {
 import { yearsAvailable, yearReview } from "./js/year-review.js";
 import { posterLines, wrappedSeason } from "./js/wrapped.js";
 import { bindWrappedStory, wrappedStoryHtml } from "./js/wrapped-story.js";
-import { downloadBlob, posterBlob, posterFileName, sharePosterBlob } from "./js/wrapped-image.js";
+import { PREVIEW_TYPE, downloadBlob, posterBlob, posterFileName, previewBlob, previewSignature, sharePosterBlob } from "./js/wrapped-image.js";
 import { COST_FIELDS, centsToDollars, dollarsToCents, fmtPerSecond, fmtSpend, spendSummary } from "./js/costs.js";
 import { api as apiFetch, ApiError, OFFLINE_UNCACHED, OfflineError } from "./js/api.js";
 import { clearFailed, clearOffline, onSyncChange, pendingCount, removeCachedPrefix, resolveId, syncStatus, tempIdState } from "./js/offline.js";
@@ -6486,6 +6486,29 @@ async function viewWrapped(yearParam) {
   const story = view.querySelector("#wrapped-story");
   bindWrappedStory(story);
   wireWrappedPoster(story, data, { share: false, publicUrl });
+  // Never for a coach reading a student's season: the slug is the coach's own.
+  if (publicUrl && !viewing) setTimeout(() => sendWrappedPreview(data), 800);
+}
+
+// The share link's preview image (#155): the wide poster, drawn here and kept
+// by the server as the page's og:image. Sent when the owner opens a season
+// that has a public page, and again only once what it says has changed — the
+// last-sent words are remembered per year on this device. Best effort: a
+// failure leaves the previous image (or the brand card) and says nothing.
+async function sendWrappedPreview(data) {
+  const key = `th-wrapped-preview-${data.year}`;
+  const signature = `${state.me.share_slug}|${previewSignature(data, currentUnits())}`;
+  try {
+    if (localStorage.getItem(key) === signature) return;
+    const res = await fetch(`/api/wrapped/${data.year}/image`, {
+      method: "PUT",
+      headers: { "Content-Type": PREVIEW_TYPE },
+      body: await previewBlob(data, currentUnits()),
+    });
+    if (res.ok) localStorage.setItem(key, signature);
+  } catch {
+    /* offline, private mode, or a canvas that wouldn't draw — try next visit */
+  }
 }
 
 // The poster's buttons. The story image is drawn as soon as the page is up,

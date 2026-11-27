@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { POSTER_SIZES, posterFileName, posterStats, wrapWords } from "../../public/js/wrapped-image.js";
+import { POSTER_SIZES, posterFileName, posterStats, previewSignature, wrapWords } from "../../public/js/wrapped-image.js";
 
 // One unit per character — enough to pin the wrap without a canvas.
 const measure = (s) => s.length;
@@ -38,5 +38,31 @@ describe("the poster image", () => {
       ["4,281", "track miles"],
     ]);
     expect(posterStats({ totals: { ...totals, miles_tracks_counted: 0 } }, "imperial")).toHaveLength(3);
+  });
+});
+
+describe("previewSignature", () => {
+  const season = {
+    year: 2026,
+    name: "Eric",
+    totals: { track_days: 3, tracks: 1, laps: 40, miles: 100, miles_tracks_counted: 1 },
+    most_driven: { track_name: "Road Atlanta" },
+    improvement: null,
+    fastest: null,
+    pro: { tire: { name: "Secret Tire Compound" } },
+  };
+
+  it("is the public poster's words: third person, and never the Pro tire", () => {
+    const sig = previewSignature(season, "imperial");
+    expect(sig).toContain("Eric's 2026 Track Evolution");
+    expect(sig).toContain("Road Atlanta");
+    expect(sig).not.toContain("Secret Tire Compound");
+    expect(sig).toBe(previewSignature({ ...season, pro: null }, "imperial"));
+  });
+
+  it("changes when what the image says changes", () => {
+    const sig = previewSignature(season, "imperial");
+    expect(previewSignature({ ...season, totals: { ...season.totals, laps: 41 } }, "imperial")).not.toBe(sig);
+    expect(previewSignature(season, "metric")).not.toBe(sig);
   });
 });

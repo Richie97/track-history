@@ -128,7 +128,9 @@ sharePage.get("/:slug", async (c) => {
 // A shared Season Wrapped (NS-36): the same shell with the season's own title
 // and description, so the link previews as "Eric's 2026 on Track Evolution" —
 // "14 track days · 6 tracks · …". Built only from the free card set the public
-// API below serves. The OG *image* stays the brand card (#155).
+// API below serves. The OG *image* is the owner's own poster once their browser
+// has uploaded one (PUT /api/wrapped/:year/image), and the brand card until
+// then; ?v= is the upload time, since scrapers cache an image by its URL.
 sharePage.get("/:slug/wrapped/:year", async (c) => {
   const shellRes = await c.env.ASSETS.fetch(new URL("/index.html", c.req.url));
   let html = await shellRes.text();
@@ -136,9 +138,13 @@ sharePage.get("/:slug/wrapped/:year", async (c) => {
   const slug = c.req.param("slug").toLowerCase();
   const raw = c.req.param("year");
   const owner = /^\d{4}$/.test(raw)
-    ? await c.env.DB.prepare("SELECT id, name, units FROM users WHERE share_slug = ?")
-        .bind(slug)
-        .first<{ id: number; name: string | null; units: string | null }>()
+    ? await c.env.DB.prepare(
+        `SELECT id, name, units,
+                (SELECT updated_at FROM wrapped_images WHERE user_id = users.id AND year = ?2) AS image_at
+         FROM users WHERE share_slug = ?1`
+      )
+        .bind(slug, Number(raw))
+        .first<{ id: number; name: string | null; units: string | null; image_at: number | null }>()
     : null;
   const today = new Date().toISOString().slice(0, 10);
   const season = owner
@@ -154,8 +160,29 @@ sharePage.get("/:slug/wrapped/:year", async (c) => {
     html = setMeta(html, "property", "og:title", title);
     html = setMeta(html, "property", "og:description", description);
     html = setMeta(html, "property", "og:image:alt", title);
+    if (owner.image_at != null) html = setMeta(html, "property", "og:image", `${url}/og.jpg?v=${owner.image_at}`);
   }
   return c.html(html, 200, { "Cache-Control": "public, max-age=300" });
+});
+
+// The picture that page names (#155). Reached only through a live share slug
+// and only while the year still has a past event, so removing the link — or
+// the season — takes the image down with the page. Anything else is a bare 404.
+sharePage.get("/:slug/wrapped/:year/og.jpg", async (c) => {
+  const raw = c.req.param("year");
+  if (!/^\d{4}$/.test(raw)) return c.notFound();
+  const today = new Date().toISOString().slice(0, 10);
+  const row = await c.env.DB.prepare(
+    `SELECT i.image FROM users u JOIN wrapped_images i ON i.user_id = u.id AND i.year = ?2
+     WHERE u.share_slug = ?1
+       AND EXISTS (SELECT 1 FROM events WHERE user_id = u.id AND start_date BETWEEN ?3 AND ?4 AND start_date <= ?5)`
+  )
+    .bind(c.req.param("slug").toLowerCase(), Number(raw), `${raw}-01-01`, `${raw}-12-31`, today)
+    .first<{ image: ArrayBuffer | number[] }>();
+  if (!row) return c.notFound();
+  // D1 hands a BLOB back as an array of byte values.
+  const image = row.image instanceof ArrayBuffer ? new Uint8Array(row.image) : Uint8Array.from(row.image);
+  return c.body(image, 200, { "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=300" });
 });
 
 // Deeper paths under /share/ aren't real routes; hand back the stock shell so
