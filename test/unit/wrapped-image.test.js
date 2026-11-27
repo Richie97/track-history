@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { POSTER_SIZES, posterFileName, posterStats, previewSignature, wrapWords } from "../../public/js/wrapped-image.js";
+import { POSTER_SIZES, posterFileName, posterStats, previewLines, previewSignature, wrapWords } from "../../public/js/wrapped-image.js";
 
 // One unit per character — enough to pin the wrap without a canvas.
 const measure = (s) => s.length;
@@ -64,5 +64,25 @@ describe("previewSignature", () => {
     const sig = previewSignature(season, "imperial");
     expect(previewSignature({ ...season, totals: { ...season.totals, laps: 41 } }, "imperial")).not.toBe(sig);
     expect(previewSignature(season, "metric")).not.toBe(sig);
+  });
+
+  it("has the distance driven where the poster has the fastest lap", () => {
+    const full = { ...season, fastest: { track_name: "Road Atlanta", best_ms: 98_200 } };
+    const p = previewLines(full, "imperial");
+    expect(p.headline).toEqual(["3 track days", "1 track", "40 laps"]);
+    expect(p.rows).toEqual([
+      ["Most driven", "Road Atlanta"],
+      ["Miles driven", "100 track miles"],
+    ]);
+    expect(previewLines(full, "metric").rows.at(-1)).toEqual(["Kilometres driven", "161 track km"]);
+  });
+
+  it("has neither row when no track could be measured", () => {
+    const p = previewLines(
+      { ...season, fastest: { track_name: "Road Atlanta", best_ms: 98_200 }, totals: { ...season.totals, miles: 0, miles_tracks_counted: 0 } },
+      "imperial"
+    );
+    expect(p.headline).toEqual(["3 track days", "1 track", "40 laps"]);
+    expect(p.rows).toEqual([["Most driven", "Road Atlanta"]]);
   });
 });

@@ -178,10 +178,9 @@ function drawStory(ctx, data, units, share, c) {
   text(ctx, APP_HOST, pad, h - pad, { size: 36, weight: 500, color: c.muted });
 }
 
-function drawWide(ctx, data, units, share, c) {
+function drawWide(ctx, data, units, share, c, p = posterLines(data, units, { share })) {
   const { w, h } = POSTER_SIZES.wide;
   const pad = 64;
-  const p = posterLines(data, units, { share });
   background(ctx, w, h, c);
   ctx.textBaseline = "alphabetic";
 
@@ -208,7 +207,7 @@ function drawWide(ctx, data, units, share, c) {
 // The poster as an image blob — a PNG unless `type` says otherwise. `size` is
 // "story" or "wide"; `theme: "dark"` draws in the brand's dark palette whatever
 // theme the page is in.
-export async function posterBlob(data, { units, share = false, size = "story", theme = null, type = "image/png" } = {}) {
+export async function posterBlob(data, { units, share = false, size = "story", theme = null, type = "image/png", lines: words } = {}) {
   await loadFonts();
   const { w, h } = POSTER_SIZES[size];
   const canvas = document.createElement("canvas");
@@ -216,7 +215,7 @@ export async function posterBlob(data, { units, share = false, size = "story", t
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   const c = tokens(theme);
-  (size === "wide" ? drawWide : drawStory)(ctx, data, units, share, c);
+  (size === "wide" ? drawWide : drawStory)(ctx, data, units, share, c, words);
   return new Promise((resolve, reject) =>
     canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("couldn't draw the poster"))), type, 0.9)
   );
@@ -234,11 +233,36 @@ export const PREVIEW_TYPE = "image/jpeg";
 // What the preview image would say, as one string: the upload is skipped while
 // this is what was last sent.
 export function previewSignature(data, units) {
-  return JSON.stringify(posterLines({ ...data, pro: null }, units, { share: true }));
+  return JSON.stringify(previewLines(data, units));
+}
+
+// The preview's words: the public poster's, with the distance driven as the
+// third row where the poster has the fastest lap — on a card a stranger reads,
+// the season's fastest lap mostly says which track was shortest. The distance
+// moves out of the headline rather than appearing twice, and a season with no
+// measurable track has neither.
+export function previewLines(data, units) {
+  const p = posterLines({ ...data, pro: null }, units, { share: true });
+  const t = data.totals;
+  const rows = p.rows.filter(([k]) => k !== "Fastest lap");
+  if (!t.miles_tracks_counted) return { ...p, rows };
+  const dist = trackDistance(t.miles, units);
+  return {
+    ...p,
+    headline: p.headline.slice(0, 3),
+    rows: [...rows, [dist.unit === "track km" ? "Kilometres driven" : "Miles driven", `${dist.value} ${dist.unit}`]],
+  };
 }
 
 export function previewBlob(data, units) {
-  return posterBlob({ ...data, pro: null }, { units, share: true, size: "wide", theme: "dark", type: PREVIEW_TYPE });
+  return posterBlob({ ...data, pro: null }, {
+    units,
+    share: true,
+    size: "wide",
+    theme: "dark",
+    type: PREVIEW_TYPE,
+    lines: previewLines(data, units),
+  });
 }
 
 // Offer a blob as a download — the fallback wherever the Web Share API can't

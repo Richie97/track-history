@@ -2084,7 +2084,8 @@ Wrapped, which is free.
   (`wrappedSummary`, in the owner's units). The OG *image* is the owner's own
   poster (#155): the Worker still cannot rasterise text, so when an owner with
   a share slug opens a season the browser draws the 1200×630 poster — the
-  public one: free cards only, third person, always dark — and PUTs it as a
+  public one: free cards only, third person, always dark, with the distance
+  driven as its third row in place of the fastest lap (`previewLines`) — and PUTs it as a
   JPEG to `/api/wrapped/:year/image`, which keeps one per account and year in
   `wrapped_images` (migration 0043). The share page then names
   `/share/<slug>/wrapped/<year>/og.jpg?v=<uploaded-at>` as its `og:image`; until
