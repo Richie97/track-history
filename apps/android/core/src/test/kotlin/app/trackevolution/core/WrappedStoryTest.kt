@@ -73,6 +73,23 @@ class WrappedStoryTest {
         }
     }
 
+    /** #155: the link preview is the public poster, whatever the account's tier. */
+    @Test
+    fun `the preview is the public poster and its signature follows its words`() {
+        for (s in seasons()) {
+            val name = s["name"]!!.jsonPrimitive.content
+            val d = data(s)
+            val pub = WrappedStory.previewData(d)
+            assertEquals(null, pub.pro, name)
+            val signature = WrappedStory.previewSignature(d, UnitSystem.IMPERIAL)
+            assertEquals(WrappedStory.previewSignature(pub, UnitSystem.IMPERIAL), signature, "$name ignores pro")
+            val shared = WrappedStory.posterLines(pub, UnitSystem.IMPERIAL, share = true)
+            assertEquals(true, signature.startsWith(shared.title), "$name title")
+            val more = d.copy(totals = d.totals.copy(laps = d.totals.laps + 1))
+            assertEquals(false, WrappedStory.previewSignature(more, UnitSystem.IMPERIAL) == signature, "$name changes with the laps")
+        }
+    }
+
     @Test
     fun `formatting matches the web implementation`() {
         val f = fixture["format"]!!.jsonObject

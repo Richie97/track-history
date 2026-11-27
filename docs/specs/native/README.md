@@ -473,8 +473,12 @@ Features added after the rewrite shipped, and where they landed:
   server-side choice promised — an endpoint client (`wrapped(year)`), a screen,
   and the one pure layer ported as `WrappedStory` (the reveal window, the card
   list with its locked/skipped rules, the poster's words), pinned by
-  `contracts/logic/wrapped.json`. The public share page and its link preview
-  stay web: a shared season is a URL, and the web is where a URL lands.
+  `contracts/logic/wrapped.json`. The public share page stays web: a shared
+  season is a URL, and the web is where a URL lands. Its link-preview *image*
+  is the exception (#155): the server cannot draw one, so each client that
+  already draws the wide poster — all three — sends it on opening a season
+  (`PUT /api/wrapped/:year/image`), and a driver who only ever uses a phone
+  still gets a picture under their link.
 - **Lap detail** (2026-09, [#267](https://github.com/Richie97/track-history/issues/267)
   iOS, [#268](https://github.com/Richie97/track-history/issues/268) Android) —
   **native only, by design.** On the phones every lap row on the event page

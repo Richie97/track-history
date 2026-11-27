@@ -98,9 +98,19 @@ fun WrappedScreen(
     shareUrlFor: (Int) -> String?,
     onClose: () -> Unit,
     onSubscribe: () -> Unit,
+    /**
+     * Sends a loaded season's link-preview image (#155); supplied only for an
+     * account with a share slug.
+     */
+    sendPreview: (suspend (Wrapped, UnitSystem) -> Unit)? = null,
 ) {
     val colors = TrackTheme.colors
+    val units = LocalUnitSystem.current
     LaunchedEffect(Unit) { if (model.phase == WrappedModel.Phase.Loading) model.load() }
+    val season = (model.phase as? WrappedModel.Phase.Ready)?.data
+    LaunchedEffect(season?.year, units, sendPreview != null) {
+        if (season != null) sendPreview?.invoke(season, units)
+    }
 
     Box(
         modifier = Modifier

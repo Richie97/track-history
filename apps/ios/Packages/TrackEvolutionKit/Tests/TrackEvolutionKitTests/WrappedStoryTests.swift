@@ -89,6 +89,26 @@ struct WrappedStoryTests {
         }
     }
 
+    /// #155: the link preview is the public poster, whatever the account's tier.
+    @Test func thePreviewIsThePublicPosterAndItsSignatureFollowsItsWords() throws {
+        for s in try fixture().seasons {
+            let pub = WrappedStory.previewData(s.data)
+            #expect(pub.pro == nil, "\(s.name)")
+            #expect(
+                WrappedStory.previewSignature(s.data, .imperial) == WrappedStory.previewSignature(pub, .imperial),
+                "\(s.name) ignores pro"
+            )
+            let shared = WrappedStory.posterLines(pub, .imperial, share: true)
+            #expect(WrappedStory.previewSignature(s.data, .imperial).hasPrefix(shared.title), "\(s.name) title")
+            var more = s.data
+            more.totals.laps += 1
+            #expect(
+                WrappedStory.previewSignature(more, .imperial) != WrappedStory.previewSignature(s.data, .imperial),
+                "\(s.name) changes with the laps"
+            )
+        }
+    }
+
     @Test func formattingMatchesTheWebImplementation() throws {
         let f = try fixture().format
         for c in f.fmtDays { #expect(WrappedStory.fmtDays(c.d) == c.expected, "\(c.d)") }

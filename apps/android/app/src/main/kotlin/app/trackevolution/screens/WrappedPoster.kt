@@ -17,6 +17,8 @@ import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import app.trackevolution.R
 import app.trackevolution.core.WrappedStory
+import app.trackevolution.core.api.ApiClient
+import app.trackevolution.core.api.ApiException
 import app.trackevolution.core.model.UnitSystem
 import app.trackevolution.core.model.Wrapped
 import app.trackevolution.ui.theme.DarkTrackColors
@@ -24,6 +26,7 @@ import app.trackevolution.ui.theme.LightTrackColors
 import app.trackevolution.ui.theme.TrackColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 
 /**
@@ -67,7 +70,21 @@ object WrappedPoster {
         context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     }
 
-    fun draw(context: Context, data: Wrapped, units: UnitSystem, dark: Boolean, wide: Boolean): Bitmap {
+    /**
+     * The share link's preview image (#155): the wide poster as the *public*
+     * one — the free card set only, in the third person, always dark, so the
+     * card under a link doesn't depend on who drew it — and a JPEG, which is
+     * what the server takes.
+     */
+    fun previewJpeg(context: Context, data: Wrapped, units: UnitSystem): ByteArray {
+        val bitmap = draw(context, WrappedStory.previewData(data), units, dark = true, wide = true, share = true)
+        return ByteArrayOutputStream().also {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it)
+            bitmap.recycle()
+        }.toByteArray()
+    }
+
+    fun draw(context: Context, data: Wrapped, units: UnitSystem, dark: Boolean, wide: Boolean, share: Boolean = false): Bitmap {
         val c = if (dark) DarkTrackColors else LightTrackColors
         val w = if (wide) WIDE_W else STORY_W
         val h = if (wide) WIDE_H else STORY_H
@@ -75,7 +92,7 @@ object WrappedPoster {
         val canvas = Canvas(bitmap)
         val fonts = Fonts(context)
         background(canvas, w, h, c)
-        if (wide) drawWide(canvas, data, units, c, fonts) else drawStory(canvas, data, units, c, fonts)
+        if (wide) drawWide(canvas, data, units, share, c, fonts) else drawStory(canvas, data, units, share, c, fonts)
         return bitmap
     }
 
@@ -159,11 +176,11 @@ object WrappedPoster {
         }
     }
 
-    private fun drawStory(canvas: Canvas, data: Wrapped, units: UnitSystem, c: TrackColors, f: Fonts) {
+    private fun drawStory(canvas: Canvas, data: Wrapped, units: UnitSystem, share: Boolean, c: TrackColors, f: Fonts) {
         val w = STORY_W.toFloat()
         val h = STORY_H.toFloat()
         val pad = 96f
-        val p = WrappedStory.posterLines(data, units)
+        val p = WrappedStory.posterLines(data, units, share)
         mark(canvas, pad, pad, 76f, c)
         canvas.drawText("Track Evolution", pad + 100f, pad + 52f, paint(f, 40f, 600, c.textStrong.toArgb()))
         canvas.drawText("SEASON WRAPPED", pad, 290f, paint(f, 32f, 600, c.accentInk.toArgb(), 0.12f))
@@ -192,11 +209,11 @@ object WrappedPoster {
         canvas.drawText("trackevolution.app", pad, h - pad, paint(f, 36f, 500, c.textMuted.toArgb()))
     }
 
-    private fun drawWide(canvas: Canvas, data: Wrapped, units: UnitSystem, c: TrackColors, f: Fonts) {
+    private fun drawWide(canvas: Canvas, data: Wrapped, units: UnitSystem, share: Boolean, c: TrackColors, f: Fonts) {
         val w = WIDE_W.toFloat()
         val h = WIDE_H.toFloat()
         val pad = 64f
-        val p = WrappedStory.posterLines(data, units)
+        val p = WrappedStory.posterLines(data, units, share)
         mark(canvas, pad, pad, 52f, c)
         canvas.drawText("Track Evolution", pad + 70f, pad + 36f, paint(f, 28f, 600, c.textStrong.toArgb()))
         val leftW = 560f
@@ -211,5 +228,31 @@ object WrappedPoster {
             ry = lines(canvas, value, rx, ry + 38f, rw, paint(f, 30f, 600, c.textStrong.toArgb()), 36f, 2) + 24f
         }
         canvas.drawText("trackevolution.app", pad, h - pad + 8f, paint(f, 24f, 500, c.textMuted.toArgb()))
+    }
+}
+
+/**
+ * Sends the share link's preview image (#155) — `sendWrappedPreview` in
+ * `public/app.js`. The server cannot draw text, so the client the owner opens a
+ * season on draws the poster and sends it, and `/share/<slug>/wrapped/<year>`
+ * names it as its `og:image`. Sent again only once what it says has changed;
+ * the last-sent words are kept per year in SharedPreferences. Best effort and
+ * silent: a failure leaves the previous image, or the brand card.
+ */
+object WrappedPreviewUpload {
+    private const val PREFS = "wrapped_preview"
+
+    suspend fun send(context: Context, api: ApiClient, slug: String, data: Wrapped, units: UnitSystem) {
+        val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val key = data.year.toString()
+        val signature = "$slug|${WrappedStory.previewSignature(data, units)}"
+        if (prefs.getString(key, null) == signature) return
+        try {
+            val jpeg = withContext(Dispatchers.Default) { WrappedPoster.previewJpeg(context, data, units) }
+            api.putWrappedImage(data.year, jpeg)
+            prefs.edit().putString(key, signature).apply()
+        } catch (e: ApiException) {
+            // Offline, or the server said no: the next visit tries again.
+        }
     }
 }

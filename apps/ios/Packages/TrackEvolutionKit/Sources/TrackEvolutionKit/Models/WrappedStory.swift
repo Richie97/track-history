@@ -165,4 +165,23 @@ public enum WrappedStory {
         let who = share ? "\(data.name.flatMap { $0.isEmpty ? nil : $0 } ?? "A driver")'s" : "My"
         return Poster(title: "\(who) \(data.year) Track Evolution", headline: headline, rows: rows)
     }
+
+    // MARK: - The link preview (#155)
+
+    /// The season as its public share page shows it: the free card set only, so
+    /// the preview image can never carry the Pro tire row.
+    public static func previewData(_ data: Wrapped) -> Wrapped {
+        var pub = data
+        pub.pro = nil
+        return pub
+    }
+
+    /// What the preview image would say, as one string — `previewSignature` in
+    /// `public/js/wrapped-image.js`. The upload is skipped while this is what
+    /// this device last sent. Compared only with itself, so it need not be the
+    /// web's JSON byte for byte.
+    public static func previewSignature(_ data: Wrapped, _ units: UnitSystem) -> String {
+        let p = posterLines(previewData(data), units, share: true)
+        return ([p.title] + p.headline + p.rows.flatMap { $0 }).joined(separator: "\u{1F}")
+    }
 }

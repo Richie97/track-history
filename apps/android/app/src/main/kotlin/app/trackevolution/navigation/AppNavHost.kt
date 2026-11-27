@@ -64,6 +64,7 @@ import app.trackevolution.screens.EventFormModel
 import app.trackevolution.screens.GarageDetailPlaceholder
 import app.trackevolution.screens.EventFormScreen
 import app.trackevolution.screens.WrappedModel
+import app.trackevolution.screens.WrappedPreviewUpload
 import app.trackevolution.screens.WrappedScreen
 import app.trackevolution.screens.EventModel
 import app.trackevolution.screens.EventScreen
@@ -718,6 +719,9 @@ fun AppNavHost(
                     },
                     onClose = { nav.popBackStack() },
                     onSubscribe = onRequirePro,
+                    sendPreview = shareSlug?.takeIf { it.isNotBlank() }?.let { slug ->
+                        { data, units -> WrappedPreviewUpload.send(context, api, slug, data, units) }
+                    },
                 )
             }
 

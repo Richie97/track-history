@@ -147,4 +147,23 @@ public object WrappedStory {
         val who = if (share) "${data.name?.takeIf { it.isNotEmpty() } ?: "A driver"}'s" else "My"
         return Poster("$who ${data.year} Track Evolution", headline, rows)
     }
+
+    // ---- the link preview (#155) --------------------------------------------
+
+    /**
+     * The season as its public share page shows it: the free card set only, so
+     * the preview image can never carry the Pro tire row.
+     */
+    public fun previewData(data: Wrapped): Wrapped = data.copy(pro = null)
+
+    /**
+     * What the preview image would say, as one string — `previewSignature` in
+     * `public/js/wrapped-image.js`. The upload is skipped while this is what
+     * this device last sent. Compared only with itself, so it need not be the
+     * web's JSON byte for byte.
+     */
+    public fun previewSignature(data: Wrapped, units: UnitSystem): String {
+        val p = posterLines(previewData(data), units, share = true)
+        return (listOf(p.title) + p.headline + p.rows.flatMap { listOf(it.first, it.second) }).joinToString("\u001F")
+    }
 }

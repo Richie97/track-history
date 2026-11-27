@@ -132,6 +132,24 @@ class ApiClientTest {
         assertEquals("no events in 1999", empty.message)
     }
 
+    /** #155: the bytes go as they are, labelled as what they are. */
+    @Test
+    fun `puts the Wrapped preview image as a JPEG`() = runTest {
+        val api = client { request ->
+            if (request.url.encodedPath.contains("/1999/")) respondJson("""{"error":"no events in 1999"}""", HttpStatusCode.NotFound)
+            else respondJson("""{"ok":true}""")
+        }
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2)
+        api.putWrappedImage(2026, jpeg)
+        val sent = recorded.single()
+        assertEquals("PUT", sent.method.value)
+        assertEquals("https://example.test/api/wrapped/2026/image", sent.url.toString())
+        assertEquals("image/jpeg", sent.body.contentType.toString())
+        assertTrue(jpeg.contentEquals((sent.body as io.ktor.http.content.ByteArrayContent).bytes()))
+        assertEquals("Bearer tok", sent.headers[HttpHeaders.Authorization])
+        assertEquals(404, assertThrows<ApiException> { api.putWrappedImage(1999, jpeg) }.status)
+    }
+
     // ---- Error mapping ----------------------------------------------------
 
     @Test

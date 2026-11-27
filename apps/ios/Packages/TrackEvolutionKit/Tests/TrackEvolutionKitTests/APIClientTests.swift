@@ -67,6 +67,30 @@ struct APIClientTests {
         }
     }
 
+    /// #155: the bytes go as they are, labelled as what they are.
+    @Test func theWrappedPreviewImageIsPutAsAJPEG() async throws {
+        let seen = Recorder()
+        let api = client { request in
+            seen.record(request)
+            if request.url?.path.contains("/1999/") == true {
+                return (404, Data(#"{"error":"no events in 1999"}"#.utf8))
+            }
+            return (200, Data(#"{"ok":true}"#.utf8))
+        }
+        let jpeg = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x01, 0x02])
+        try await api.putWrappedImage(year: 2026, jpeg: jpeg)
+        #expect(seen.last?.httpMethod == "PUT")
+        #expect(seen.last?.url?.absoluteString == "https://example.test/api/wrapped/2026/image")
+        #expect(seen.last?.value(forHTTPHeaderField: "Content-Type") == "image/jpeg")
+        #expect(seen.lastBody == jpeg)
+        do {
+            try await api.putWrappedImage(year: 1999, jpeg: jpeg)
+            Issue.record("a year with no track days must throw")
+        } catch let error as APIError {
+            #expect(error.status == 404)
+        }
+    }
+
     @Test func thePublicSharePageIsFetchedWithoutAToken() async throws {
         let seen = Recorder()
         let api = client { request in

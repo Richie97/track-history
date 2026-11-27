@@ -79,6 +79,7 @@ import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
+import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.content.OutgoingContent
 import io.ktor.http.content.TextContent
 import io.ktor.http.contentType
@@ -991,6 +992,20 @@ public class ApiClient private constructor(
      */
     public suspend fun wrapped(year: Int): Wrapped =
         get("/wrapped/$year", Wrapped.serializer())
+
+    /**
+     * The season's link-preview image (#155): the 1200×630 poster as a JPEG,
+     * kept by the server as the `og:image` of `/share/<slug>/wrapped/<year>`.
+     * The server has no rasteriser, so whichever client the owner opens the
+     * season on draws it. Sent straight to the network — never queued, since a
+     * picture that missed is redrawn on the next visit — and never for a
+     * student's logbook, whose share link is not the coach's to illustrate.
+     */
+    public suspend fun putWrappedImage(year: Int, jpeg: ByteArray) {
+        ownOnly()
+        val (status, text) = rawSendContent("PUT", "/wrapped/$year/image", ByteArrayContent(jpeg, ContentType.Image.JPEG))
+        if (status !in 200..299) throw ApiException.from(status, text)
+    }
 
     /**
      * One shared leaderboard lap, opened from a row whose `lapId` is non-null

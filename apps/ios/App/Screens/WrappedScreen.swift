@@ -17,6 +17,7 @@ struct WrappedScreen: View {
     let year: Int
 
     @Environment(AuthController.self) private var auth
+    @Environment(\.unitSystem) private var units
     @State private var model: WrappedModel?
 
     /// A season that is over has had its chance; only this year and later can
@@ -61,6 +62,12 @@ struct WrappedScreen: View {
                     )
                     // A new year is a new story, from its cover.
                     .id(data.year)
+                    // …and, for an account with a share link, a new picture
+                    // under that link (#155).
+                    .task(id: data.year) {
+                        guard let slug = auth.me?.user.shareSlug, !slug.isEmpty else { return }
+                        await WrappedPreviewUpload.send(data, units: units, slug: slug, api: auth.api)
+                    }
                 }
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -655,6 +662,42 @@ struct WrappedShareButtons: View {
     }
 }
 
+/// The share link's preview image (#155) — `sendWrappedPreview` in
+/// `public/app.js`. The server cannot draw text, so the client the owner opens
+/// a season on draws the wide poster and sends it, and
+/// `/share/<slug>/wrapped/<year>` names it as its `og:image`.
+///
+/// It is the *public* poster: the free card set only, in the third person, and
+/// always dark, so the card under a link doesn't depend on who drew it — and a
+/// JPEG, which is what the server takes. Sent again only once what it says has
+/// changed; the last-sent words are kept per year in `UserDefaults`. Best
+/// effort and silent: a failure leaves the previous image, or the brand card.
+@MainActor
+enum WrappedPreviewUpload {
+    static func key(_ year: Int) -> String { "wrappedPreview-\(year)" }
+
+    static func send(
+        _ data: Wrapped, units: UnitSystem, slug: String, api: APIClient, defaults: UserDefaults = .standard
+    ) async {
+        let signature = "\(slug)|\(WrappedStory.previewSignature(data, units))"
+        guard defaults.string(forKey: key(data.year)) != signature else { return }
+        guard let jpeg = jpeg(data, units: units) else { return }
+        do {
+            try await api.putWrappedImage(year: data.year, jpeg: jpeg)
+            defaults.set(signature, forKey: key(data.year))
+        } catch {
+            // Offline, or the server said no: the next visit tries again.
+        }
+    }
+
+    static func jpeg(_ data: Wrapped, units: UnitSystem) -> Data? {
+        let poster = WrappedPosterImage(data: WrappedStory.previewData(data), units: units, wide: true, share: true)
+        let renderer = ImageRenderer(content: poster.environment(\.colorScheme, .dark))
+        renderer.scale = 1
+        return renderer.uiImage?.jpegData(compressionQuality: 0.9)
+    }
+}
+
 /// The poster as a picture: 1080×1920 for a story, 1200×630 for everywhere
 /// else — `public/js/wrapped-image.js`'s two sizes and layouts, in the viewer's
 /// appearance, drawn by `ImageRenderer` at scale 1 so a point is a pixel.
@@ -662,9 +705,11 @@ struct WrappedPosterImage: View {
     let data: Wrapped
     let units: UnitSystem
     let wide: Bool
+    /// The public poster — "<name>'s 2026" rather than "My 2026".
+    var share = false
 
     var body: some View {
-        let p = WrappedStory.posterLines(data, units)
+        let p = WrappedStory.posterLines(data, units, share: share)
         Group {
             if wide { wideLayout(p) } else { storyLayout(p) }
         }

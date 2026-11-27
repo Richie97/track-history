@@ -2088,8 +2088,10 @@ Wrapped, which is free.
   JPEG to `/api/wrapped/:year/image`, which keeps one per account and year in
   `wrapped_images` (migration 0043). The share page then names
   `/share/<slug>/wrapped/<year>/og.jpg?v=<uploaded-at>` as its `og:image`; until
-  an owner has opened that season on the web the link previews with the brand
-  card, and the image is as fresh as their last visit. It is re-sent only when
+  an owner has opened that season the link previews with the brand card, and
+  the image is as fresh as their last visit. The phones send it too
+  (`WrappedPreviewUpload` on each, over `putWrappedImage`), from the poster
+  each already draws. It is re-sent only when
   what it says has changed, and is served only through a live share slug for a
   year that still has an event.
 

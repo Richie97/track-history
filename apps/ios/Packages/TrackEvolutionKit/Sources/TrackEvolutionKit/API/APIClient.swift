@@ -289,6 +289,23 @@ public actor APIClient {
         try await get("/wrapped/\(year)", as: Wrapped.self)
     }
 
+    /// The season's link-preview image (#155): the 1200×630 poster as a JPEG,
+    /// kept by the server as the `og:image` of `/share/<slug>/wrapped/<year>`.
+    /// The server has no rasteriser, so whichever client the owner opens the
+    /// season on draws it. Sent straight to the network — never queued, since a
+    /// picture that missed is redrawn on the next visit — and never for a
+    /// student's logbook, whose share link is not the coach's to illustrate.
+    public func putWrappedImage(year: Int, jpeg: Data) async throws {
+        guard studentId == nil else { throw APIError.readOnly }
+        let response = try await rawSend(
+            "PUT", "/wrapped/\(year)/image", query: nil, body: jpeg, authenticated: true, prefix: "/api",
+            headers: ["Content-Type": "image/jpeg"]
+        )
+        guard (200..<300).contains(response.status) else {
+            throw APIError.from(status: response.status, body: response.data)
+        }
+    }
+
     /// One shared leaderboard lap, opened from a row whose `lapId` is non-nil
     /// (NS-35). `id` is the viewer's own track — a lap is only reachable from a
     /// track the viewer actually has — and the server re-checks every condition,
@@ -1128,7 +1145,10 @@ public actor APIClient {
         for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
         if let body {
             request.httpBody = body
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            // JSON unless the caller said what the bytes are (the Wrapped image).
+            if headers["Content-Type"] == nil {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            }
         }
         if authenticated, let token = await tokens.currentToken() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
