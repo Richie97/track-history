@@ -50,7 +50,7 @@ export function resolveCredential(c: Ctx): Credential | { error: string } {
   // not exist.
   if (id === "fake") return isDevHost(c.env, c.req.url) ? { kind: "key", provider: PROVIDERS.fake, key: "" } : { error: "unknown AI provider" };
   if (!id && !key) return { error: "no AI provider set up" };
-  if (id !== "anthropic" && id !== "openai") return { error: "unknown AI provider" };
+  if (id !== "anthropic" && id !== "openai" && id !== "gemini") return { error: "unknown AI provider" };
   if (!key) return { error: "no AI provider set up" };
   if (key.length > MAX_KEY_CHARS || /\s/.test(key)) return { error: "that doesn't look like an API key" };
   return { kind: "key", provider: PROVIDERS[id], key };

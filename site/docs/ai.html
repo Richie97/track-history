@@ -160,7 +160,7 @@
       There are two ways in. If you already use Claude or ChatGPT,
       <a href="#connect">connect it to your logbook</a> and ask there. Or use
       the <a href="#ai-coach">AI Coach</a> inside Track Evolution, on the web,
-      iPhone, iPad and Android, which runs on your own Anthropic or OpenAI
+      iPhone, iPad and Android, which runs on your own Anthropic, OpenAI or Google Gemini
       account.
     </p>
 
@@ -299,22 +299,26 @@
     <h3>Setting it up</h3>
     <p>
       The AI Coach runs on your own account with Anthropic (the maker of
-      Claude) or OpenAI (the maker of ChatGPT), through an API key. That is a
-      separate account from a Claude or ChatGPT subscription; if a
-      subscription is what you have, <a href="#connect">connecting your
-      assistant</a> is the easier way.
+      Claude), OpenAI (the maker of ChatGPT) or Google (the maker of Gemini),
+      through an API key. That is a separate account from a Claude, ChatGPT or
+      Gemini subscription; if a subscription to Claude or ChatGPT is what you
+      have, <a href="#connect">connecting your assistant</a> is the easier
+      way.
     </p>
     <ol>
       <li>Create an API key with
-        <a href="https://platform.claude.com/settings/keys">Anthropic</a> or
-        <a href="https://platform.openai.com/api-keys">OpenAI</a>. Both ask
-        you to add credit to the account first.</li>
+        <a href="https://platform.claude.com/settings/keys">Anthropic</a>,
+        <a href="https://platform.openai.com/api-keys">OpenAI</a> or
+        <a href="https://aistudio.google.com/app/apikey">Google Gemini</a>.
+        Anthropic and OpenAI ask you to add credit to the account first. A
+        Gemini key can be used free, within limits Google sets, so it is the
+        quickest one to try.</li>
       <li>In the Track Evolution web app, open the account menu →
         <strong>Settings</strong> → <strong>AI assistants</strong> →
         <strong>AI Coach</strong>. In the iPhone or Android app, open
         <strong>Settings</strong> → <strong>AI assistants</strong>.</li>
       <li>Paste the key beside its provider and choose
-        <strong>Verify</strong>. If you add a key for each, pick which one the
+        <strong>Verify</strong>. If you add more than one, pick which one the
         AI Coach uses.</li>
       <li>Optionally choose a <strong>Model</strong>: start typing and pick
         from the models your account with that provider offers. Leave it
@@ -329,12 +333,19 @@
       backups or carried to a new phone. Either way it is never stored on our
       servers, and a key added on one device isn't on your others.
     </p>
+    <p>
+      Signing in to Track Evolution with Google doesn't connect Gemini: the AI
+      Coach still needs a Gemini key of its own.
+    </p>
     <h3>What it costs</h3>
     <p>
       Track Evolution doesn't charge for the AI Coach beyond Pro. You pay
-      Anthropic or OpenAI directly for what each question uses, at their
-      prices, which depend on the model you pick. You can set a spending limit
-      in your account with them.
+      Anthropic, OpenAI or Google directly for what each question uses, at
+      their prices, which depend on the model you pick. You can set a spending
+      limit in your account with them. Gemini's free use has low limits, and
+      one question to the AI Coach makes several requests, so you may be told
+      to wait a minute; that limit is Google's, and adding billing to your
+      Google account lifts it.
     </p>
     <h3>What is sent</h3>
     <p>

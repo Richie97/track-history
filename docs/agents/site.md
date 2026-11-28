@@ -165,7 +165,7 @@ Documentation is hand-maintained in `README.md`, the docs site, `AGENTS.md` and 
    - `site/docs/ai.html` — connecting an AI assistant (Claude, ChatGPT, any
      MCP client) to the logbook with Pro: the connector address, what it can
      and can't read, disconnecting — and **the AI Coach** (`#ai-coach`): the
-     three places it opens, getting an API key from Anthropic or OpenAI,
+     three places it opens, getting an API key from Anthropic, OpenAI or Google Gemini,
      that the driver pays the provider directly, what is sent, and how it
      differs from sharing with a human coach. Update when the MCP tools, the
      consent page, Settings' connected-assistants list, the AI Coach's entry

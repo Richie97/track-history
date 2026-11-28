@@ -11,7 +11,7 @@
 const DB_NAME = "te-ai";
 const STORE = "kv";
 const STATE_KEY = "coach";
-const PROVIDER_IDS = ["anthropic", "openai"];
+const PROVIDER_IDS = ["anthropic", "openai", "gemini"];
 
 function idbBackend() {
   const open = () =>

@@ -1,4 +1,4 @@
-// Scripted Anthropic and OpenAI for the AI Coach tests (test/api/ai-coach.test.ts),
+// Scripted Anthropic, OpenAI and Gemini for the AI Coach tests (test/api/ai-coach.test.ts),
 // registered as fetchMock interceptors by vitest.workers.config.mts.
 //
 // Two things drive a mock, both chosen by the test:
@@ -12,6 +12,8 @@
 //       "loop"                     a tool call every round, until the request
 //                                  forbids tools
 //       "midfail"                  a 200 whose stream then reports an error
+//       "blocked" / "unsafe" /     Gemini only: a blocked prompt, a safety
+//       "cutoff"                   finish, and a stream with no finish reason
 //       anything else              a reply echoing the request's shape
 //
 // The failures echo the key in their error body, as OpenAI's real 401 does in
@@ -34,6 +36,16 @@ export const OPENAI_KEYS = {
   restricted: "sk-test-openai-restricted",
 };
 
+export const GEMINI_KEYS = {
+  ok: "AIza-test-gemini-ok",
+  // Google answers a bad key 400, not 401.
+  bad: "AIza-test-gemini-bad",
+  limited: "AIza-test-gemini-limited",
+  region: "AIza-test-gemini-region",
+  down: "AIza-test-gemini-down",
+};
+export const GEMINI_MODEL = "gemini-3.8-flash";
+
 // What the models APIs answer for the "ok" keys: more than the built-in few,
 // and — as the real lists do — models the AI Coach cannot drive.
 const caps = (adaptive: boolean, effort: boolean) => ({
@@ -55,6 +67,14 @@ export const OPENAI_MODEL_LIST = [
   { id: "gpt-realtime-2.1-mini", object: "model", created: 1_785_000_000 },
   { id: "gpt-6.2-sol", object: "model", created: 1_791_000_000 },
   { id: "gpt-image-2", object: "model", created: 1_770_000_000 },
+];
+
+export const GEMINI_MODEL_LIST = [
+  { name: "models/gemini-3.8-flash", displayName: "Gemini 3.8 Flash", supportedGenerationMethods: ["generateContent", "countTokens"] },
+  { name: "models/gemini-4-argon", displayName: "Gemini 4 Argon", supportedGenerationMethods: ["generateContent"] },
+  { name: "models/gemini-3.8-flash-tts", displayName: "Gemini 3.8 Flash TTS", supportedGenerationMethods: ["generateContent"] },
+  { name: "models/gemini-embedding-2", displayName: "Gemini Embedding 2", supportedGenerationMethods: ["embedContent"] },
+  { name: "models/gemma-4-31b-it", displayName: "Gemma 4", supportedGenerationMethods: ["generateContent"] },
 ];
 
 async function bodyText(raw: unknown): Promise<string> {
@@ -183,6 +203,60 @@ function openaiReply(req: any): string {
   return openaiDone([openaiMessage(text)], text);
 }
 
+// ---------- Gemini -----------------------------------------------------------
+//
+// Chunks carry no `event:` line, and a function call arrives whole in one
+// part — here with a thoughtSignature and no id, as the thinking models send
+// it, so the loop must echo the part unchanged and match results by name.
+
+const geminiFrames = (chunks: object[]) => chunks.map((c) => `data: ${JSON.stringify(c)}\r\n\r\n`).join("");
+const geminiChunk = (parts: object[], finishReason?: string) => ({
+  candidates: [{ content: { role: "model", parts }, index: 0, ...(finishReason ? { finishReason } : {}) }],
+});
+const geminiText = (text: string) => {
+  const [a, b = ""] = halves(text);
+  return geminiFrames([geminiChunk([{ text: a }]), geminiChunk([{ text: b }], "STOP")]);
+};
+const geminiCall = (name: string, args: unknown) =>
+  geminiFrames([geminiChunk([{ functionCall: { name, args }, thoughtSignature: "gsig-test" }], "STOP")]);
+
+function geminiReply(req: any): string {
+  const script = req.contents?.[0]?.parts?.[0]?.text ?? "";
+  const last = req.contents[req.contents.length - 1];
+  const results = (last.parts ?? []).filter((p: any) => p.functionResponse).map((p: any) => p.functionResponse);
+  if (script === "midfail")
+    return geminiFrames([geminiChunk([{ text: "par" }]), { error: { code: 503, message: "The model is overloaded.", status: "UNAVAILABLE" } }]);
+  if (script === "blocked") return geminiFrames([{ promptFeedback: { blockReason: "SAFETY" } }]);
+  if (script === "unsafe") return geminiFrames([geminiChunk([], "SAFETY")]);
+  if (script === "cutoff") return geminiFrames([geminiChunk([{ text: "par" }])]);
+  if (script === "loop")
+    return req.toolConfig?.functionCallingConfig?.mode === "NONE" ? geminiText("wrapped up") : geminiCall("get_profile", {});
+  const call = parseCall(script);
+  if (call && !results.length) return geminiCall(call.name, JSON.parse(call.args));
+  if (call) {
+    const model = req.contents[req.contents.length - 2];
+    return geminiText(
+      "RESULT " +
+        JSON.stringify({
+          results,
+          role: last.role,
+          signatureEchoed: (model?.parts ?? []).some((p: any) => p.functionCall && p.thoughtSignature === "gsig-test"),
+        })
+    );
+  }
+  return geminiText(
+    "ECHO " +
+      JSON.stringify({
+        tools: (req.tools?.[0]?.functionDeclarations ?? []).map((t: any) => t.name),
+        toolHasSchema: req.tools?.[0]?.functionDeclarations?.[0]?.parametersJsonSchema?.type === "object",
+        mode: req.toolConfig?.functionCallingConfig?.mode,
+        system: req.systemInstruction?.parts?.[0]?.text,
+        contents: req.contents.length,
+        roles: req.contents.map((c: any) => c.role),
+      })
+  );
+}
+
 // ---------- registration -----------------------------------------------------
 
 export function mockAiProviders(fetchMock: MockAgent) {
@@ -226,4 +300,40 @@ export function mockAiProviders(fetchMock: MockAgent) {
     .reply(403, { error: { message: "You have insufficient permissions for this operation.", type: "invalid_request_error" } })
     .persist();
   model(OPENAI_KEYS.ok).reply(200, { object: "list", data: OPENAI_MODEL_LIST }).persist();
+
+  // Gemini. Every interceptor matches a path with no key in it: a request that
+  // put the key in the query string would match none of them and fail.
+  const g = fetchMock.get("https://generativelanguage.googleapis.com");
+  const generate = (key: string, model = GEMINI_MODEL) =>
+    g.intercept({ method: "POST", path: `/v1beta/models/${model}:streamGenerateContent?alt=sse`, headers: { "x-goog-api-key": key } });
+  const geminiBad = {
+    error: {
+      code: 400,
+      message: `API key not valid. Please pass a valid API key. (${GEMINI_KEYS.bad})`,
+      status: "INVALID_ARGUMENT",
+      details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "API_KEY_INVALID", domain: "googleapis.com" }],
+    },
+  };
+  generate(GEMINI_KEYS.bad).reply(400, geminiBad).persist();
+  generate(GEMINI_KEYS.limited)
+    .reply(429, {
+      error: {
+        code: 429,
+        message: "You exceeded your current quota.",
+        status: "RESOURCE_EXHAUSTED",
+        details: [{ "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "34s" }],
+      },
+    })
+    .persist();
+  generate(GEMINI_KEYS.region)
+    .reply(400, { error: { code: 400, message: "Gemini API free tier is not available in your country.", status: "FAILED_PRECONDITION" } })
+    .persist();
+  generate(GEMINI_KEYS.down).reply(503, { error: { code: 503, message: "The model is overloaded.", status: "UNAVAILABLE" } }).persist();
+  for (const model of [GEMINI_MODEL, "gemini-4-argon"])
+    generate(GEMINI_KEYS.ok, model)
+      .reply(200, async (opts: { body?: unknown }) => geminiReply(JSON.parse(await bodyText(opts.body))), sse)
+      .persist();
+  const geminiModels = (key: string) => g.intercept({ method: "GET", path: "/v1beta/models?pageSize=1000", headers: { "x-goog-api-key": key } });
+  geminiModels(GEMINI_KEYS.bad).reply(400, geminiBad).persist();
+  geminiModels(GEMINI_KEYS.ok).reply(200, { models: GEMINI_MODEL_LIST }).persist();
 }

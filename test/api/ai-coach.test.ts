@@ -5,10 +5,10 @@ import { apiApp } from "../../src/api";
 import { MAX_TOOL_ROUNDS, STOP_MESSAGES } from "../../src/ai/coach";
 import { COACH_INSTRUCTIONS } from "../../src/ai/coach-prompt";
 import { INSTRUCTIONS } from "../../src/ai/mcp";
-import { FAKE_REPLY_CHUNKS, anthropic, openai, sseEvents } from "../../src/ai/providers";
+import { FAKE_REPLY_CHUNKS, anthropic, gemini, openai, sseEvents } from "../../src/ai/providers";
 import { TOOLS } from "../../src/ai/tools";
 import type { AppContext } from "../../src/types";
-import { ANTHROPIC_KEYS, OPENAI_KEYS } from "../ai-coach-mock";
+import { ANTHROPIC_KEYS, GEMINI_KEYS, OPENAI_KEYS } from "../ai-coach-mock";
 import { DEV_ORIGIN, createEvent, signedInProUser, signedInUser } from "./helpers";
 import { telemetrySession } from "./telemetry-fixture";
 
@@ -19,7 +19,7 @@ import { telemetrySession } from "./telemetry-fixture";
 
 type Sse = { event: string; data: any };
 
-const ALL_KEYS = [...Object.values(ANTHROPIC_KEYS), ...Object.values(OPENAI_KEYS)];
+const ALL_KEYS = [...Object.values(ANTHROPIC_KEYS), ...Object.values(OPENAI_KEYS), ...Object.values(GEMINI_KEYS)];
 // Every response body this file sees, checked for a key at the end of each test.
 const seen: string[] = [];
 
@@ -61,6 +61,7 @@ async function coach(
 const ask = (content: string) => ({ messages: [{ role: "user", content }] });
 const viaAnthropic = { provider: "anthropic", key: ANTHROPIC_KEYS.ok };
 const viaOpenAI = { provider: "openai", key: OPENAI_KEYS.ok };
+const viaGemini = { provider: "gemini", key: GEMINI_KEYS.ok };
 
 async function driverWithSession() {
   const user = await signedInProUser();
@@ -235,6 +236,106 @@ describe("the loop, on OpenAI's Responses API", () => {
   });
 });
 
+describe("the loop, on Google's Gemini API", () => {
+  it("sends function declarations, the system instruction and the key in a header", async () => {
+    const { token } = await signedInProUser();
+    // The mock matches a path with no key in it, so a 200 here is also the
+    // proof that the key never rides in the URL.
+    const res = await coach(token, { messages: [{ role: "user", content: "hello" }, { role: "assistant", content: "hi" }, { role: "user", content: "again" }] }, viaGemini);
+    expect(res.status).toBe(200);
+    const echo = JSON.parse(res.text.replace(/^ECHO /, ""));
+    expect(echo.tools).toEqual(TOOLS.map((t) => t.name));
+    expect(echo.toolHasSchema).toBe(true);
+    expect(echo.mode).toBe("AUTO");
+    expect(echo.system.startsWith(INSTRUCTIONS)).toBe(true);
+    // An assistant turn is Gemini's "model" role.
+    expect(echo.roles).toEqual(["user", "model", "user"]);
+    expect(res.done).toEqual({ stop: "end", model: gemini.defaultModel });
+  });
+
+  it("runs a function call and returns its result with the thought signature untouched", async () => {
+    const d = await driverWithSession();
+    const res = await coach(d.token, ask(`call get_session_insights {"session_id":${d.sessionId}}`), viaGemini);
+    expect(res.tools).toEqual(["get_session_insights"]);
+    const { results, role, signatureEchoed } = JSON.parse(res.text.replace(/^RESULT /, ""));
+    expect(signatureEchoed).toBe(true);
+    expect(role).toBe("user");
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe("get_session_insights");
+    // Gemini sent no call id, so none is invented on the way back.
+    expect(results[0].id).toBeUndefined();
+    expect(JSON.parse(results[0].response.output).event.track_name).toBe(`Coach Ring ${d.id}`);
+  });
+
+  it("returns a tool error under `error`, so the model can correct itself", async () => {
+    const other = await driverWithSession();
+    const { token } = await signedInProUser();
+    const res = await coach(token, ask(`call get_session_insights {"session_id":${other.sessionId}}`), viaGemini);
+    const { results } = JSON.parse(res.text.replace(/^RESULT /, ""));
+    expect(results[0].response.output).toBeUndefined();
+    expect(results[0].response.error).toContain("No session");
+  });
+
+  it("forbids tools on the round after the cap", async () => {
+    const { token } = await signedInProUser();
+    const res = await coach(token, ask("loop"), viaGemini);
+    expect(res.tools).toHaveLength(MAX_TOOL_ROUNDS);
+    expect(res.text).toBe("wrapped up");
+    expect(res.done.stop).toBe("tool_limit");
+  });
+
+  it("reads a blocked prompt and a safety finish as the model declining", async () => {
+    const { token } = await signedInProUser();
+    for (const script of ["blocked", "unsafe"]) {
+      const res = await coach(token, ask(script), viaGemini);
+      expect(`${script} → ${res.done?.stop}`).toBe(`${script} → refusal`);
+    }
+  });
+
+  it("reports a failure after the stream opened, and a stream cut off mid-answer, in-stream", async () => {
+    const { token } = await signedInProUser();
+    for (const script of ["midfail", "cutoff"]) {
+      const res = await coach(token, ask(script), viaGemini);
+      expect(res.status).toBe(200);
+      expect(res.events.at(-1)).toEqual({ event: "error", data: { error: "Gemini is unavailable right now — try again shortly", status: 502 } });
+    }
+  });
+
+  it("maps Google's errors: a bad key is 424 though Google says 400, a quota 429 that names Gemini", async () => {
+    const { token } = await signedInProUser();
+    for (const path of ["/ai/coach", "/ai/coach/verify"]) {
+      const bad = await coach(token, ask("hello"), { provider: "gemini", key: GEMINI_KEYS.bad, path });
+      expect(bad.status).toBe(424);
+      expect(bad.body).toEqual({ error: "provider rejected the key" });
+    }
+    const limited = await coach(token, ask("hello"), { provider: "gemini", key: GEMINI_KEYS.limited });
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("Retry-After")).toBe("34");
+    expect(limited.body.error).toContain("Gemini is rate limiting your Google account, not Track Evolution");
+    const region = await coach(token, ask("hello"), { provider: "gemini", key: GEMINI_KEYS.region });
+    expect(region.status).toBe(424);
+    expect(region.body.error).toContain("free tier isn't available");
+    const down = await coach(token, ask("hello"), { provider: "gemini", key: GEMINI_KEYS.down });
+    expect(down.status).toBe(502);
+  });
+
+  it("verifies a key against the account's chat models, and takes one of them", async () => {
+    const { token } = await signedInProUser();
+    const res = await coach(token, undefined, { ...viaGemini, path: "/ai/coach/verify" });
+    expect(res.status).toBe(200);
+    expect(res.body.provider).toBe("gemini");
+    expect(res.body.default_model).toBe(gemini.defaultModel);
+    // The built-in model the account lists, then the rest of its chat models:
+    // no speech, embedding or Gemma model.
+    expect(res.body.models).toEqual([{ id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" }, { id: "gemini-4-argon", label: "Gemini 4 Argon" }]);
+    expect((await coach(token, { ...ask("hello"), model: "gemini-4-argon" }, viaGemini)).status).toBe(200);
+    for (const model of ["gemini-3.8-flash-tts", "gemini-embedding-2", "claude-sonnet-5-5", "gemini-x/../y", "gemini-"]) {
+      const refused = await coach(token, { ...ask("hello"), model }, viaGemini);
+      expect(`${model} → ${refused.status}`).toBe(`${model} → 400`);
+    }
+  });
+});
+
 describe("provider errors", () => {
   it("maps a rejected key to 424, never 401, and keeps the key out of the answer", async () => {
     const { token } = await signedInProUser();
@@ -278,6 +379,8 @@ describe("provider errors", () => {
     const { token } = await signedInProUser();
     await coach(token, ask("hello"), { provider: "anthropic", key: ANTHROPIC_KEYS.bad });
     await coach(token, ask("hello"), { provider: "openai", key: OPENAI_KEYS.bad });
+    await coach(token, ask("hello"), { provider: "gemini", key: GEMINI_KEYS.bad });
+    await coach(token, ask("midfail"), viaGemini);
     await coach(token, ask("midfail"), viaAnthropic);
     await coach(token, ask("hello"), viaAnthropic);
     const all = logged.map((args) => args.map((a) => (a instanceof Error ? `${a.message} ${a.stack}` : JSON.stringify(a))).join(" ")).join("\n");

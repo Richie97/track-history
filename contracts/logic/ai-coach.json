@@ -3,9 +3,10 @@
     "public/js/ai-coach.js"
   ],
   "name": "AI Coach",
-  "proWhat": "A debrief of a session, an explanation of the gap between two laps, or a plan for your next visit — written from your own telemetry and history, on your own Anthropic or OpenAI account.",
+  "proWhat": "A debrief of a session, an explanation of the gap between two laps, or a plan for your next visit — written from your own telemetry and history, on your own Anthropic, OpenAI or Google Gemini account.",
   "offline": "needs a connection",
   "disclaimer": "For the paddock, not the car — and not a substitute for an instructor.",
+  "geminiNote": "Signing in to Track Evolution with Google does not connect Gemini — it needs its own key. A Gemini key can be used free, within low limits Google sets.",
   "providers": [
     {
       "id": "anthropic",
@@ -18,6 +19,12 @@
       "name": "OpenAI",
       "keyUrl": "https://platform.openai.com/api-keys",
       "placeholder": "sk-…"
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini",
+      "keyUrl": "https://aistudio.google.com/app/apikey",
+      "placeholder": "AIza…"
     }
   ],
   "providerNames": [
@@ -28,6 +35,10 @@
     {
       "id": "openai",
       "name": "OpenAI"
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini"
     },
     {
       "id": "fake",
@@ -216,6 +227,12 @@
       "error": "provider rejected the key",
       "provider": "openai",
       "text": "OpenAI rejected the key. Check it in Settings → AI assistants."
+    },
+    {
+      "status": 424,
+      "error": "provider rejected the key",
+      "provider": "gemini",
+      "text": "Google Gemini rejected the key. Check it in Settings → AI assistants."
     },
     {
       "status": 400,

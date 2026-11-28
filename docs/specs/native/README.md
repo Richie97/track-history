@@ -555,7 +555,7 @@ Features added after the rewrite shipped, and where they landed:
   [#314](https://github.com/Richie97/track-history/issues/314),
   [NS-58](NS-58-ai-coach.md)) — **all three clients** (server and web #318,
   #319; iOS and Android ticket 6, #320): an in-app debrief on
-  the driver's own Anthropic or OpenAI account, Pro, opened from a session,
+  the driver's own Anthropic, OpenAI or Google Gemini account, Pro, opened from a session,
   the two-lap compare and an event. It is on the list for all three clients
   because a debrief is read in the paddock, between sessions; it is on no car
   surface and never runs during a recording. The phones are thin: all the

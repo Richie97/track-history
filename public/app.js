@@ -91,7 +91,7 @@ import {
   canViewYearInReview, entitlementSummary, isPro, manageUrl,
 } from "./js/entitlement.js";
 import {
-  COACH_DISCLAIMER, COACH_ENTRIES, COACH_NAME, COACH_OFFLINE, COACH_PRO_WHAT, COACH_PROVIDERS, appendCoachNote, coachContext,
+  COACH_DISCLAIMER, COACH_ENTRIES, COACH_GEMINI_NOTE, COACH_NAME, COACH_OFFLINE, COACH_PRO_WHAT, COACH_PROVIDERS, appendCoachNote, coachContext,
   coachErrorText, coachMarkdownHtml, coachSaveLabel, modelOptionsHtml, modelPlaceholder, providerName, resolveModelInput,
   streamCoach, verifyCoachKey,
 } from "./js/ai-coach.js";
@@ -524,7 +524,7 @@ async function drawAiCoachSettings(panel) {
     }).join("") +
     `<div class="hint" style="margin:12px 0 0">A key is held in this tab only and sent with each ${COACH_NAME} request — it is
       <strong>never stored on our servers</strong>. With <em>Remember on this device</em> it is stored in this browser
-      until you forget it or sign out. You pay Anthropic or OpenAI directly for what the ${COACH_NAME} uses.</div>`;
+      until you forget it or sign out. You pay Anthropic, OpenAI or Google directly for what the ${COACH_NAME} uses. ${esc(COACH_GEMINI_NOTE)}</div>`;
 
   panel.querySelectorAll("[data-ai-provider]").forEach((row) => {
     const id = row.dataset.aiProvider;
@@ -5126,7 +5126,7 @@ async function viewSettings(params = new URLSearchParams()) {
     ${youtubeSettingsHtml()}
     <h2>AI assistants</h2>
     <h3 class="settings-sub" id="ai-coach">${COACH_NAME}</h3>
-    <div class="hint" style="margin:0 0 4px">A debrief of a session, two laps or a track day, on your own Anthropic or OpenAI account. <a href="${DOCS_URL}/docs/ai.html#ai-coach" target="_blank" rel="noopener">How it works ↗</a></div>
+    <div class="hint" style="margin:0 0 4px">A debrief of a session, two laps or a track day, on your own Anthropic, OpenAI or Google Gemini account. <a href="${DOCS_URL}/docs/ai.html#ai-coach" target="_blank" rel="noopener">How it works ↗</a></div>
     ${
       canUseAICoach(state.entitlement)
         ? `<div class="panel" id="ai-coach-panel"><div class="hint" style="margin:0">Loading…</div></div>`

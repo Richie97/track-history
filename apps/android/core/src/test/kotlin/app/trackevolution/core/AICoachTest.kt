@@ -43,6 +43,7 @@ class AICoachTest {
     fun `says what the web says`() {
         assertEquals(fixture["name"].text(), AICoach.COACH_NAME)
         assertEquals(fixture["proWhat"].text(), AICoach.COACH_PRO_WHAT)
+        assertEquals(fixture["geminiNote"].text(), AICoach.COACH_GEMINI_NOTE)
         assertEquals(fixture["offline"].text(), AICoach.COACH_OFFLINE)
         assertEquals(fixture["disclaimer"].text(), AICoach.COACH_DISCLAIMER)
         val providers = fixture["providers"]!!.jsonArray.map { it.jsonObject }

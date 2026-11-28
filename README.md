@@ -2733,7 +2733,7 @@ with `{ "pro": true }` grants it on a dev host.
 ### The AI Coach
 
 The other half of epic #314 is the **AI Coach**: a debrief inside the app — web,
-iOS and Android — that runs on the driver's **own Anthropic or OpenAI account**, with the same
+iOS and Android — that runs on the driver's **own Anthropic, OpenAI or Google Gemini account**, with the same
 read-only tools the MCP server exposes (spec:
 `docs/specs/native/NS-58-ai-coach.md`; user docs: `site/docs/ai.html#ai-coach`).
 It is always "AI Coach" — a bare "coach" is a person here (share with a coach,
@@ -2758,7 +2758,8 @@ NS-38). Pro, on all three clients (web #319, phones #320).
 - **The API** — `POST /api/ai/coach` (`src/routes/aiCoach.ts`, the loop in
   `src/ai/coach.ts`, the provider adapters in `src/ai/providers.ts`) takes
   `{ context, messages, model? }`, runs up to eight rounds of tool calls
-  against Anthropic's Messages API or OpenAI's Responses API, and streams
+  against Anthropic's Messages API, OpenAI's Responses API or Google's
+  Gemini API, and streams
   `text` / `tool` / `done` / `error` events. `POST /api/ai/coach/verify`
   checks a key and lists the models to pick from. The conversation lives on the
   client; the server is stateless. A provider's rejected key is a `424`, never
