@@ -32,6 +32,7 @@ public object AICoach {
     public val COACH_PROVIDERS: List<Provider> = listOf(
         Provider("anthropic", "Anthropic", "https://platform.claude.com/settings/keys", "sk-ant-…"),
         Provider("openai", "OpenAI", "https://platform.openai.com/api-keys", "sk-…"),
+        Provider("gemini", "Google Gemini", "https://aistudio.google.com/app/apikey", "AIza…"),
     )
 
     /** "provider" for the dev-only fake (and anything unknown), which has no name to show. */
@@ -39,7 +40,11 @@ public object AICoach {
 
     public const val COACH_PRO_WHAT: String =
         "A debrief of a session, an explanation of the gap between two laps, or a plan for your next visit — " +
-            "written from your own telemetry and history, on your own Anthropic or OpenAI account."
+            "written from your own telemetry and history, on your own Anthropic, OpenAI or Google Gemini account."
+    /** Shown where the keys are entered: Google sign-in grants nothing on the Gemini API. */
+    public const val COACH_GEMINI_NOTE: String =
+        "Signing in to Track Evolution with Google does not connect Gemini — it needs its own key. " +
+            "A Gemini key can be used free, within low limits Google sets."
     public const val COACH_OFFLINE: String = "needs a connection"
     public const val COACH_DISCLAIMER: String = "For the paddock, not the car — and not a substitute for an instructor."
 

@@ -21,6 +21,7 @@ public enum AICoach {
     public static let COACH_PROVIDERS: [Provider] = [
         Provider(id: "anthropic", name: "Anthropic", keyUrl: "https://platform.claude.com/settings/keys", placeholder: "sk-ant-…"),
         Provider(id: "openai", name: "OpenAI", keyUrl: "https://platform.openai.com/api-keys", placeholder: "sk-…"),
+        Provider(id: "gemini", name: "Google Gemini", keyUrl: "https://aistudio.google.com/app/apikey", placeholder: "AIza…"),
     ]
 
     /// "provider" for the dev-only fake, which has no name to show.
@@ -30,7 +31,11 @@ public enum AICoach {
 
     public static let COACH_PRO_WHAT =
         "A debrief of a session, an explanation of the gap between two laps, or a plan for your next visit — " +
-        "written from your own telemetry and history, on your own Anthropic or OpenAI account."
+        "written from your own telemetry and history, on your own Anthropic, OpenAI or Google Gemini account."
+    /// Shown where the keys are entered: Google sign-in grants nothing on the Gemini API.
+    public static let COACH_GEMINI_NOTE =
+        "Signing in to Track Evolution with Google does not connect Gemini — it needs its own key. " +
+        "A Gemini key can be used free, within low limits Google sets."
     public static let COACH_OFFLINE = "needs a connection"
     public static let COACH_DISCLAIMER = "For the paddock, not the car — and not a substitute for an instructor."
 

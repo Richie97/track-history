@@ -4202,8 +4202,9 @@ console.log("wrote contracts/logic/lap-axis.json");
     proWhat: A.COACH_PRO_WHAT,
     offline: A.COACH_OFFLINE,
     disclaimer: A.COACH_DISCLAIMER,
+    geminiNote: A.COACH_GEMINI_NOTE,
     providers: A.COACH_PROVIDERS,
-    providerNames: ["anthropic", "openai", "fake", ""].map((id) => ({ id, name: A.providerName(id) })),
+    providerNames: ["anthropic", "openai", "gemini", "fake", ""].map((id) => ({ id, name: A.providerName(id) })),
     entries: A.COACH_ENTRIES,
     saveLabels: ["session", "compare", "event"].map((entry) => ({ entry, label: A.coachSaveLabel(entry) })),
     contexts: [
@@ -4225,6 +4226,7 @@ console.log("wrote contracts/logic/lap-axis.json");
     errorTexts: [
       [424, "provider rejected the key", "anthropic"],
       [424, "provider rejected the key", "openai"],
+      [424, "provider rejected the key", "gemini"],
       [400, "no AI provider set up", "anthropic"],
       [502, "", "openai"],
       [429, "rate limited — too many AI Coach requests; wait a minute", "anthropic"],

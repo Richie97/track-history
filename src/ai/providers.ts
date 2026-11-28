@@ -1,5 +1,5 @@
 // The AI Coach's provider adapters (#318): Anthropic's Messages API, OpenAI's
-// Responses API, and a scripted fake for tests and demos. Each is a thin layer
+// Responses API, Google's Gemini API, and a scripted fake for tests and demos. Each is a thin layer
 // over `fetch` — no SDK — that turns one provider's streaming tool-use wire
 // format into the same three things the loop (ai/coach.ts) needs: text deltas,
 // the tool calls a turn ended on, and why it stopped.
@@ -13,7 +13,7 @@
 import type { CoachContext } from "./coach-prompt";
 import type { InputSchema } from "./tools";
 
-export type ProviderId = "anthropic" | "openai" | "fake";
+export type ProviderId = "anthropic" | "openai" | "gemini" | "fake";
 export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
 // What a provider failure becomes for the client: bad credentials and account
@@ -92,10 +92,11 @@ function mergeModels(provider: Provider, listed: ModelChoice[]): ModelChoice[] {
   return [...lead, ...listed.filter((m) => !seen.has(m.id))].slice(0, MAX_MODEL_CHOICES);
 }
 
-// Output tokens per provider request. Both providers count reasoning against
+// Output tokens per provider request. Every provider counts reasoning against
 // it, so it is well above what a debrief's visible text needs.
 const ANTHROPIC_MAX_TOKENS = 16_000;
 const OPENAI_MAX_OUTPUT_TOKENS = 25_000;
+const GEMINI_MAX_OUTPUT_TOKENS = 25_000;
 
 // ---------- shared plumbing --------------------------------------------------
 
@@ -455,6 +456,188 @@ export const openai: Provider = {
   },
 };
 
+// ---------- Google: the Gemini API -------------------------------------------
+//
+// `streamGenerateContent?alt=sse` on the Generative Language API, with the key
+// in the `x-goog-api-key` header — never the `?key=` query string Google's
+// examples also show, because a URL is what ends up in a log.
+//
+// Three things differ from the other two:
+//   - a function call arrives whole in one part, not as argument deltas, and
+//     may carry no id (results are then matched by name and order);
+//   - parts carry an opaque `thoughtSignature` the API wants back exactly
+//     where it was. So a model turn is appended to the history as the parts
+//     it streamed, unmerged and unedited — a missing signature is a 400 or a
+//     MISSING_THOUGHT_SIGNATURE finish on the thinking models;
+//   - a rejected key is a 400 (`API_KEY_INVALID`), not a 401, so the failure
+//     mapping is its own.
+// Tool schemas go as `parametersJsonSchema` (plain JSON Schema): `parameters`
+// is an OpenAPI subset that refuses `additionalProperties`. Thinking is left
+// at each model's default, since the control differs by model generation.
+
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta";
+const geminiHeaders = (key: string) => ({ "x-goog-api-key": key, "content-type": "application/json" });
+// models.list carries everything a key can reach — image, speech, embedding
+// and live models among them. Chat models are told apart by name, and by
+// supporting generateContent.
+const GEMINI_CHAT_MODEL = /^gemini-[a-z0-9][a-z0-9.-]{0,80}$/;
+const GEMINI_NOT_CHAT = /(image|tts|audio|live|embedding|transcribe|robotics|computer-use|banana|veo|lyria)/;
+const isGeminiChatModel = (id: string) => GEMINI_CHAT_MODEL.test(id) && !GEMINI_NOT_CHAT.test(id);
+
+// Finish reasons that are the model or its filters declining, not a fault.
+const GEMINI_DECLINED = new Set(["SAFETY", "RECITATION", "LANGUAGE", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII"]);
+
+const geminiRateLimited = (retryAfter: string | null) =>
+  new ProviderError(
+    429,
+    "Gemini is rate limiting your Google account, not Track Evolution — the free tier's limits are low; wait a minute and try again, or enable billing in Google AI Studio",
+    retryAfter
+  );
+
+// Google's error envelope: `{ error: { code, message, status, details } }`.
+// Read for its status and reasons only; none of it is passed on.
+async function geminiFailure(res: Response, model: string | null, custom = false): Promise<ProviderError> {
+  const body = parseJson(await res.text().catch(() => "")) ?? {};
+  // A non-streaming error may arrive wrapped in an array.
+  const detail = (Array.isArray(body) ? body[0]?.error : body.error) ?? {};
+  const details: any[] = Array.isArray(detail.details) ? detail.details : [];
+  const said = `${detail.status ?? ""} ${detail.message ?? ""} ${details.map((d) => d?.reason ?? "").join(" ")}`.toLowerCase();
+  if (res.status === 401 || res.status === 403 || said.includes("api_key_invalid") || said.includes("api key not valid") || said.includes("api key expired"))
+    return new ProviderError(424, "provider rejected the key");
+  if (res.status === 429) {
+    // RetryInfo's `retryDelay` is seconds with an "s" suffix ("34s").
+    const delay = details.map((d) => /^(\d+)(?:\.\d+)?s$/.exec(String(d?.retryDelay ?? ""))?.[1]).find(Boolean);
+    return geminiRateLimited(res.headers.get("Retry-After") ?? delay ?? null);
+  }
+  // The free tier is not offered everywhere; Google answers this until the
+  // account has billing.
+  if (said.includes("failed_precondition"))
+    return new ProviderError(424, "Gemini's free tier isn't available for your Google account or region — enable billing in Google AI Studio and try again");
+  if (res.status === 404 && model) return new ProviderError(424, `your Gemini account can't use the model ${model}`);
+  if (res.status >= 500) return unavailable("Gemini");
+  if (custom && model) return new ProviderError(424, `the model ${model} doesn't work with the AI Coach — pick another in Settings`);
+  return new ProviderError(502, "Gemini refused the request");
+}
+
+export const gemini: Provider = {
+  id: "gemini",
+  name: "Gemini",
+  defaultModel: "gemini-3.8-flash",
+  models: [
+    { id: "gemini-3.8-flash", label: "Gemini 3.8 Flash" },
+    { id: "gemini-pro-latest", label: "Gemini Pro" },
+    { id: "gemini-flash-lite-latest", label: "Gemini Flash-Lite" },
+  ],
+  acceptsModel: (id) => gemini.models.some((m) => m.id === id) || isGeminiChatModel(id),
+
+  start({ key, model, system, messages, tools, fetch }) {
+    const contents: { role: "user" | "model"; parts: any[] }[] = messages.map((m) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+    const custom = !gemini.models.some((m) => m.id === model);
+    let minted = 0;
+
+    return {
+      async request({ final = false } = {}) {
+        // `model` passed acceptsModel, so it is a bare id; encoded all the same.
+        const res = await call("Gemini", fetch, `${GEMINI_URL}/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+          method: "POST",
+          headers: geminiHeaders(key),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents,
+            tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parametersJsonSchema: t.inputSchema })) }],
+            toolConfig: { functionCallingConfig: { mode: final ? "NONE" : "AUTO" } },
+            generationConfig: { maxOutputTokens: GEMINI_MAX_OUTPUT_TOKENS },
+          }),
+        });
+        if (!res.ok) throw await geminiFailure(res, model, custom);
+        const body = requireStream("Gemini", res);
+
+        return async (onText) => {
+          const parts: any[] = [];
+          const calls: ToolCall[] = [];
+          let finish: string | null = null;
+          let blocked = false;
+          let wrote = false;
+          for await (const { data } of sseEvents(body)) {
+            const chunk = parseJson(data);
+            if (!chunk) continue;
+            // A failure after the 200: the same envelope, mid-stream.
+            if (chunk.error) throw Number(chunk.error.code) === 429 ? geminiRateLimited(null) : unavailable("Gemini");
+            if (chunk.promptFeedback?.blockReason) blocked = true;
+            const candidate = chunk.candidates?.[0];
+            if (!candidate) continue;
+            for (const part of candidate.content?.parts ?? []) {
+              if (!part || typeof part !== "object") continue;
+              parts.push(part);
+              if (part.functionCall) {
+                const fc = part.functionCall;
+                const args = fc.args ?? {};
+                const ok = typeof args === "object" && !Array.isArray(args);
+                calls.push({
+                  // Gemini may send no id; ours is never sent back (see addResults).
+                  id: typeof fc.id === "string" && fc.id ? fc.id : `gemini_call_${++minted}`,
+                  name: String(fc.name ?? ""),
+                  args: ok ? args : {},
+                  ...(ok ? {} : { badArgs: true as const }),
+                });
+              } else if (typeof part.text === "string" && part.text && !part.thought) {
+                wrote = true;
+                await onText(part.text);
+              }
+            }
+            if (candidate.finishReason) finish = candidate.finishReason;
+          }
+          if (blocked && !parts.length) return { stop: "refusal", calls: [] };
+          // A stream that ended without a finish reason was cut off mid-answer.
+          if (!finish) throw unavailable("Gemini");
+          if (parts.length) contents.push({ role: "model", parts });
+          if (GEMINI_DECLINED.has(finish)) return { stop: "refusal", calls: [] };
+          // A tool call cut off by the length limit may be truncated: never run it.
+          if (finish === "MAX_TOKENS") return { stop: "max_tokens", calls: [] };
+          if (finish === "STOP") return calls.length ? { stop: "tools", calls } : { stop: "end", calls: [] };
+          // The model tried a call it could not form, or one after tools were
+          // forbidden. Whatever it had written stands as the answer.
+          if ((finish === "MALFORMED_FUNCTION_CALL" || finish === "UNEXPECTED_TOOL_CALL") && wrote) return { stop: "end", calls: [] };
+          throw unavailable("Gemini");
+        };
+      },
+
+      addResults(outputs) {
+        // Every result of a turn goes back in one user turn, in call order.
+        // `response` must be an object: `output` for a result, `error` for a
+        // failure. The id is echoed only when Gemini sent one.
+        contents.push({
+          role: "user",
+          parts: outputs.map((o) => ({
+            functionResponse: {
+              ...(o.call.id.startsWith("gemini_call_") ? {} : { id: o.call.id }),
+              name: o.call.name,
+              response: o.isError ? { error: o.text } : { output: o.text },
+            },
+          })),
+        });
+      },
+    };
+  },
+
+  // GET /v1beta/models: what the key can call. Each names the methods it
+  // supports; only generateContent models that are chat models by name are
+  // offered.
+  async listModels(key, fetch) {
+    const res = await call("Gemini", fetch, `${GEMINI_URL}/models?pageSize=1000`, { method: "GET", headers: geminiHeaders(key) });
+    if (!res.ok) throw await geminiFailure(res, null);
+    const body = parseJson(await res.text().catch(() => "")) ?? {};
+    const listed: ModelChoice[] = (Array.isArray(body.models) ? body.models : [])
+      .map((m: any) => ({ ...m, id: typeof m?.name === "string" ? m.name.replace(/^models\//, "") : "" }))
+      .filter((m: any) => isGeminiChatModel(m.id) && Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+      .map((m: any) => ({ id: m.id, label: gemini.models.find((x) => x.id === m.id)?.label ?? (typeof m.displayName === "string" && m.displayName ? m.displayName : m.id) }));
+    return mergeModels(gemini, listed);
+  },
+};
+
 // ---------- the fake provider ------------------------------------------------
 //
 // `X-TE-AI-Provider: fake` (routes/aiCoach.ts gates it on DEV_MODE and
@@ -507,4 +690,4 @@ export const fake: Provider = {
   },
 };
 
-export const PROVIDERS: Record<ProviderId, Provider> = { anthropic, openai, fake };
+export const PROVIDERS: Record<ProviderId, Provider> = { anthropic, openai, gemini, fake };

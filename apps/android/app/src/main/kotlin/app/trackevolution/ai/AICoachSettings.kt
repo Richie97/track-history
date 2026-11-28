@@ -120,7 +120,7 @@ fun AICoachSettingsCard(
     val keys by state.keys.state.collectAsState()
     TrackCard(modifier.fillMaxWidth().testTag("aiCoachSettings")) {
         Text(
-            "A debrief of a session, two laps or a track day, on your own Anthropic or OpenAI account.",
+            "A debrief of a session, two laps or a track day, on your own Anthropic, OpenAI or Google Gemini account.",
             style = type.sm,
             color = colors.textMuted,
         )
@@ -145,8 +145,8 @@ fun AICoachSettingsCard(
         }
         Text(
             "Your key is stored on this device only, encrypted, and sent with each ${AICoach.COACH_NAME} request — " +
-                "it is never stored on our servers, and it is left out of backups. You pay Anthropic or OpenAI " +
-                "directly for what the ${AICoach.COACH_NAME} uses.",
+                "it is never stored on our servers, and it is left out of backups. You pay Anthropic, OpenAI or Google " +
+                "directly for what the ${AICoach.COACH_NAME} uses. ${AICoach.COACH_GEMINI_NOTE}",
             style = type.xs,
             color = colors.textFaint,
             modifier = Modifier.padding(top = 12.dp),

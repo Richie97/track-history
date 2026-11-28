@@ -17,7 +17,7 @@ struct AICoachSettingsCard: View {
         if Entitlement.canUseAICoach(auth.entitlement) {
             TECard {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("A debrief of a session, two laps or a track day, on your own Anthropic or OpenAI account.")
+                    Text("A debrief of a session, two laps or a track day, on your own Anthropic, OpenAI or Google Gemini account.")
                         .teStyle(.sm)
                         .foregroundStyle(Color(.textMuted))
                     ForEach(AICoach.COACH_PROVIDERS, id: \.id) { provider in
@@ -26,7 +26,7 @@ struct AICoachSettingsCard: View {
                             Divider().overlay(Color(.borderHairline))
                         }
                     }
-                    Text("Stored on this device only, in its Keychain, and sent with each \(AICoach.COACH_NAME) request — never stored on our servers, and not included in backups. You pay Anthropic or OpenAI directly for what the \(AICoach.COACH_NAME) uses.")
+                    Text("Stored on this device only, in its Keychain, and sent with each \(AICoach.COACH_NAME) request — never stored on our servers, and not included in backups. You pay Anthropic, OpenAI or Google directly for what the \(AICoach.COACH_NAME) uses. \(AICoach.COACH_GEMINI_NOTE)")
                         .teStyle(.xs)
                         .foregroundStyle(Color(.textFaint))
                         .accessibilityIdentifier("aiCoachKeyNote")

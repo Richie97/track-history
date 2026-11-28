@@ -19,6 +19,7 @@ struct AICoachTests {
     @Test func theWordsAreTheWebs() {
         #expect(AICoach.COACH_NAME == fixture.name)
         #expect(AICoach.COACH_PRO_WHAT == fixture.proWhat)
+        #expect(AICoach.COACH_GEMINI_NOTE == fixture.geminiNote)
         #expect(AICoach.COACH_OFFLINE == fixture.offline)
         #expect(AICoach.COACH_DISCLAIMER == fixture.disclaimer)
         #expect(AICoach.COACH_PROVIDERS == fixture.providers)
@@ -373,6 +374,7 @@ struct AICoachFixture: Decodable {
 
     let name: String
     let proWhat: String
+    let geminiNote: String
     let offline: String
     let disclaimer: String
     let providers: [AICoach.Provider]

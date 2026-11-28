@@ -5,7 +5,7 @@
 ## Goal
 
 The AI Coach is an in-app debrief: the Worker runs a tool-use loop against the
-driver's own **Anthropic or OpenAI** account, with the same read-only tools the
+driver's own **Anthropic, OpenAI or Google Gemini** account, with the same read-only tools the
 MCP server exposes, and streams the answer back. Three clients parse that
 stream, so this file fixes the wire format once: the request, the four events,
 and what every refusal looks like.
@@ -19,7 +19,7 @@ person in this app (NS-38, NS-52).
 | | |
 |---|---|
 | Tier | **Pro.** `requireEntitlement` on both routes — POSTs that write nothing, so "no write route checks entitlement" holds — and `canUseAICoach` on the client. A free account gets `402 { error: "pro required" }`, drawn as the paywall in place. |
-| Providers | `anthropic` and `openai`, the driver's choice. `fake` is a scripted provider for tests and demos, answered only under `DEV_MODE` on a dev host (`isDevHost`); anywhere else it is `400 unknown AI provider`. |
+| Providers | `anthropic`, `openai` and `gemini` (added 2026-11), the driver's choice; the stream is the same whichever answers. Gemini is key-only: Google has no connect route (#503). `fake` is a scripted provider for tests and demos, answered only under `DEV_MODE` on a dev host (`isDevHost`); anywhere else it is `400 unknown AI provider`. |
 | Your own logbook only | The routes exist at `/api/ai/…` and nowhere else: not under the coach mount (`/api/students/:id/ai/coach` is a 404), not in the tool layer's private router. A client never offers the AI Coach in a read-only view — a coach's view of a student, a shared event, session or lap, a share page. |
 | Stateless | The conversation lives on the client and is sent whole each time. The server keeps nothing: not the questions, not the replies. |
 | The key | Stored on the driver's device only, sent per request in a header, never persisted, logged or echoed by the server. Provider error bodies are mapped to our own words, never relayed (a provider's 401 can quote the key back). |
@@ -33,7 +33,7 @@ person in this app (NS-38, NS-52).
 POST /api/ai/coach
 Cookie: session=…            (or Authorization: Bearer …, the phones)
 Content-Type: application/json
-X-TE-AI-Provider: anthropic | openai
+X-TE-AI-Provider: anthropic | openai | gemini
 X-TE-AI-Key: <the driver's API key>
 
 {
@@ -82,7 +82,8 @@ are strings, never enums, on every client.
 list for that key, narrowed to the models the loop can drive (on Anthropic,
 those whose capabilities include adaptive thinking and `effort`; on OpenAI,
 the GPT and o-series chat models, since its list has no capability field and
-also carries embedding, speech, image and realtime models), the server's
+also carries embedding, speech, image and realtime models; on Gemini, the
+`gemini-*` chat models that support `generateContent`), the server's
 built-in models first with the default leading, at most 60. `label` is the
 provider's display name where it gives one, else the id. A key that works but
 may not list models (a restricted OpenAI key) gets the built-in models.
@@ -149,7 +150,7 @@ event.
 | 400 | `unknown AI provider`, or a sentence naming the rule | a bad header or body | the message |
 | 401 | `unauthorized` | no session | the sign-in screen, as everywhere |
 | 402 | `pro required` | a free account | **the paywall, in place** — never an error |
-| 424 | `provider rejected the key` | the provider's 401 / 403 | the message, and the way to Settings |
+| 424 | `provider rejected the key` | the provider's 401 / 403 (Gemini: its 400 `API_KEY_INVALID`) | the message, and the way to Settings |
 | 424 | `your <Provider> account is out of credit — …`, `your <Provider> account can't use the model <id>`, `the model <id> doesn't work with the AI Coach — pick another in Settings` | the driver's account with the provider, or a hand-picked model the provider refused the request for | the message |
 | 429 | `<Provider> is rate limiting your account — …` | the provider's 429; its `Retry-After` is passed on | the message |
 | 429 | `rate limited — too many AI Coach requests; wait a minute` | our own limit (`AI_COACH`, 10 a minute per user), `Retry-After: 60` | the message |

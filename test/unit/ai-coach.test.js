@@ -378,7 +378,7 @@ describe("the key store", () => {
     const kept = backend.stored();
     setAiKeyBackend({ ...fakeBackend(), get: async () => kept });
     await loadAiKeys();
-    expect(aiKeyState().map((s) => [s.id, s.hasKey, s.remembered])).toEqual([["anthropic", false, false], ["openai", true, true]]);
+    expect(aiKeyState().map((s) => [s.id, s.hasKey, s.remembered])).toEqual([["anthropic", false, false], ["openai", true, true], ["gemini", false, false]]);
     expect(aiCredential().provider).toBe("openai");
   });
 

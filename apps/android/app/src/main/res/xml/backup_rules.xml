@@ -27,7 +27,7 @@
     restored with it is a dead job.
 
     `ai_coach.xml` is the EncryptedSharedPreferences file behind AICoachKeys
-    (#320): the driver's own Anthropic / OpenAI API keys for the AI Coach.
+    (#320): the driver's own Anthropic / OpenAI / Gemini API keys for the AI Coach.
     A key the driver pays for must not follow a restore onto another device
     silently — and, like auth.xml, its keystore key never travels with it.
 -->
